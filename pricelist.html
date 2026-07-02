@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — মূল্য তালিকা</title>
+  <style>
+    .pl-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+    .pl-toolbar .spacer{margin-left:auto}
+    table.pl-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:12px;overflow:hidden}
+    table.pl-table th,table.pl-table td{padding:9px 11px;border-bottom:1px solid var(--border);text-align:right}
+    table.pl-table th:nth-child(1),table.pl-table td:nth-child(1),
+    table.pl-table th:nth-child(2),table.pl-table td:nth-child(2),
+    table.pl-table th:nth-child(3),table.pl-table td:nth-child(3){text-align:left}
+    table.pl-table thead th{background:var(--bg);font-weight:700;color:var(--ink2);position:sticky;top:0}
+    table.pl-table tbody tr:hover{background:#f8fafc}
+    .pl-offer{font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
+    .pl-noo{color:var(--ink3)}
+    .pl-eff{color:var(--success);font-weight:600}
+    .pl-edit-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12px;color:var(--accent)}
+    .pl-edit-btn:hover{background:var(--bg)}
+    .pl-date{font-size:12px;color:var(--ink2)}
+    /* modal */
+    .pl-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;align-items:center;justify-content:center;padding:16px}
+    .pl-modal.open{display:flex}
+    .pl-modal-box{background:#fff;border-radius:16px;max-width:480px;width:100%;max-height:88vh;overflow:auto;padding:24px}
+    .pl-field{margin-bottom:14px}
+    .pl-field label{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:5px}
+    .pl-field input,.pl-field select{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px}
+    .pl-choice{display:flex;gap:10px;margin:8px 0 14px}
+    .pl-choice button{flex:1;padding:12px;border:2px solid var(--border);border-radius:11px;background:#fff;cursor:pointer;font-size:14px;font-weight:600;color:var(--ink2)}
+    .pl-choice button.sel{border-color:var(--accent);background:#eef2ff;color:var(--accent)}
+    .pl-hint{font-size:12px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:9px 12px;margin-bottom:12px}
+    /* compare date chips */
+    .pl-dates{display:flex;flex-wrap:wrap;gap:6px}
+    .pl-date-chip{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;cursor:pointer;background:#fff;color:var(--ink2)}
+    .pl-date-chip.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+    /* compact print */
+    @media print{
+      .bf-nav,.bf-topbar,.pl-toolbar,.pl-edit-btn,.no-print{display:none!important}
+      .bf-main{margin-left:0}
+      .bf-body{padding:0}
+      #print-area{display:block!important}
+      #screen-area{display:none!important}
+      table.print-grid{width:100%;border-collapse:collapse;font-size:10px}
+      table.print-grid th,table.print-grid td{border:1px solid #94a3b8;padding:2px 5px;text-align:right}
+      table.print-grid th:nth-child(1),table.print-grid td:nth-child(1),
+      table.print-grid th:nth-child(2),table.print-grid td:nth-child(2){text-align:left}
+      table.print-grid thead th{background:#e2e8f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-weight:700}
+      .print-title{font-size:15px;font-weight:800;margin-bottom:2px}
+      .print-sub{font-size:10px;color:#475569;margin-bottom:8px}
+    }
+    #print-area{display:none}
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <button class="bf-menu-btn" onclick="document.getElementById('bf-nav').classList.toggle('open')">☰</button>
+      <h1 class="bf-page-title">মূল্য তালিকা ও ইতিহাস</h1>
+      <div class="bf-topbar-actions" id="bf-topbar-actions"></div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- ════════ SCREEN VIEW ════════ -->
+      <div id="screen-area">
+
+        <div class="pl-toolbar">
+          <button class="btn btn-primary" id="btn-print">🖨️ প্রিন্ট</button>
+          <button class="btn btn-outline" id="btn-baseline" style="display:none">📅 বেসলাইন তৈরি করুন (১ জুন)</button>
+          <span class="spacer"></span>
+          <span class="pl-date" id="pl-count">—</span>
+        </div>
+
+        <div class="pl-hint no-print">
+          বর্তমান মূল্য ও অফার নিচে দেখানো হয়েছে। প্রিন্টে তুলনার জন্য নিচ থেকে এক বা একাধিক পুরনো তারিখ বেছে নিন।
+          কার্যকর মূল্য সবসময় অফার থেকে হিসাব করা হয় (সংরক্ষিত নয়)।
+        </div>
+
+        <!-- compare date selector -->
+        <div class="card no-print" style="padding:14px;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:8px">তুলনা তারিখ (প্রিন্টের জন্য)</div>
+          <div class="pl-dates" id="pl-date-chips"><span class="pl-date">কোনো ইতিহাস নেই</span></div>
+        </div>
+
+        <div style="overflow-x:auto">
+          <table class="pl-table">
+            <thead>
+              <tr>
+                <th>কোড</th><th>পণ্য</th><th>কার্যকর তারিখ</th>
+                <th>বর্তমান মূল্য</th><th>অফার</th><th>কার্যকর মূল্য</th><th class="no-print"></th>
+              </tr>
+            </thead>
+            <tbody id="pl-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ════════ PRINT VIEW (compact, Excel-style) ════════ -->
+      <div id="print-area"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="pl-modal" id="pl-modal">
+  <div class="pl-modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="font-size:18px;font-weight:700;margin:0" id="pl-modal-title">মূল্য / অফার পরিবর্তন</h3>
+      <button onclick="closeEdit()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink3)">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--ink2);margin:0 0 14px" id="pl-modal-prod">—</p>
+
+    <div class="pl-field">
+      <label>মূল্য (৳)</label>
+      <input type="number" id="pl-price" min="0" step="0.01"/>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="pl-field" style="flex:1">
+        <label>অফার সাইজ</label>
+        <input type="number" id="pl-offersize" min="0" placeholder="0"/>
+      </div>
+      <div class="pl-field" style="flex:1">
+        <label>ফ্রি পিস</label>
+        <input type="number" id="pl-freeqty" min="0" placeholder="0"/>
+      </div>
+    </div>
+    <div class="pl-hint" id="pl-eff-preview">কার্যকর মূল্য: —</div>
+
+    <!-- Correction or New change -->
+    <div id="pl-type-block">
+      <label style="font-size:13px;font-weight:600;color:var(--ink2)">এটি কী ধরনের পরিবর্তন?</label>
+      <div class="pl-choice">
+        <button type="button" id="pl-type-correction" onclick="setType('correction')">সংশোধন<br><span style="font-weight:400;font-size:11px">(ভুল ঠিক করা)</span></button>
+        <button type="button" id="pl-type-new" onclick="setType('new-change')">নতুন পরিবর্তন<br><span style="font-weight:400;font-size:11px">(নতুন দর)</span></button>
+      </div>
+    </div>
+
+    <!-- effective date (shown for new-change & new-product) -->
+    <div class="pl-field" id="pl-date-block" style="display:none">
+      <label>কার্যকর তারিখ (এই তারিখ থেকে নতুন দর)</label>
+      <input type="date" id="pl-effdate"/>
+      <div class="pl-date" id="pl-lastdate" style="margin-top:5px">সর্বশেষ কার্যকর তারিখ: —</div>
+    </div>
+
+    <div class="pl-field">
+      <label>নোট <span id="pl-note-req" style="color:var(--danger);display:none">(আবশ্যক)</span></label>
+      <input type="text" id="pl-note" placeholder="পরিবর্তনের কারণ / ব্যাখ্যা"/>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+      <button class="btn btn-outline" onclick="closeEdit()">বাতিল</button>
+      <button class="btn btn-primary" id="pl-save-btn" onclick="saveEdit()">সংরক্ষণ</button>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+/* ════════════════════════════════════════
+   PRICE LIST + HISTORY
+════════════════════════════════════════ */
+buildNav('pricelist');
+
+let products = JSON.parse(localStorage.getItem('bf_products')||'[]');
+let priceHist = JSON.parse(localStorage.getItem('bf_price_history')||'[]');
+const BASELINE_DATE = '2026-06-01';   // your real start date
+let selectedDates = [];               // for print comparison
+let editing = null;                   // product being edited
+let chosenType = null;                // 'correction' | 'new-change'
+
+/* full-precision effective price from price+offer (never stored) */
+function effOf(price, offerSize, freeQty){
+  price=parseFloat(price)||0; offerSize=parseFloat(offerSize)||0; freeQty=parseFloat(freeQty)||0;
+  if(offerSize>0 && (offerSize+freeQty)>0) return price*offerSize/(offerSize+freeQty);
+  return price;
+}
+function offerLabel(offerSize,freeQty){
+  offerSize=parseFloat(offerSize)||0; freeQty=parseFloat(freeQty)||0;
+  return (offerSize>0)?`${offerSize}+${freeQty} ফ্রি`:'';
+}
+
+/* the latest effective date for a product from history */
+function lastEffDate(productId){
+  const rows=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate);
+  if(!rows.length) return '';
+  rows.sort((a,b)=>(a.effectiveDate<b.effectiveDate?1:-1)); // newest first
+  return rows[0].effectiveDate;
+}
+
+/* all distinct effective dates in history (newest first) */
+function allDates(){
+  const s=new Set(priceHist.filter(h=>h.effectiveDate && h.type!=='correction').map(h=>h.effectiveDate));
+  return [...s].sort((a,b)=>(a<b?1:-1));
+}
+
+/* product price/offer as of a given date (latest row on/before that date) */
+function priceAsOf(productId, date){
+  const rows=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes'
+              && h.effectiveDate && h.effectiveDate<=date);
+  if(!rows.length) return null;
+  rows.sort((a,b)=>(a.effectiveDate<b.effectiveDate?1:-1));
+  const r=rows[0];
+  return { price:parseFloat(r.price)||0, offerSize:parseFloat(r.offerSize)||0,
+           freeQty:parseFloat(r.freeQty)||0, effectiveDate:r.effectiveDate };
+}
+
+/* ── render the screen table ── */
+function renderTable(){
+  const tb=document.getElementById('pl-tbody');
+  const active=products.filter(p=>p.status==='active');
+  document.getElementById('pl-count').textContent=active.length+' টি পণ্য';
+  if(!products.length){
+    tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:30px">কোনো পণ্য নেই। প্রথমে পণ্য যোগ করুন।</td></tr>';
+    return;
+  }
+  tb.innerHTML=products.map(p=>{
+    const eff=effOf(p.price,p.offerSize,p.freeQty);
+    const ol=offerLabel(p.offerSize,p.freeQty);
+    const ed=lastEffDate(p.id)||'—';
+    return `<tr>
+      <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${p.code||''}</code></td>
+      <td>${p.name||''}</td>
+      <td class="pl-date">${ed}</td>
+      <td>${fmt.currency(p.price)}</td>
+      <td>${ol?`<span class="pl-offer">${ol}</span>`:'<span class="pl-noo">—</span>'}</td>
+      <td class="pl-eff">${fmt.currency(eff)}</td>
+      <td class="no-print"><button class="pl-edit-btn" onclick="openEdit('${p.id}')">পরিবর্তন</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── compare-date chips ── */
+function renderDateChips(){
+  const wrap=document.getElementById('pl-date-chips');
+  const dates=allDates();
+  if(!dates.length){ wrap.innerHTML='<span class="pl-date">কোনো ইতিহাস নেই</span>'; return; }
+  wrap.innerHTML=dates.map(d=>`<span class="pl-date-chip ${selectedDates.includes(d)?'sel':''}" onclick="toggleDate('${d}')">${d}</span>`).join('');
+}
+function toggleDate(d){
+  const i=selectedDates.indexOf(d);
+  if(i>-1) selectedDates.splice(i,1); else selectedDates.push(d);
+  selectedDates.sort((a,b)=>(a<b?1:-1));
+  renderDateChips();
+}
+
+/* ── baseline init (one-time) ── */
+function maybeShowBaseline(){
+  // show baseline button only if history has no rows at all
+  document.getElementById('btn-baseline').style.display = priceHist.length ? 'none' : '';
+}
+async function createBaseline(){
+  if(!products.length){ toast('পণ্য নেই','error'); return; }
+  if(!confirm(`১ জুন ২০২৬ তারিখে সব পণ্যের বর্তমান মূল্য ও অফার দিয়ে বেসলাইন স্ন্যাপশট তৈরি হবে?`)) return;
+  const revisionId='REV'+Date.now();
+  const rows=products.map(p=>({productId:p.id,code:p.code,name:p.name,
+    price:p.price,offerSize:p.offerSize||0,freeQty:p.freeQty||0,hasOffer:!!p.hasOffer}));
+  const payload={revisionId,effectiveDate:BASELINE_DATE,type:'baseline',note:'প্রাথমিক বেসলাইন',rows};
+  // local
+  rows.forEach(r=>priceHist.push({revisionId,effectiveDate:BASELINE_DATE,type:'baseline',
+    productId:r.productId,code:r.code,name:r.name,price:String(r.price),
+    offerSize:String(r.offerSize),freeQty:String(r.freeQty),hasOffer:String(r.hasOffer),
+    note:'প্রাথমিক বেসলাইন',superseded:'',createdAt:new Date().toISOString()}));
+  localStorage.setItem('bf_price_history',JSON.stringify(priceHist));
+  // backend
+  if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error'); } }
+  toast('বেসলাইন তৈরি হয়েছে ✓','success');
+  maybeShowBaseline(); renderTable(); renderDateChips();
+}
+
+/* ── edit modal ── */
+function openEdit(pid){
+  editing=products.find(p=>p.id===pid); if(!editing) return;
+  chosenType=null;
+  document.getElementById('pl-modal-prod').textContent=`[${editing.code}] ${editing.name}`;
+  document.getElementById('pl-price').value=editing.price||'';
+  document.getElementById('pl-offersize').value=editing.offerSize||'';
+  document.getElementById('pl-freeqty').value=editing.freeQty||'';
+  document.getElementById('pl-note').value='';
+  document.getElementById('pl-type-correction').classList.remove('sel');
+  document.getElementById('pl-type-new').classList.remove('sel');
+  document.getElementById('pl-date-block').style.display='none';
+  document.getElementById('pl-type-block').style.display='';
+  const ld=lastEffDate(editing.id);
+  document.getElementById('pl-lastdate').textContent='সর্বশেষ কার্যকর তারিখ: '+(ld||'—');
+  document.getElementById('pl-effdate').value=fmt.dateInput?fmt.dateInput():new Date().toISOString().slice(0,10);
+  updateEffPreview();
+  document.getElementById('pl-note-req').style.display='none';
+  document.getElementById('pl-modal').classList.add('open');
+}
+function closeEdit(){ document.getElementById('pl-modal').classList.remove('open'); editing=null; }
+function updateEffPreview(){
+  const pr=parseFloat(document.getElementById('pl-price').value)||0;
+  const os=parseFloat(document.getElementById('pl-offersize').value)||0;
+  const fq=parseFloat(document.getElementById('pl-freeqty').value)||0;
+  document.getElementById('pl-eff-preview').innerHTML='কার্যকর মূল্য: <strong class="pl-eff">'+fmt.currency(effOf(pr,os,fq))+'</strong>';
+}
+['pl-price','pl-offersize','pl-freeqty'].forEach(id=>document.getElementById(id).addEventListener('input',updateEffPreview));
+
+function setType(t){
+  chosenType=t;
+  document.getElementById('pl-type-correction').classList.toggle('sel',t==='correction');
+  document.getElementById('pl-type-new').classList.toggle('sel',t==='new-change');
+  // new-change asks effective date; correction keeps existing date
+  document.getElementById('pl-date-block').style.display = (t==='new-change')?'':'none';
+  document.getElementById('pl-note-req').style.display = (t==='correction')?'':'none';
+}
+
+async function saveEdit(){
+  if(!editing) return;
+  if(!chosenType){ toast('সংশোধন না নতুন পরিবর্তন — বেছে নিন','error'); return; }
+  const price=parseFloat(document.getElementById('pl-price').value)||0;
+  const offerSize=parseFloat(document.getElementById('pl-offersize').value)||0;
+  const freeQty=parseFloat(document.getElementById('pl-freeqty').value)||0;
+  const note=document.getElementById('pl-note').value.trim();
+  const hasOffer=offerSize>0;
+  if(price<=0){ toast('সঠিক মূল্য দিন','error'); return; }
+  if(chosenType==='correction' && !note){ toast('সংশোধনের কারণ লিখুন','error'); return; }
+
+  // 1) write back to products (current truth)
+  const idx=products.findIndex(p=>p.id===editing.id);
+  if(idx>-1){
+    products[idx]={...products[idx],price,offerSize,freeQty,hasOffer,
+      effectivePrice:parseFloat(effOf(price,offerSize,freeQty).toFixed(2)),
+      updated:new Date().toISOString()};
+    localStorage.setItem('bf_products',JSON.stringify(products));
+    if(BF.sheetUrl){ try{ await API.post({action:'saveProduct',...products[idx],hasOffer:String(hasOffer)}); }catch(e){} }
+  }
+
+  // 2) write history
+  if(chosenType==='correction'){
+    const effDate=lastEffDate(editing.id)||BASELINE_DATE;
+    // mark prior local row superseded
+    for(let i=priceHist.length-1;i>=0;i--){
+      if(priceHist[i].productId===editing.id && priceHist[i].superseded!=='yes'){ priceHist[i].superseded='yes'; break; }
+    }
+    const rec={revisionId:'C'+Date.now(),effectiveDate:effDate,type:'correction',
+      productId:editing.id,code:editing.code,name:editing.name,price:String(price),
+      offerSize:String(offerSize),freeQty:String(freeQty),hasOffer:String(hasOffer),
+      note,superseded:'',createdAt:new Date().toISOString()};
+    priceHist.push(rec);
+    if(BF.sheetUrl){ try{ await API.post({action:'savePriceCorrection',data:rec}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ','error'); } }
+    toast('সংশোধন লগ হয়েছে ✓','success');
+  } else {
+    const effDate=document.getElementById('pl-effdate').value;
+    if(!effDate){ toast('কার্যকর তারিখ দিন','error'); return; }
+    // full snapshot of ALL products on this date (changed product uses new values)
+    const revisionId='REV'+Date.now();
+    const rows=products.map(p=>({productId:p.id,code:p.code,name:p.name,
+      price:p.price,offerSize:p.offerSize||0,freeQty:p.freeQty||0,hasOffer:!!p.hasOffer}));
+    const payload={revisionId,effectiveDate:effDate,type:'new-change',note:note||'নতুন দর',rows};
+    rows.forEach(r=>priceHist.push({revisionId,effectiveDate:effDate,type:'new-change',
+      productId:r.productId,code:r.code,name:r.name,price:String(r.price),
+      offerSize:String(r.offerSize),freeQty:String(r.freeQty),hasOffer:String(r.hasOffer),
+      note:note||'নতুন দর',superseded:'',createdAt:new Date().toISOString()}));
+    if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ','error'); } }
+    toast('নতুন পরিবর্তন স্ন্যাপশট তৈরি হয়েছে ✓','success');
+  }
+  localStorage.setItem('bf_price_history',JSON.stringify(priceHist));
+  closeEdit(); maybeShowBaseline(); renderTable(); renderDateChips();
+}
+
+/* ── build compact print view ── */
+function buildPrint(){
+  const area=document.getElementById('print-area');
+  const biz=localStorage.getItem('bf_biz_name')||'Mustari Enterprise';
+  const today=new Date().toISOString().slice(0,10);
+  let head=`<th>কোড</th><th>পণ্য</th><th>বর্তমান মূল্য</th><th>বর্তমান অফার</th><th>কার্যকর মূল্য</th>`;
+  selectedDates.forEach(d=>{ head+=`<th>${d} মূল্য</th><th>${d} অফার</th><th>${d} কার্যকর</th>`; });
+
+  const body=products.map(p=>{
+    const eff=effOf(p.price,p.offerSize,p.freeQty);
+    let row=`<td>${p.code||''}</td><td>${p.name||''}</td><td>${fmt.currency(p.price)}</td>`
+          +`<td>${offerLabel(p.offerSize,p.freeQty)||'—'}</td><td>${fmt.currency(eff)}</td>`;
+    selectedDates.forEach(d=>{
+      const past=priceAsOf(p.id,d);
+      if(past){
+        row+=`<td>${fmt.currency(past.price)}</td><td>${offerLabel(past.offerSize,past.freeQty)||'—'}</td>`
+            +`<td>${fmt.currency(effOf(past.price,past.offerSize,past.freeQty))}</td>`;
+      }else{ row+=`<td>—</td><td>—</td><td>—</td>`; }
+    });
+    return `<tr>${row}</tr>`;
+  }).join('');
+
+  const cmp = selectedDates.length ? ('তুলনা তারিখ: '+selectedDates.join(', ')) : 'শুধু বর্তমান মূল্য';
+  area.innerHTML=`<div class="print-title">${biz} — মূল্য তালিকা</div>
+    <div class="print-sub">প্রিন্ট তারিখ: ${today} · ${cmp} · কার্যকর মূল্য অফার থেকে হিসাবকৃত</div>
+    <table class="print-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+document.getElementById('btn-print').addEventListener('click',()=>{ buildPrint(); window.print(); });
+document.getElementById('btn-baseline').addEventListener('click',createBaseline);
+
+/* ── load history from backend, then render ── */
+async function loadHistory(){
+  if(BF.sheetUrl){
+    try{
+      const h=await API.fetch('getPriceHistory');
+      if(Array.isArray(h)){ priceHist=h; localStorage.setItem('bf_price_history',JSON.stringify(h)); }
+    }catch(e){ /* offline: use local */ }
+  }
+  maybeShowBaseline(); renderTable(); renderDateChips();
+}
+loadHistory();
+</script>
+</body>
+</html>

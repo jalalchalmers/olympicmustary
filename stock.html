@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — স্টক শিট</title>
+  <style>
+    .stock-badge-ok{background:#dcfce7;color:#15803d;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+    .stock-badge-low{background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+    .stock-badge-out{background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+    .free-cell{color:var(--accent);font-weight:600}
+
+    /* Olympic-style PDF for stock report */
+    .print-only{display:none!important}
+    @media print{
+      .bf-nav,.bf-topbar,.no-print{display:none!important}
+      .bf-main{margin-left:0!important}
+      .bf-body{padding:0!important}
+      .card{box-shadow:none!important;border:none!important;padding:0!important;margin:0!important}
+      #stock-screen{display:none!important}
+      .print-only{display:block!important}
+      #stock-print{display:block!important;font-family:Arial,sans-serif;color:#000;padding:6px 4px}
+      .sp-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+      .sp-brand{font-size:22px;font-weight:800;letter-spacing:-.5px}
+      .sp-title{text-align:right}
+      .sp-title .lbl{font-size:18px;font-weight:800;letter-spacing:2px}
+      .sp-title .num{font-size:12px;margin-top:3px}
+      .sp-blackline{border:none;border-top:2px solid #000;margin:4px 0 2px}
+      .sp-depo{font-style:italic;font-size:11px;line-height:1.1;margin:0 0 8px}
+      .sp-meta{display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;font-size:12px;font-weight:600}
+      /* Olympic table styling */
+      .sp-table{width:100%;border-collapse:collapse;margin-bottom:10px}
+      .sp-table th{background:#f0f0f0;border:1px solid #000;padding:4px 6px;font-size:11px;text-align:left;font-weight:bold}
+      .sp-table td{border:1px solid #000;padding:4px 6px;font-size:11px}
+      .sp-table .c{text-align:center}
+      .sp-table .r{text-align:right}
+      .sp-summary{display:flex;gap:24px;margin-top:8px;font-size:12px;font-weight:700;border-top:2px solid #000;padding-top:8px}
+    }
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar no-print">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">স্টক শিট</span>
+      </div>
+      <div class="bf-topbar-right">
+        <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
+        <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
+        <button class="btn btn-outline btn-sm" id="btn-print">🖨 Print PDF</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- ════ SCREEN VIEW ════ -->
+      <div id="stock-screen">
+
+        <!-- STATS — free card replaced by physical stock -->
+        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
+          <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">মোট আইটেম</div><div class="stat-value" id="s-total">0</div></div>
+          <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">স্টকে আছে</div><div class="stat-value" id="s-instock" style="color:var(--success)">0</div></div>
+          <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-label">কম স্টক</div><div class="stat-value" id="s-low" style="color:var(--warn)">0</div></div>
+          <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-label">স্টক শেষ</div><div class="stat-value" id="s-out" style="color:var(--danger)">0</div></div>
+          <div class="stat-card"><div class="stat-icon">🏪</div><div class="stat-label">প্রকৃত স্টক (শেলফে)</div><div class="stat-value" id="s-physical" style="color:var(--success);font-size:15px">0</div></div>
+        </div>
+
+        <div class="card" style="padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div class="search-bar" style="flex:1;min-width:180px"><input type="text" id="search-input" placeholder="পণ্যের নাম বা কোড…"/></div>
+            <select id="filter-supplier" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;color:var(--ink);outline:none;background:#fff;min-width:180px">
+              <option value="">সব সরবরাহকারী</option>
+            </select>
+            <select id="filter-status" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;color:var(--ink);outline:none;background:#fff">
+              <option value="">সব স্ট্যাটাস</option><option value="ok">স্টকে আছে</option><option value="low">কম স্টক</option><option value="out">স্টক শেষ</option>
+            </select>
+          </div>
+          <div id="supplier-note" style="display:none;margin-top:10px;font-size:12px;color:var(--accent);font-weight:600"></div>
+        </div>
+
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>পণ্যের নাম</th>
+                  <th style="text-align:right">স্টক ইন</th>
+                  <th style="text-align:right">স্টক আউট</th>
+                  <th style="text-align:right">বর্তমান স্টক</th>
+                  <th style="text-align:right;background:#eef2ff">ফ্রি ইন</th>
+                  <th style="text-align:right;background:#eef2ff">ফ্রি আউট</th>
+                  <th style="text-align:right;background:#eef2ff">ফ্রি ব্যালেন্স</th>
+                  <th style="text-align:right;background:#ecfdf5">প্রকৃত স্টক (মোট)</th>
+                  <th style="text-align:center">স্ট্যাটাস</th>
+                </tr>
+              </thead>
+              <tbody id="stock-body"><tr><td colspan="10"><div class="empty"><div class="empty-icon">🏭</div><p>লোড হচ্ছে…</p></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">স্টক মুভমেন্ট সারসংক্ষেপ</div><div class="card-sub">ক্রয় = স্টক ইন, বিক্রয় = স্টক আউট · ফ্রি আলাদা গণনা</div></div></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div style="background:var(--bg);border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:28px;margin-bottom:6px">📥</div>
+              <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:4px">মোট স্টক ইন</div>
+              <div style="font-size:18px;font-weight:700;color:var(--success)" id="total-in">0</div>
+            </div>
+            <div style="background:var(--bg);border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:28px;margin-bottom:6px">📤</div>
+              <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:4px">মোট স্টক আউট</div>
+              <div style="font-size:18px;font-weight:700;color:var(--danger)" id="total-out">0</div>
+            </div>
+            <div style="background:#eef2ff;border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:28px;margin-bottom:6px">🎁</div>
+              <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:4px">ফ্রি ব্যালেন্স (হাতে)</div>
+              <div style="font-size:18px;font-weight:700;color:var(--accent)" id="total-free">0</div>
+            </div>
+            <div style="background:#f0fdf4;border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:28px;margin-bottom:6px">🏪</div>
+              <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--success);margin-bottom:4px">প্রকৃত স্টক (শেলফে)</div>
+              <div style="font-size:18px;font-weight:700;color:var(--success)" id="total-physical">0</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /stock-screen -->
+
+      <!-- ════ PRINT VIEW (Olympic style) ════ -->
+      <div id="stock-print" class="print-only">
+        <div class="sp-top">
+          <div class="sp-brand" id="sp-brand">BizFlow</div>
+          <div class="sp-title"><div class="lbl">STOCK REPORT</div><div class="num" id="sp-date"></div></div>
+        </div>
+        <hr class="sp-blackline"/>
+        <div class="sp-depo" id="sp-depo">Super Depo: Mustary Enterprise, Chakaria, Coxsbazar, 01857274119</div>
+        <div class="sp-meta"><span id="sp-supplier">সব সরবরাহকারী</span><span>🏪 প্রকৃত স্টক (শেলফে): <span id="sp-physical-total">0</span></span></div>
+        <table class="sp-table">
+          <thead>
+            <tr>
+              <th class="c" style="width:28px">SL.</th>
+              <th>ITEMS</th>
+              <th class="c" style="width:50px">CODE</th>
+              <th class="r" style="width:70px">স্টক ইন</th>
+              <th class="r" style="width:70px">স্টক আউট</th>
+              <th class="r" style="width:70px">বর্তমান</th>
+              <th class="r" style="width:70px">ফ্রি ব্যাল.</th>
+              <th class="r" style="width:80px">প্রকৃত স্টক</th>
+            </tr>
+          </thead>
+          <tbody id="sp-items"></tbody>
+        </table>
+        <div class="sp-summary">
+          <span>মোট আইটেম: <span id="sp-count">0</span></span>
+          <span>মোট স্টক ইন: <span id="sp-tin">0</span></span>
+          <span>মোট স্টক আউট: <span id="sp-tout">0</span></span>
+          <span>🏪 প্রকৃত স্টক: <span id="sp-tphys">0</span></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('stock');
+
+let stockData=[];
+let productSupplierMap={}; // productId → Set of supplier names (from purchase orders)
+
+function pcsDisp(pieces,cartonSize){
+  pieces=Math.round(pieces);
+  if(cartonSize>0){
+    const sign=pieces<0?'-':'';const abs=Math.abs(pieces);
+    const c=Math.floor(abs/cartonSize),p=abs%cartonSize;
+    if(c>0&&p>0)return sign+c+' ctn + '+p+' pcs';
+    if(c>0)return sign+c+' ctn';
+    return sign+p+' pcs';
+  }
+  return pieces+' pcs';
+}
+
+function buildStockFromOrders(){
+  const orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+  const products=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const map={};
+  productSupplierMap={};
+  products.forEach(p=>{
+    map[p.id]={productId:p.id,productCode:p.code||'',productName:p.name,cartonSize:parseFloat(p.cartonSize)||0,stockIn:0,stockOut:0,freeIn:0,freeOut:0,lastUpdated:''};
+  });
+  orders.forEach(o=>{
+    let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){}
+    items.forEach(item=>{
+      if(!item.productId)return;
+      if(!map[item.productId]){
+        map[item.productId]={productId:item.productId,productCode:item.code||'',productName:item.productName||item.productId,cartonSize:parseFloat(item.cartonSize)||0,stockIn:0,stockOut:0,freeIn:0,freeOut:0,lastUpdated:o.date||''};
+      }
+      const rec=map[item.productId];
+      const qtyP=parseFloat(item.qtyPieces!==undefined?item.qtyPieces:item.qty)||0;
+      const freeP=parseFloat(item.freePieces)||0;
+      if(item.cartonSize&&!rec.cartonSize)rec.cartonSize=parseFloat(item.cartonSize)||0;
+      if(o.orderType==='purchase'){
+        rec.stockIn+=qtyP;rec.freeIn+=freeP;
+        // record supplier link
+        if(o.partyName){
+          if(!productSupplierMap[item.productId])productSupplierMap[item.productId]=new Set();
+          productSupplierMap[item.productId].add(o.partyName);
+        }
+      }
+      if(o.orderType==='sales'){rec.stockOut+=qtyP;rec.freeOut+=freeP;}
+      if(o.date>(rec.lastUpdated||''))rec.lastUpdated=o.date;
+    });
+  });
+  return Object.values(map);
+}
+
+function populateSupplierFilter(){
+  const sel=document.getElementById('filter-supplier');
+  const parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
+  // suppliers that actually have purchase history, plus all supplier-type parties
+  const names=new Set();
+  Object.values(productSupplierMap).forEach(set=>set.forEach(n=>names.add(n)));
+  parties.filter(p=>p.type==='supplier'||p.type==='both').forEach(p=>names.add(p.name));
+  const sorted=[...names].sort((a,b)=>a.localeCompare(b));
+  const current=sel.value;
+  sel.innerHTML='<option value="">সব সরবরাহকারী</option>'+sorted.map(n=>`<option value="${n}">${n}</option>`).join('');
+  sel.value=current;
+}
+
+function updateStats(list){
+  const withMovement=list.filter(r=>r.stockIn>0||r.stockOut>0||r.freeIn>0||r.freeOut>0);
+  const inStock=withMovement.filter(r=>(r.stockIn-r.stockOut)>5);
+  const low=withMovement.filter(r=>{const b=r.stockIn-r.stockOut;return b>0&&b<=5;});
+  const out=withMovement.filter(r=>(r.stockIn-r.stockOut)<=0);
+  const totalIn=list.reduce((s,r)=>s+r.stockIn,0);
+  const totalOut=list.reduce((s,r)=>s+r.stockOut,0);
+  const totalFreeBal=list.reduce((s,r)=>s+(r.freeIn-r.freeOut),0);
+  const totalPhysical=list.reduce((s,r)=>s+((r.stockIn+r.freeIn)-(r.stockOut+r.freeOut)),0);
+  // carton + pcs breakdown across all products
+  let physCtn=0, physPcs=0;
+  list.forEach(r=>{
+    const p=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut);
+    if(r.cartonSize>0){ physCtn+=Math.floor(p/r.cartonSize); physPcs+=p%r.cartonSize; }
+    else physPcs+=p;
+  });
+  const physDisp=(physCtn?physCtn+' ctn':'')+(physCtn&&physPcs?' + ':'')+(physPcs||!physCtn?physPcs+' pcs':'');
+  document.getElementById('s-total').textContent=withMovement.length;
+  document.getElementById('s-instock').textContent=inStock.length;
+  document.getElementById('s-low').textContent=low.length;
+  document.getElementById('s-out').textContent=out.length;
+  document.getElementById('s-physical').textContent=physDisp;
+  document.getElementById('total-in').textContent=totalIn.toLocaleString()+' pcs';
+  document.getElementById('total-out').textContent=totalOut.toLocaleString()+' pcs';
+  document.getElementById('total-free').textContent=totalFreeBal.toLocaleString()+' pcs';
+  document.getElementById('total-physical').textContent=physDisp;
+}
+
+function applyFilterLogic(list){
+  const q=document.getElementById('search-input').value.toLowerCase();
+  const st=document.getElementById('filter-status').value;
+  const sup=document.getElementById('filter-supplier').value;
+  return list.filter(r=>{
+    const bal=r.stockIn-r.stockOut;
+    const mQ=!q||r.productName.toLowerCase().includes(q)||(r.productCode||'').toLowerCase().includes(q);
+    const mSt=!st||(st==='ok'&&bal>5)||(st==='low'&&bal>0&&bal<=5)||(st==='out'&&bal<=0);
+    const mSup=!sup||(productSupplierMap[r.productId]&&productSupplierMap[r.productId].has(sup));
+    return mQ&&mSt&&mSup;
+  });
+}
+
+function renderTable(list){
+  const tbody=document.getElementById('stock-body');
+  const filtered=applyFilterLogic(list);
+  // supplier note
+  const sup=document.getElementById('filter-supplier').value;
+  const note=document.getElementById('supplier-note');
+  if(sup){note.style.display='block';note.textContent=`🏭 সরবরাহকারী: ${sup} — ${filtered.length}টি পণ্য`;}
+  else note.style.display='none';
+  if(!filtered.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty"><div class="empty-icon">🏭</div><p>কোনো স্টক ডেটা নেই।</p></div></td></tr>`;return;}
+  const sorted=[...filtered].sort((a,b)=>(b.stockIn-b.stockOut)-(a.stockIn-a.stockOut));
+  tbody.innerHTML=sorted.map((r,i)=>{
+    const balance=r.stockIn-r.stockOut;
+    const freeBal=r.freeIn-r.freeOut;
+    const physical=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut);
+    const cs=r.cartonSize;
+    let statusEl;
+    if(balance<=0)statusEl=`<span class="stock-badge-out">স্টক শেষ</span>`;
+    else if(balance<=5)statusEl=`<span class="stock-badge-low">কম স্টক</span>`;
+    else statusEl=`<span class="stock-badge-ok">স্টকে আছে</span>`;
+    return `<tr>
+      <td style="color:var(--ink3);font-size:12px">${i+1}</td>
+      <td><strong>${r.productName}</strong>${r.productCode?`<br><code style="font-size:10px;background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">${r.productCode}</code>`:''}</td>
+      <td style="text-align:right;color:var(--success);font-weight:600">${pcsDisp(r.stockIn,cs)}</td>
+      <td style="text-align:right;color:var(--danger);font-weight:600">${pcsDisp(r.stockOut,cs)}</td>
+      <td style="text-align:right;font-weight:700;color:${balance<=0?'var(--danger)':balance<=5?'var(--warn)':'var(--ink)'}">${pcsDisp(balance,cs)}</td>
+      <td style="text-align:right;background:#f5f7ff" class="free-cell">${pcsDisp(r.freeIn,cs)}</td>
+      <td style="text-align:right;background:#f5f7ff" class="free-cell">${pcsDisp(r.freeOut,cs)}</td>
+      <td style="text-align:right;background:#f5f7ff;font-weight:700;color:${freeBal<0?'var(--danger)':'var(--accent)'}">${pcsDisp(freeBal,cs)}</td>
+      <td style="text-align:right;background:#f0fdf4;font-weight:700;color:${physical<=0?'var(--danger)':'var(--success)'}">${pcsDisp(physical,cs)}</td>
+      <td style="text-align:center">${statusEl}</td>
+    </tr>`;
+  }).join('');
+}
+
+function refresh(){stockData=buildStockFromOrders();populateSupplierFilter();renderTable(stockData);updateStats(stockData);}
+
+async function syncFromSheet(){
+  if(!BF.sheetUrl){toast('Settings-এ Sheet URL দিন','error');return;}
+  const btn=document.getElementById('btn-sync');spinBtn(btn,true);
+  try{
+    const orders=await API.fetch('getOrders');
+    if(Array.isArray(orders))localStorage.setItem('bf_orders',JSON.stringify(orders));
+    const products=await API.fetch('getProducts');
+    if(Array.isArray(products))localStorage.setItem('bf_products',JSON.stringify(products.map(p=>({...p,hasOffer:p.hasOffer==='true'||p.hasOffer===true}))));
+    const parties=await API.fetch('getParties');
+    if(Array.isArray(parties))localStorage.setItem('bf_parties',JSON.stringify(parties));
+    refresh();toast('স্টক আপডেট হয়েছে ✓','success');
+  }catch(e){toast('লোড ব্যর্থ: '+e.message,'error');}
+  spinBtn(btn,false);
+}
+
+function exportCSV(){
+  const filtered=applyFilterLogic(stockData);
+  if(!filtered.length){toast('কোনো ডেটা নেই','error');return;}
+  const sup=document.getElementById('filter-supplier').value;
+  const h=['পণ্যের নাম','কোড','স্টক ইন','স্টক আউট','বর্তমান স্টক','ফ্রি ইন','ফ্রি আউট','ফ্রি ব্যালেন্স','প্রকৃত স্টক (মোট)','কার্টন সাইজ'];
+  const rows=filtered.map(r=>{
+    const bal=r.stockIn-r.stockOut,fb=r.freeIn-r.freeOut,phys=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut);
+    return [r.productName,r.productCode,r.stockIn,r.stockOut,bal,r.freeIn,r.freeOut,fb,phys,r.cartonSize].map(v=>`"${v||0}"`).join(',');
+  });
+  const fname=sup?('stock_'+sup.replace(/[^a-z0-9]/gi,'_')+'_'+fmt.dateInput()):('stock_'+fmt.dateInput());
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));a.download=fname+'.csv';a.click();
+}
+
+function buildPrintReport(){
+  const filtered=applyFilterLogic(stockData);
+  const sup=document.getElementById('filter-supplier').value;
+  document.getElementById('sp-brand').textContent = sup || '';
+  document.getElementById('sp-date').textContent='তারিখ: '+new Date().toLocaleDateString('en-CA');
+  document.getElementById('sp-supplier').textContent = sup ? '' : 'সব সরবরাহকারী';
+  const sorted=[...filtered].sort((a,b)=>(b.stockIn-b.stockOut)-(a.stockIn-a.stockOut));
+  let tin=0,tout=0,tphys=0,physCtn=0,physPcs=0;
+  const tbody=document.getElementById('sp-items');tbody.innerHTML='';
+  sorted.forEach((r,i)=>{
+    const bal=r.stockIn-r.stockOut,fb=r.freeIn-r.freeOut,phys=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut),cs=r.cartonSize;
+    tin+=r.stockIn;tout+=r.stockOut;tphys+=phys;
+    if(cs>0){physCtn+=Math.floor(phys/cs);physPcs+=phys%cs;}else physPcs+=phys;
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td class="c">'+(i+1)+'</td><td>'+r.productName+'</td><td class="c">'+(r.productCode||'')+'</td><td class="r">'+pcsDisp(r.stockIn,cs)+'</td><td class="r">'+pcsDisp(r.stockOut,cs)+'</td><td class="r">'+pcsDisp(bal,cs)+'</td><td class="r">'+pcsDisp(fb,cs)+'</td><td class="r">'+pcsDisp(phys,cs)+'</td>';
+    tbody.appendChild(tr);
+  });
+  const physDisp=(physCtn?physCtn+' ctn':'')+(physCtn&&physPcs?' + ':'')+(physPcs||!physCtn?physPcs+' pcs':'');
+  document.getElementById('sp-physical-total').textContent=physDisp;
+  document.getElementById('sp-count').textContent=sorted.length;
+  document.getElementById('sp-tin').textContent=tin.toLocaleString()+' pcs';
+  document.getElementById('sp-tout').textContent=tout.toLocaleString()+' pcs';
+  document.getElementById('sp-tphys').textContent=physDisp;
+}
+
+document.getElementById('btn-sync').addEventListener('click',syncFromSheet);
+document.getElementById('btn-export').addEventListener('click',exportCSV);
+document.getElementById('btn-print').addEventListener('click',()=>{buildPrintReport();window.print();});
+document.getElementById('search-input').addEventListener('input',()=>renderTable(stockData));
+document.getElementById('filter-status').addEventListener('change',()=>renderTable(stockData));
+document.getElementById('filter-supplier').addEventListener('change',()=>{renderTable(stockData);updateStats(applyFilterLogic(stockData));});
+
+refresh();
+if(BF.sheetUrl)syncFromSheet();
+</script>
+</body>
+</html>

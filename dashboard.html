@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — ড্যাশবোর্ড</title>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">ড্যাশবোর্ড</span>
+      </div>
+      <div class="bf-topbar-right">
+        <span id="today-date" style="font-size:12px;color:var(--ink3)"></span>
+        <button class="btn btn-outline btn-sm" id="btn-refresh">🔄 রিফ্রেশ</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- SETUP BANNER — shown when Sheet URL not configured -->
+      <div id="setup-banner" style="display:none;background:#fffbeb;border:2px solid #fbbf24;border-radius:var(--r);padding:18px 22px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px">
+        <span style="font-size:28px;flex-shrink:0">⚠️</span>
+        <div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:4px">Google Sheet সংযুক্ত নেই</div>
+          <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">
+            ডেটা সেভ ও লোড করতে Settings থেকে Google Sheet Web App URL যোগ করুন।
+            Sheet সংযুক্ত না হলে ডেটা শুধু এই ব্রাউজারে থাকবে।
+          </div>
+          <a href="settings.html" class="btn btn-primary btn-sm">⚙️ Settings খুলুন</a>
+        </div>
+      </div>
+
+      <!-- SYNC STATUS BAR -->
+      <div id="sync-bar" style="display:none;background:var(--accent-bg);border:1px solid #c7d2fe;border-radius:10px;padding:10px 16px;margin-bottom:20px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px">
+        <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(79,70,229,.3);border-top-color:var(--accent);border-radius:50%;animation:bf-spin .6s linear infinite;flex-shrink:0"></span>
+        <span id="sync-bar-msg">ডেটা লোড হচ্ছে…</span>
+      </div>
+
+      <!-- MAIN STATS -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-label">মোট পার্টি</div>
+          <div class="stat-value" id="stat-parties">—</div>
+          <div class="stat-sub">সরবরাহকারী ও গ্রাহক</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📦</div>
+          <div class="stat-label">মোট পণ্য</div>
+          <div class="stat-value" id="stat-products">—</div>
+          <div class="stat-sub">সক্রিয় পণ্য</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🟢</div>
+          <div class="stat-label">মোট বিক্রয়</div>
+          <div class="stat-value" id="stat-sales">—</div>
+          <div class="stat-sub">সব বিক্রয় অর্ডার</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🔵</div>
+          <div class="stat-label">মোট ক্রয়</div>
+          <div class="stat-value" id="stat-purchases">—</div>
+          <div class="stat-sub">সব ক্রয় অর্ডার</div>
+        </div>
+      </div>
+
+      <!-- FINANCIAL STATS -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card">
+          <div class="stat-icon">💰</div>
+          <div class="stat-label">মোট বিক্রয় পরিমাণ</div>
+          <div class="stat-value" id="stat-sales-total" style="font-size:18px">৳—</div>
+          <div class="stat-sub" id="stat-sales-due" style="color:var(--danger)"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-label">মোট জমা</div>
+          <div class="stat-value" id="stat-total-paid" style="font-size:18px;color:var(--success)">৳—</div>
+          <div class="stat-sub">নগদ + ব্যাংক + কর্তন</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-label">মোট বাকি</div>
+          <div class="stat-value" id="stat-total-due" style="font-size:18px;color:var(--danger)">৳—</div>
+          <div class="stat-sub">সব পার্টির বাকি</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🏪</div>
+          <div class="stat-label">প্রকৃত স্টক (মোট)</div>
+          <div class="stat-value" id="stat-physical-stock" style="font-size:18px;color:var(--success)">—</div>
+          <div class="stat-sub">শেলফে মোট পণ্য</div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">দ্রুত কাজ</div>
+            <div class="card-sub">সরাসরি নতুন এন্ট্রি করুন</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a href="orders.html?type=sales&new=1"    class="btn btn-success">+ নতুন বিক্রয়</a>
+          <a href="orders.html?type=purchase&new=1" class="btn btn-primary">+ নতুন ক্রয়</a>
+          <a href="parties.html?new=1"              class="btn btn-outline">+ নতুন পার্টি</a>
+          <a href="products.html?new=1"             class="btn btn-outline">+ নতুন পণ্য</a>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+        <!-- RECENT SALES -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">সাম্প্রতিক বিক্রয়</div>
+            <a href="orders.html?type=sales" class="btn btn-outline btn-sm">সব দেখুন →</a>
+          </div>
+          <div id="recent-sales">
+            <div class="empty"><div class="empty-icon" style="font-size:28px">🟢</div><p style="font-size:13px">কোনো বিক্রয় নেই</p></div>
+          </div>
+        </div>
+
+        <!-- RECENT PURCHASES -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">সাম্প্রতিক ক্রয়</div>
+            <a href="orders.html?type=purchase" class="btn btn-outline btn-sm">সব দেখুন →</a>
+          </div>
+          <div id="recent-purchases">
+            <div class="empty"><div class="empty-icon" style="font-size:28px">🔵</div><p style="font-size:13px">কোনো ক্রয় নেই</p></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TOP PARTIES WITH DUE -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">বাকি আছে এমন পার্টি</div>
+            <div class="card-sub">সর্বোচ্চ বাকির ক্রমানুসারে</div>
+          </div>
+          <a href="ledger.html" class="btn btn-outline btn-sm">লেজার →</a>
+        </div>
+        <div id="due-parties-list">
+          <div class="empty"><div class="empty-icon" style="font-size:28px">📒</div><p style="font-size:13px">কোনো বাকি নেই</p></div>
+        </div>
+      </div>
+
+      <!-- LAST SYNC INFO -->
+      <div style="text-align:center;font-size:11px;color:var(--ink3);margin-top:8px" id="last-sync-info"></div>
+
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('dashboard');
+
+/* ── DATE ── */
+document.getElementById('today-date').textContent =
+  new Date().toLocaleDateString('en-BD', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+/* ── SETUP BANNER ── */
+if (!BF.sheetUrl) {
+  document.getElementById('setup-banner').style.display = 'flex';
+} else {
+  document.getElementById('setup-banner').style.display = 'none';
+}
+
+/* ── LOAD STATS FROM LOCAL CACHE ── */
+function loadFromCache() {
+  const orders   = JSON.parse(localStorage.getItem('bf_orders')   || '[]');
+  const parties  = JSON.parse(localStorage.getItem('bf_parties')  || '[]');
+  const products = JSON.parse(localStorage.getItem('bf_products') || '[]');
+
+  const sales     = orders.filter(o => o.orderType === 'sales');
+  const purchases = orders.filter(o => o.orderType === 'purchase');
+
+  const salesTotal   = sales.reduce((s,o)    => s + parseFloat(o.grandTotal||0), 0);
+  const totalPaid    = orders.reduce((s,o)   => s + parseFloat(o.totalPaid||0),  0);
+
+  // Standalone vouchers (payments/receipts/adjustments) reduce dues
+  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]');
+  function voucherCreditForType(otype){
+    // sales-side parties = customers; purchase-side = suppliers. For the dashboard totals
+    // we just net all voucher credits against the combined due.
+    let c = 0;
+    payments.forEach(v=>{
+      const amt = parseFloat(v.amount||0);
+      if (v.vtype==='receipt' || v.vtype==='payment') c += amt;
+      else if (v.vtype==='adjust') c += (v.direction==='debit' ? -amt : amt);
+    });
+    return c;
+  }
+  // Split dues & payments by party side.
+  // Customers: sales orders + their vouchers.  Suppliers: purchase orders + their vouchers.
+  const partyTypeById = {};
+  parties.forEach(p => { partyTypeById[p.id] = p.type; });
+  function sideOf(o){
+    // an order's side: sales→customer, purchase→supplier
+    return o.orderType === 'sales' ? 'cust' : 'supp';
+  }
+  let custBilled=0, custPaid=0, suppBilled=0, suppPaid=0;
+  orders.forEach(o=>{
+    const g = parseFloat(o.grandTotal||0), p = parseFloat(o.totalPaid||0);
+    if (sideOf(o)==='cust'){ custBilled+=g; custPaid+=p; }
+    else { suppBilled+=g; suppPaid+=p; }
+  });
+  // vouchers: receipt = customer payment; payment = supplier payment; adjust → follow party type
+  let custVoucher=0, suppVoucher=0;
+  payments.forEach(v=>{
+    const amt=parseFloat(v.amount||0);
+    const signed = (v.vtype==='adjust' && v.direction==='debit') ? -amt : amt;
+    if (v.vtype==='receipt') custVoucher+=signed;
+    else if (v.vtype==='payment') suppVoucher+=signed;
+    else { // adjust → use the party's type
+      const t = partyTypeById[v.partyId];
+      if (t==='supplier') suppVoucher+=signed; else custVoucher+=signed;
+    }
+  });
+  const custDue = custBilled - custPaid - custVoucher;  // customers owe us
+  const suppDue = suppBilled - suppPaid - suppVoucher;  // we owe suppliers
+  const custPaidTotal = custPaid + custVoucher;          // received from customers
+  const suppPaidTotal = suppPaid + suppVoucher;          // paid to suppliers
+  // sales-only due (billed − paid for sales orders), for the sub-label under মোট বিক্রয়
+  const salesDue     = sales.reduce((s,o)=>s+parseFloat(o.grandTotal||0),0)
+                     - sales.reduce((s,o)=>s+parseFloat(o.totalPaid||0),0);
+
+  // Physical stock (on shelf) per product, then total as ctn + pcs
+  const physMap = {}; // productId → { pieces, cartonSize }
+  orders.forEach(o => {
+    let items = [];
+    try { items = JSON.parse(o.items||'[]'); } catch(e) {}
+    items.forEach(it => {
+      if (!it.productId) return;
+      if (!physMap[it.productId]) physMap[it.productId] = { pieces:0, cartonSize:parseFloat(it.cartonSize)||0 };
+      const rec = physMap[it.productId];
+      if (!rec.cartonSize && it.cartonSize) rec.cartonSize = parseFloat(it.cartonSize)||0;
+      const qp = parseFloat(it.qtyPieces!==undefined?it.qtyPieces:it.qty)||0;
+      const fp = parseFloat(it.freePieces)||0;
+      if (o.orderType === 'purchase') rec.pieces += (qp + fp);
+      if (o.orderType === 'sales')    rec.pieces -= (qp + fp);
+    });
+  });
+  let physCtn = 0, physPcs = 0;
+  Object.values(physMap).forEach(r => {
+    if (r.cartonSize > 0) {
+      physCtn += Math.floor(r.pieces / r.cartonSize);
+      physPcs += r.pieces % r.cartonSize;
+    } else {
+      physPcs += r.pieces;
+    }
+  });
+  const physicalStock = (physCtn ? physCtn.toLocaleString() + ' ctn' : '')
+    + (physCtn && physPcs ? ' + ' : '')
+    + (physPcs || !physCtn ? physPcs + ' pcs' : '');
+
+  document.getElementById('stat-parties').textContent   = parties.length;
+  document.getElementById('stat-products').textContent  = products.filter(p=>p.status==='active').length;
+  document.getElementById('stat-sales').textContent     = sales.length;
+  document.getElementById('stat-purchases').textContent = purchases.length;
+  document.getElementById('stat-sales-total').textContent = fmt.currency(salesTotal);
+  document.getElementById('stat-sales-due').textContent   = `বাকি: ${fmt.currency(salesDue)}`;
+  document.getElementById('stat-total-paid').innerHTML =
+    `<span style="font-size:14px">গ্রাহক: ${fmt.currency(custPaidTotal)}</span><br>` +
+    `<span style="font-size:14px;color:var(--ink2)">সরবরাহকারী: ${fmt.currency(suppPaidTotal)}</span>`;
+  document.getElementById('stat-total-due').innerHTML =
+    `<span style="font-size:14px;color:var(--danger)">গ্রাহক: ${fmt.currency(custDue)}</span><br>` +
+    `<span style="font-size:14px;color:var(--ink2)">সরবরাহকারী: ${fmt.currency(suppDue)}</span>`;
+  document.getElementById('stat-physical-stock').textContent = physicalStock;
+
+  // Recent sales (last 5)
+  renderRecentOrders(sales.slice(0,5),   'recent-sales');
+  renderRecentOrders(purchases.slice(0,5),'recent-purchases');
+
+  // Due parties
+  renderDueParties(parties, orders);
+
+  // Last sync
+  const ls = localStorage.getItem('bf_last_sync');
+  document.getElementById('last-sync-info').textContent = ls
+    ? 'শেষ সিঙ্ক: ' + new Date(ls).toLocaleString('en-BD')
+    : 'এখনো Sheet থেকে সিঙ্ক হয়নি';
+}
+
+/* ── RECENT ORDERS ── */
+function renderRecentOrders(list, containerId) {
+  const el = document.getElementById(containerId);
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon" style="font-size:24px">${containerId.includes('sales')?'🟢':'🔵'}</div><p style="font-size:13px">কোনো অর্ডার নেই</p></div>`;
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse">` +
+    list.map(o => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 4px">
+          <strong style="font-size:13px;color:var(--accent)">${o.orderId}</strong>
+          <span style="font-size:11px;color:var(--ink3);margin-left:6px">${o.date}</span>
+        </td>
+        <td style="padding:8px 4px;font-size:13px">${o.partyName||'—'}</td>
+        <td style="padding:8px 4px;text-align:right;font-weight:600;font-size:13px">${fmt.currency(o.grandTotal)}</td>
+        <td style="padding:8px 4px;text-align:right">
+          <span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;
+            background:${o.status==='paid'?'#dcfce7':o.status==='partial'?'#fef9c3':'#fee2e2'};
+            color:${o.status==='paid'?'#15803d':o.status==='partial'?'#854d0e':'#dc2626'}">
+            ${o.status==='paid'?'পরিশোধিত':o.status==='partial'?'আংশিক':'বাকি'}
+          </span>
+        </td>
+      </tr>`).join('') +
+    `</table>`;
+}
+
+/* ── DUE PARTIES ── */
+function renderDueParties(parties, orders) {
+  const el = document.getElementById('due-parties-list');
+
+  // Calculate balance per party: opening + billed − paid − voucher credits
+  const allPayments = JSON.parse(localStorage.getItem('bf_payments')||'[]');
+  const balances = parties.map(p => {
+    const pOrders = orders.filter(o => o.partyId === p.id);
+    const opening = parseFloat(p.balance||0)||0;
+    const billed  = pOrders.reduce((s,o) => s + parseFloat(o.grandTotal||0), 0);
+    const paid    = pOrders.reduce((s,o) => s + parseFloat(o.totalPaid||0),  0);
+    let vCredit = 0;
+    allPayments.filter(v => v.partyId === p.id).forEach(v => {
+      const amt = parseFloat(v.amount||0);
+      if (v.vtype==='receipt' || v.vtype==='payment') vCredit += amt;
+      else if (v.vtype==='adjust') vCredit += (v.direction==='debit' ? -amt : amt);
+    });
+    const balance = opening + billed - paid - vCredit;
+    return { ...p, computedBalance: balance };
+  }).filter(p => p.computedBalance > 0.01)
+    .sort((a,b) => b.computedBalance - a.computedBalance)
+    .slice(0, 8);
+
+  if (!balances.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon" style="font-size:24px">✅</div><p style="font-size:13px">সব পার্টির হিসাব পরিষ্কার</p></div>`;
+    return;
+  }
+
+  const maxBal = balances[0].computedBalance;
+
+  el.innerHTML = balances.map(p => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+        <div style="font-size:11px;color:var(--ink3)">${p.area||p.phone||''}</div>
+      </div>
+      <div style="flex:2;min-width:80px">
+        <div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden">
+          <div style="height:100%;border-radius:20px;background:var(--danger);width:${Math.round((p.computedBalance/maxBal)*100)}%"></div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:14px;font-weight:700;color:var(--danger)">${fmt.currency(p.computedBalance)}</div>
+      </div>
+      <a href="ledger.html" onclick="localStorage.setItem('bf_selected_party','${p.id}')"
+        class="btn btn-outline btn-sm" style="flex-shrink:0">স্টেটমেন্ট</a>
+    </div>`).join('');
+}
+
+/* ── SYNC FROM SHEET ── */
+async function syncAndRefresh() {
+  if (!BF.sheetUrl) { loadFromCache(); return; }
+
+  const bar    = document.getElementById('sync-bar');
+  const barMsg = document.getElementById('sync-bar-msg');
+  bar.style.display = 'flex';
+
+  const steps = [
+    { action:'getParties',  store:'bf_parties',  label:'পার্টি লোড হচ্ছে…' },
+    { action:'getProducts', store:'bf_products', label:'পণ্য লোড হচ্ছে…' },
+    { action:'getOrders',   store:'bf_orders',   label:'অর্ডার লোড হচ্ছে…' },
+    { action:'getPayments', store:'bf_payments', label:'পেমেন্ট লোড হচ্ছে…' },
+  ];
+
+  for (const step of steps) {
+    try {
+      barMsg.textContent = step.label;
+      const data = await API.fetch(step.action);
+      if (Array.isArray(data)) {
+        if (step.action === 'getProducts') {
+          localStorage.setItem(step.store, JSON.stringify(
+            data.map(p => ({...p, hasOffer: p.hasOffer==='true'||p.hasOffer===true}))
+          ));
+        } else {
+          localStorage.setItem(step.store, JSON.stringify(data));
+        }
+      }
+    } catch(e) {
+      // Silently continue — use cached data
+    }
+  }
+
+  localStorage.setItem('bf_last_sync', new Date().toISOString());
+  bar.style.display = 'none';
+  loadFromCache();
+}
+
+/* ── EVENTS ── */
+document.getElementById('btn-refresh').addEventListener('click', () => {
+  document.getElementById('btn-refresh').textContent = '⟳ লোড হচ্ছে…';
+  syncAndRefresh().then(() => {
+    document.getElementById('btn-refresh').textContent = '🔄 রিফ্রেশ';
+    toast('ড্যাশবোর্ড আপডেট হয়েছে ✓','success');
+  });
+});
+
+/* ── INIT ── */
+loadFromCache();      // Show cached data immediately
+syncAndRefresh();     // Then fetch fresh data in background
+</script>
+</body>
+</html>

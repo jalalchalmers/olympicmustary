@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root { --ink:#0f172a; --ink2:#475569; --accent:#4f46e5; --accent2:#7c3aed; --border:#e2e8f0; --bg:#f8fafc; }
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      font-family:'Inter',sans-serif; background:var(--bg); min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      padding:16px; position:relative; overflow:hidden;
+    }
+    body::before {
+      content:''; position:absolute; top:-120px; right:-120px; width:480px; height:480px;
+      background:radial-gradient(circle,rgba(79,70,229,.12) 0%,transparent 70%); pointer-events:none;
+    }
+    body::after {
+      content:''; position:absolute; bottom:-80px; left:-80px; width:360px; height:360px;
+      background:radial-gradient(circle,rgba(124,58,237,.1) 0%,transparent 70%); pointer-events:none;
+    }
+    .wrap {
+      width:100%; max-width:420px; background:#fff; border-radius:24px;
+      box-shadow:0 4px 40px rgba(79,70,229,.12),0 1px 3px rgba(0,0,0,.06);
+      padding:44px 40px 40px; position:relative; z-index:1;
+    }
+    .logo-row { display:flex; align-items:center; gap:12px; margin-bottom:32px; }
+    .logo-icon {
+      width:44px; height:44px; border-radius:12px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex; align-items:center; justify-content:center; font-size:20px;
+    }
+    .logo-text { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; color:var(--ink); }
+    .logo-text span { color:var(--accent); }
+    h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:700; margin-bottom:6px; }
+    .sub { font-size:14px; color:var(--ink2); margin-bottom:28px; }
+    .field { margin-bottom:18px; }
+    .field label { display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:6px; text-transform:uppercase; letter-spacing:.6px; }
+    .field input {
+      width:100%; border:1.5px solid var(--border); border-radius:10px;
+      padding:12px 14px; font-family:inherit; font-size:15px; color:var(--ink);
+      background:var(--bg); outline:none; transition:border-color .2s,box-shadow .2s;
+    }
+    .field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,70,229,.1); background:#fff; }
+    .btn-login {
+      width:100%; padding:13px; border-radius:10px; border:none;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff; font-family:inherit; font-size:15px; font-weight:700;
+      cursor:pointer; transition:opacity .2s,transform .1s; margin-top:4px;
+    }
+    .btn-login:hover  { opacity:.92; }
+    .btn-login:active { transform:scale(.98); }
+    .btn-login:disabled { opacity:.65; cursor:not-allowed; transform:none; }
+    .err {
+      background:#fef2f2; border:1px solid #fecaca; color:#dc2626;
+      border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:none;
+    }
+    .sync-log {
+      margin-top:16px; background:var(--bg); border-radius:8px;
+      padding:10px 14px; font-size:12px; color:var(--ink2);
+      min-height:36px; display:none; line-height:1.6;
+    }
+    .sync-log.visible { display:block; }
+    .sync-row { display:flex; align-items:center; gap:6px; }
+    .sync-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+    .sync-dot.done { background:var(--accent2); }
+    .hint { font-size:12px; color:var(--ink2); text-align:center; margin-top:20px; line-height:1.7; }
+    .hint strong { color:var(--accent); }
+    .version { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); font-size:11px; color:#94a3b8; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .spin { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-right:6px; }
+    .tick { color:#059669; font-weight:700; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo-row">
+    <div class="logo-icon">📦</div>
+    <div class="logo-text">Biz<span>Flow</span></div>
+  </div>
+  <h1>স্বাগতম</h1>
+  <p class="sub">Business Management System</p>
+
+  <div class="err" id="err">পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।</div>
+
+  <div class="field">
+    <label>পাসওয়ার্ড</label>
+    <input type="password" id="pw" placeholder="Enter your password" autocomplete="current-password"/>
+  </div>
+  <button class="btn-login" id="btn">প্রবেশ করুন →</button>
+
+  <div class="sync-log" id="sync-log"></div>
+
+  <div class="hint">
+    Contact admin for the info <!-- Default Super → <strong>super123</strong> &nbsp;|&nbsp; Admin → <strong>admin123</strong><br/>
+    Settings থেকে পাসওয়ার্ড পরিবর্তন করুন -->
+  </div>
+</div>
+<div class="version">BizFlow v1.2 · Google Sheets powered</div>
+
+<script src="shared.js"></script>
+<script>
+  // Already logged in → go to dashboard
+  if (BF.session) window.location.href = 'dashboard.html';
+
+  const redirect = new URLSearchParams(window.location.search).get('redirect') || 'dashboard.html';
+  const btn      = document.getElementById('btn');
+  const errEl    = document.getElementById('err');
+  const syncLog  = document.getElementById('sync-log');
+
+  btn.addEventListener('click', doLogin);
+  document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  function logStep(msg, done = false) {
+    syncLog.classList.add('visible');
+    const row = document.createElement('div');
+    row.className = 'sync-row';
+    row.innerHTML = `<span class="sync-dot ${done ? 'done' : ''}"></span><span>${msg}</span>`;
+    syncLog.appendChild(row);
+  }
+
+  async function doLogin() {
+    const pw = document.getElementById('pw').value.trim();
+    errEl.style.display = 'none';
+    syncLog.innerHTML   = '';
+    syncLog.classList.remove('visible');
+
+    if (!pw) { errEl.textContent = 'পাসওয়ার্ড লিখুন।'; errEl.style.display = 'block'; return; }
+
+    btn.innerHTML = '<span class="spin"></span> যাচাই হচ্ছে…';
+    btn.disabled  = true;
+
+    // Step 1: Pull latest passwords from Sheet so super's changes are always live
+    if (BF.sheetUrl) {
+      try {
+        const config = await API.fetch('getConfig');
+        if (config && !config.error) {
+          if (config.pw_super) { localStorage.setItem('bf_pw_super', config.pw_super); BF.roles.super = config.pw_super; }
+          if (config.pw_admin) { localStorage.setItem('bf_pw_admin', config.pw_admin); BF.roles.admin = config.pw_admin; }
+          if (config.pw_viewer) { localStorage.setItem('bf_pw_viewer', config.pw_viewer); BF.roles.viewer = config.pw_viewer; }
+        }
+      } catch(e) {
+        // Sheet unreachable — use cached passwords (still works offline)
+        console.warn('Config fetch failed, using cached passwords');
+      }
+    }
+
+    // Step 2: Validate password
+    const role = Auth.login(pw);
+    if (!role) {
+      errEl.style.display = 'block';
+      btn.innerHTML = 'প্রবেশ করুন →';
+      btn.disabled  = false;
+      document.getElementById('pw').value = '';
+      document.getElementById('pw').focus();
+      return;
+    }
+
+    // Step 3: Sync all data from Sheet
+    if (BF.sheetUrl) {
+      btn.innerHTML = '<span class="spin"></span> ডেটা লোড হচ্ছে…';
+      const steps = [
+        { action: 'getConfig',   label: 'কনফিগ',       store: null },
+        { action: 'getParties',  label: 'পার্টি লিস্ট', store: 'bf_parties' },
+        { action: 'getProducts', label: 'পণ্য তালিকা',  store: 'bf_products' },
+        { action: 'getOrders',   label: 'অর্ডার',        store: 'bf_orders' },
+        { action: 'getPayments', label: 'পেমেন্ট',       store: 'bf_payments' },
+      ];
+
+      for (const step of steps) {
+        try {
+          logStep(step.label + ' লোড হচ্ছে…');
+          const data = await API.fetch(step.action);
+
+          if (step.action === 'getConfig' && data && !data.error) {
+            if (data.biz_name)    localStorage.setItem('bf_biz_name',    data.biz_name);
+            if (data.biz_phone)   localStorage.setItem('bf_biz_phone',   data.biz_phone);
+            if (data.biz_address) localStorage.setItem('bf_biz_address', data.biz_address);
+          } else if (step.store && Array.isArray(data)) {
+            if (step.action === 'getProducts') {
+              localStorage.setItem(step.store, JSON.stringify(
+                data.map(p => ({ ...p, hasOffer: p.hasOffer === 'true' || p.hasOffer === true }))
+              ));
+            } else {
+              localStorage.setItem(step.store, JSON.stringify(data));
+            }
+          }
+          // Update last log entry to show done
+          const rows = syncLog.querySelectorAll('.sync-row');
+          if (rows.length) rows[rows.length - 1].querySelector('.sync-dot').classList.add('done');
+        } catch(e) {
+          const rows = syncLog.querySelectorAll('.sync-row');
+          if (rows.length) rows[rows.length - 1].lastElementChild.textContent += ' ⚠ ব্যর্থ';
+        }
+      }
+      localStorage.setItem('bf_last_sync', new Date().toISOString());
+    }
+
+    window.location.href = redirect;
+  }
+</script>
+</body>
+</html>

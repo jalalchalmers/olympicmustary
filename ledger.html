@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — পার্টি লেজার</title>
+  <style>
+    .ledger-debit  { color:var(--danger);  font-weight:600; }
+    .ledger-credit { color:var(--success); font-weight:600; }
+    .balance-pos   { color:var(--danger);  font-weight:700; }
+    .balance-neg   { color:var(--success); font-weight:700; }
+    .balance-zero  { color:var(--ink3);    font-weight:600; }
+
+    /* Party card */
+    .party-card {
+      background:var(--surface); border-radius:var(--r); box-shadow:var(--shadow);
+      padding:20px 24px; display:flex; align-items:center;
+      justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:20px;
+    }
+    .party-card-name  { font-size:18px; font-weight:700; color:var(--ink); }
+    .party-card-meta  { font-size:13px; color:var(--ink2); margin-top:3px; }
+    .party-balance-box{ text-align:right; }
+    .party-balance-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--ink3); }
+    .party-balance-val   { font-size:26px; font-weight:800; margin-top:2px; }
+
+    /* Statement summary row */
+    .stmt-summary {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px;
+    }
+    .stmt-box {
+      background:var(--bg); border-radius:10px; padding:16px; text-align:center;
+    }
+    .stmt-box-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--ink3); margin-bottom:6px; }
+    .stmt-box-val   { font-size:20px; font-weight:700; }
+
+    @media(max-width:540px) { .stmt-summary { grid-template-columns:1fr; } }
+
+    /* Print */
+    @media print {
+      .bf-nav, .bf-topbar, .no-print { display:none !important; }
+      .bf-main { margin-left:0 !important; }
+      .bf-body { padding:16px !important; }
+      .card { box-shadow:none !important; border:1px solid #ddd !important; }
+      #party-selector-card { display:none !important; }
+    }
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">পার্টি লেজার</span>
+      </div>
+      <div class="bf-topbar-right no-print">
+        <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
+        <button class="btn btn-outline btn-sm" id="btn-export" style="display:none">⬇ Export CSV</button>
+        <button class="btn btn-outline btn-sm" id="btn-print" style="display:none" onclick="window.print()">🖨 Print</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- PARTY SELECTOR -->
+      <div class="card" id="party-selector-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">পার্টি নির্বাচন করুন</div>
+            <div class="card-sub">যে পার্টির স্টেটমেন্ট দেখতে চান তা বেছে নিন</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;max-width:500px">
+          <div class="field">
+            <label>পার্টি</label>
+            <select id="party-select">
+              <option value="">— পার্টি নির্বাচন করুন —</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btn-load-ledger">স্টেটমেন্ট দেখুন</button>
+        </div>
+
+        <!-- Quick party list with balances -->
+        <div style="margin-top:20px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:12px">
+            সব পার্টির ব্যালেন্স
+          </div>
+          <div class="table-wrap">
+            <table id="all-parties-table">
+              <thead>
+                <tr>
+                  <th>পার্টির নাম</th>
+                  <th>ধরন</th>
+                  <th>ফোন</th>
+                  <th style="text-align:right">মোট ক্রয়/বিক্রয়</th>
+                  <th style="text-align:right">মোট জমা</th>
+                  <th style="text-align:right">বর্তমান বাকি</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="all-parties-body">
+                <tr><td colspan="7"><div class="empty"><div class="empty-icon">📒</div><p>লোড হচ্ছে…</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEDGER STATEMENT (shown after party selected) -->
+      <div id="ledger-section" style="display:none">
+
+        <!-- Party info card -->
+        <div class="party-card" id="party-info-card">
+          <div>
+            <div class="party-card-name" id="lp-name">—</div>
+            <div class="party-card-meta" id="lp-meta">—</div>
+          </div>
+          <div class="party-balance-box">
+            <div class="party-balance-label">বর্তমান বাকি</div>
+            <div class="party-balance-val" id="lp-balance">৳0.00</div>
+          </div>
+        </div>
+
+        <!-- Summary boxes -->
+        <div class="stmt-summary">
+          <div class="stmt-box">
+            <div class="stmt-box-label">মোট ক্রয় / বিক্রয়</div>
+            <div class="stmt-box-val" id="sm-total" style="color:var(--accent)">৳0</div>
+          </div>
+          <div class="stmt-box">
+            <div class="stmt-box-label">মোট জমা + কর্তন</div>
+            <div class="stmt-box-val" id="sm-paid" style="color:var(--success)">৳0</div>
+          </div>
+          <div class="stmt-box">
+            <div class="stmt-box-label">অবশিষ্ট বাকি</div>
+            <div class="stmt-box-val" id="sm-due" style="color:var(--danger)">৳0</div>
+          </div>
+        </div>
+
+        <!-- Date filter -->
+        <div class="card no-print" style="padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="font-size:13px;font-weight:600;color:var(--ink2)">তারিখ ফিল্টার:</div>
+            <input type="date" id="ledger-date-from" style="border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;outline:none"/>
+            <span style="color:var(--ink3)">থেকে</span>
+            <input type="date" id="ledger-date-to"   style="border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;outline:none"/>
+            <button class="btn btn-outline btn-sm" onclick="applyDateFilter()">প্রয়োগ করুন</button>
+            <button class="btn btn-outline btn-sm" onclick="clearDateFilter()">পরিষ্কার করুন</button>
+            <button class="btn btn-outline btn-sm no-print" id="btn-back-to-list" style="margin-left:auto">← তালিকায় ফিরুন</button>
+          </div>
+        </div>
+
+        <!-- Ledger table -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>তারিখ</th>
+                  <th>বিবরণ</th>
+                  <th style="text-align:right">ডেবিট (৳)</th>
+                  <th style="text-align:right">ক্রেডিট (৳)</th>
+                  <th style="text-align:right">ব্যালেন্স (৳)</th>
+                  <th>রেফারেন্স</th>
+                </tr>
+              </thead>
+              <tbody id="ledger-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('ledger');
+
+/* ── STATE ── */
+let parties      = JSON.parse(localStorage.getItem('bf_parties') || '[]');
+let orders       = JSON.parse(localStorage.getItem('bf_orders')  || '[]');
+let selectedParty = null;
+let ledgerEntries = [];  // built from orders for selected party
+
+/* ── POPULATE PARTY DROPDOWN ── */
+function populatePartySelect() {
+  const sel = document.getElementById('party-select');
+  sel.innerHTML = '<option value="">— পার্টি নির্বাচন করুন —</option>' +
+    parties.map(p => `<option value="${p.id}">${p.name}${p.area?' — '+p.area:''}</option>`).join('');
+}
+
+/* ── BUILD LEDGER FROM LOCAL ORDERS ── */
+function buildLedgerForParty(partyId) {
+  const partyOrders = orders.filter(o => o.partyId === partyId);
+  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]').filter(v => v.partyId === partyId);
+
+  // Build a unified event list, then sort by actual date (oldest first)
+  const events = [];
+
+  partyOrders.forEach((o,i) => {
+    events.push({ kind:'order', date:o.date||'', seq:i, data:o });
+  });
+  payments.forEach((v,i) => {
+    events.push({ kind:'voucher', date:v.date||'', seq:1000+i, data:v });
+  });
+  // Parse date to a sortable number; blank/invalid dates sort to the end.
+  function dateVal(d){
+    if(!d) return Infinity;
+    const t = new Date(d).getTime();
+    return isNaN(t) ? Infinity : t;
+  }
+  events.sort((a,b)=>{
+    const da=dateVal(a.date), db=dateVal(b.date);
+    if(da!==db) return da-db;          // oldest first
+    return a.seq-b.seq;                 // stable tiebreaker for same date
+  });
+
+  const entries = [];
+  let runningBalance = 0;
+
+  // Opening balance from party record
+  const party = parties.find(p => p.id === partyId);
+  const openingBal = parseFloat(party?.balance || 0);
+  if (openingBal !== 0) {
+    runningBalance = openingBal;
+    entries.push({
+      date:        '—',
+      description: 'প্রারম্ভিক ব্যালেন্স',
+      debit:       openingBal > 0 ? openingBal : 0,
+      credit:      openingBal < 0 ? Math.abs(openingBal) : 0,
+      balance:     openingBal,
+      reference:   '—',
+      isOpening:   true,
+    });
+  }
+
+  events.forEach(ev => {
+    if (ev.kind === 'order') {
+      const o = ev.data;
+      const grand     = parseFloat(o.grandTotal || 0);
+      const totalPaid = parseFloat(o.totalPaid  || 0);
+      runningBalance += grand;
+      entries.push({
+        date:        o.date,
+        description: (o.orderType==='sales'?'বিক্রয় — ':'ক্রয় — ')+o.orderId,
+        debit:       grand, credit:0, balance:runningBalance,
+        reference:   o.orderId, type:o.orderType,
+      });
+      if (totalPaid > 0) {
+        runningBalance -= totalPaid;
+        const payParts=[];
+        if(parseFloat(o.cash||0)>0)payParts.push(`নগদ: ${fmt.currency(o.cash)}`);
+        if(parseFloat(o.bankDeposit||0)>0)payParts.push(`ব্যাংক: ${fmt.currency(o.bankDeposit)}`);
+        if(parseFloat(o.mobile||0)>0)payParts.push(`মোবাইল: ${fmt.currency(o.mobile)}`);
+        if(parseFloat(o.salary||0)>0)payParts.push(`বেতন: ${fmt.currency(o.salary)}`);
+        if(parseFloat(o.ta||0)>0)payParts.push(`TA: ${fmt.currency(o.ta)}`);
+        if(parseFloat(o.da||0)>0)payParts.push(`DA: ${fmt.currency(o.da)}`);
+        if(parseFloat(o.othersDeduction||0)>0)payParts.push(`অন্যান্য: ${fmt.currency(o.othersDeduction)}`);
+        entries.push({
+          date:o.date,
+          description:`জমা — ${o.orderId}${payParts.length?' ('+payParts.join(', ')+')':''}`,
+          debit:0, credit:totalPaid, balance:runningBalance,
+          reference:o.orderId, type:'payment',
+        });
+      }
+    } else {
+      // standalone voucher
+      const v = ev.data;
+      const amt = parseFloat(v.amount||0);
+      const methods=[];
+      if(parseFloat(v.cash||0)>0)methods.push(`নগদ: ${fmt.currency(v.cash)}`);
+      if(parseFloat(v.bank||0)>0)methods.push(`ব্যাংক: ${fmt.currency(v.bank)}`);
+      if(parseFloat(v.mobile||0)>0)methods.push(`মোবাইল: ${fmt.currency(v.mobile)}`);
+      if(parseFloat(v.salary||0)>0)methods.push(`বেতন: ${fmt.currency(v.salary)}`);
+      if(parseFloat(v.ta||0)>0)methods.push(`TA: ${fmt.currency(v.ta)}`);
+      if(parseFloat(v.da||0)>0)methods.push(`DA: ${fmt.currency(v.da)}`);
+      if(parseFloat(v.damage||0)>0)methods.push(`ক্ষতি: ${fmt.currency(v.damage)}`);
+      if(parseFloat(v.other||0)>0)methods.push(`অন্যান্য: ${fmt.currency(v.other)}`);
+      const detail = methods.length?' ('+methods.join(', ')+')':'';
+
+      let label, isDebit;
+      if (v.vtype==='receipt'){ label='রিসিট'; isDebit=false; }
+      else if (v.vtype==='payment'){ label='পেমেন্ট'; isDebit=false; }
+      else { label='সমন্বয়'; isDebit=(v.direction==='debit'); }
+
+      if (isDebit) { runningBalance += amt; }
+      else { runningBalance -= amt; }
+
+      entries.push({
+        date:v.date,
+        description:`${label} — ${v.vno}${detail}`,
+        debit:  isDebit?amt:0,
+        credit: isDebit?0:amt,
+        balance:runningBalance,
+        reference:v.vno, type:'voucher',
+      });
+    }
+  });
+
+  return entries;
+}
+
+/* ── ALL PARTIES SUMMARY TABLE ── */
+function renderAllPartiesSummary() {
+  const tbody = document.getElementById('all-parties-body');
+  if (!parties.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📒</div><p>কোনো পার্টি নেই</p></div></td></tr>`;
+    return;
+  }
+
+  const typeLabel = { supplier:'সরবরাহকারী', customer:'গ্রাহক', both:'উভয়' };
+  const typeBadge = { supplier:'badge-supplier', customer:'badge-customer', both:'badge-both' };
+
+  const allPayments = JSON.parse(localStorage.getItem('bf_payments')||'[]');
+
+  tbody.innerHTML = parties.map(p => {
+    const partyOrders = orders.filter(o => o.partyId === p.id);
+    const totalInvoiced = partyOrders.reduce((s,o) => s+parseFloat(o.grandTotal||0), 0);
+    const paidInOrders  = partyOrders.reduce((s,o) => s+parseFloat(o.totalPaid||0),  0);
+    // standalone vouchers for this party
+    const pv = allPayments.filter(v => v.partyId === p.id);
+    let voucherCredit = 0;
+    pv.forEach(v => {
+      const amt = parseFloat(v.amount||0);
+      if (v.vtype==='receipt' || v.vtype==='payment') voucherCredit += amt;
+      else if (v.vtype==='adjust') voucherCredit += (v.direction==='debit' ? -amt : amt);
+    });
+    const totalPaid = paidInOrders + voucherCredit;
+    const balance   = parseFloat(p.balance||0) + totalInvoiced - totalPaid;
+
+    return `<tr>
+      <td>
+        <strong>${p.name}</strong>
+        ${p.area?`<br><span style="font-size:11px;color:var(--ink3)">${p.area}</span>`:''}
+      </td>
+      <td><span class="badge ${typeBadge[p.type]||''}">${typeLabel[p.type]||p.type}</span></td>
+      <td style="font-size:12px">${p.phone||'—'}</td>
+      <td style="text-align:right">${fmt.currency(totalInvoiced)}</td>
+      <td style="text-align:right;color:var(--success)">${fmt.currency(totalPaid)}</td>
+      <td style="text-align:right">
+        <span style="font-weight:700;color:${balance>0?'var(--danger)':balance<0?'var(--success)':'var(--ink3)'}">${fmt.currency(balance)}</span>
+      </td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="loadLedger('${p.id}')">স্টেটমেন্ট</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── LOAD LEDGER FOR A PARTY ── */
+function loadLedger(partyId) {
+  selectedParty = parties.find(p => p.id === partyId);
+  if (!selectedParty) return;
+
+  ledgerEntries = buildLedgerForParty(partyId);
+
+  // Update party info card
+  document.getElementById('lp-name').textContent = selectedParty.name;
+  document.getElementById('lp-meta').textContent = [
+    selectedParty.phone, selectedParty.area, selectedParty.address
+  ].filter(Boolean).join(' · ');
+
+  // Compute summary from the merged ledgerEntries (orders + vouchers already combined).
+  // This guarantees the cards match the statement table and the running balance.
+  const opening = parseFloat(selectedParty.balance||0)||0;
+  let totalDebit = 0, totalCredit = 0;
+  ledgerEntries.forEach(e=>{
+    if(e.isOpening) return;            // opening shown separately, not a transaction
+    totalDebit  += parseFloat(e.debit||0);
+    totalCredit += parseFloat(e.credit||0);
+  });
+  // মোট ক্রয়/বিক্রয় = sum of order totals (debits from orders). Vouchers aren't sales,
+  // so "total invoiced" should reflect billed amount only:
+  const totalInvoiced = orders
+    .filter(o=>o.partyId===partyId)
+    .reduce((s,o)=>s+parseFloat(o.grandTotal||0),0);
+  // মোট জমা + কর্তন = everything that reduced the due = all credits (order payments + voucher credits)
+  // minus any debit-type vouchers (adjustments that increased due) already netted in totalDebit.
+  const totalPaid = totalCredit;
+  // অবশিষ্ট বাকি = final running balance (last entry), or opening if no transactions
+  const balance = ledgerEntries.length
+    ? parseFloat(ledgerEntries[ledgerEntries.length-1].balance||0)
+    : opening;
+
+  document.getElementById('sm-total').textContent = fmt.currency(totalInvoiced);
+  document.getElementById('sm-paid').textContent  = fmt.currency(totalPaid);
+  document.getElementById('sm-due').textContent   = fmt.currency(balance);
+
+  const balEl = document.getElementById('lp-balance');
+  balEl.textContent = fmt.currency(balance);
+  balEl.className   = 'party-balance-val ' + (balance>0?'balance-pos':balance<0?'balance-neg':'balance-zero');
+
+  // Show/hide sections
+  document.getElementById('party-selector-card').style.display = 'none';
+  document.getElementById('ledger-section').style.display      = '';
+  document.getElementById('btn-export').style.display          = '';
+  document.getElementById('btn-print').style.display           = '';
+
+  renderLedgerTable(ledgerEntries);
+}
+
+/* ── RENDER LEDGER TABLE ── */
+function fmtDMY(d){
+  // Show DD/MM/YY; leave non-date values (like the '—' opening row) untouched
+  if(!d || d==='—') return d || '—';
+  const dt = new Date(d);
+  if(isNaN(dt.getTime())) return d;
+  const dd = String(dt.getDate()).padStart(2,'0');
+  const mm = String(dt.getMonth()+1).padStart(2,'0');
+  const yy = String(dt.getFullYear()).slice(-2);
+  return dd+'/'+mm+'/'+yy;
+}
+
+function renderLedgerTable(entries) {
+  const tbody = document.getElementById('ledger-body');
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty">
+      <div class="empty-icon">📒</div>
+      <p>এই পার্টির কোনো লেনদেন নেই</p>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = entries.map((e, i) => {
+    const isFirst = i === 0;
+    const rowBg   = e.isOpening ? 'background:#fffbeb;' : e.type==='payment' ? 'background:#f0fdf4;' : '';
+    const balClass = e.balance>0 ? 'balance-pos' : e.balance<0 ? 'balance-neg' : 'balance-zero';
+    return `<tr style="${rowBg}">
+      <td style="font-size:12px;white-space:nowrap">${fmtDMY(e.date)}</td>
+      <td style="font-size:13px">${e.description}</td>
+      <td style="text-align:right" class="${e.debit>0?'ledger-debit':''}">${e.debit>0?fmt.currency(e.debit):'—'}</td>
+      <td style="text-align:right" class="${e.credit>0?'ledger-credit':''}">${e.credit>0?fmt.currency(e.credit):'—'}</td>
+      <td style="text-align:right" class="${balClass}">${fmt.currency(e.balance)}</td>
+      <td style="font-size:11px;color:var(--ink3)">${e.reference||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── DATE FILTER ── */
+function applyDateFilter() {
+  const from = document.getElementById('ledger-date-from').value;
+  const to   = document.getElementById('ledger-date-to').value;
+  const filtered = ledgerEntries.filter(e => {
+    if (e.isOpening) return true;
+    return (!from || e.date >= from) && (!to || e.date <= to);
+  });
+  renderLedgerTable(filtered);
+}
+
+function clearDateFilter() {
+  document.getElementById('ledger-date-from').value = '';
+  document.getElementById('ledger-date-to').value   = '';
+  renderLedgerTable(ledgerEntries);
+}
+
+/* ── BACK TO LIST ── */
+function backToList() {
+  selectedParty = null;
+  document.getElementById('ledger-section').style.display      = 'none';
+  document.getElementById('party-selector-card').style.display = '';
+  document.getElementById('btn-export').style.display          = 'none';
+  document.getElementById('btn-print').style.display           = 'none';
+}
+
+/* ── SYNC FROM SHEET ── */
+async function syncFromSheet() {
+  if (!BF.sheetUrl) { toast('Settings-এ Sheet URL দিন','error'); return; }
+  const btn = document.getElementById('btn-sync');
+  spinBtn(btn, true);
+  try {
+    const [pData, oData, payData] = await Promise.all([
+      API.fetch('getParties'),
+      API.fetch('getOrders'),
+      API.fetch('getPayments').catch(()=>null),
+    ]);
+    if (Array.isArray(pData)) { parties = pData; localStorage.setItem('bf_parties',JSON.stringify(parties)); }
+    if (Array.isArray(oData)) { orders  = oData; localStorage.setItem('bf_orders', JSON.stringify(orders)); }
+    if (Array.isArray(payData)) { localStorage.setItem('bf_payments', JSON.stringify(payData)); }
+    populatePartySelect();
+    renderAllPartiesSummary();
+    toast('ডেটা লোড হয়েছে ✓','success');
+  } catch(e) {
+    toast('লোড ব্যর্থ: ' + e.message,'error');
+  }
+  spinBtn(btn, false);
+}
+
+/* ── EXPORT CSV ── */
+function exportCSV() {
+  if (!selectedParty || !ledgerEntries.length) { toast('কোনো ডেটা নেই','error'); return; }
+  const h = ['তারিখ','বিবরণ','ডেবিট (৳)','ক্রেডিট (৳)','ব্যালেন্স (৳)','রেফারেন্স'];
+  const rows = ledgerEntries.map(e =>
+    [e.date, e.description, e.debit||0, e.credit||0, e.balance, e.reference||'']
+    .map(v=>`"${v}"`).join(',')
+  );
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' +
+    encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
+  a.download = `ledger_${selectedParty.name}_${fmt.dateInput()}.csv`;
+  a.click();
+}
+
+/* ── EVENTS ── */
+document.getElementById('btn-sync').addEventListener('click', syncFromSheet);
+document.getElementById('btn-export').addEventListener('click', exportCSV);
+document.getElementById('btn-load-ledger').addEventListener('click', () => {
+  const id = document.getElementById('party-select').value;
+  if (!id) { toast('পার্টি নির্বাচন করুন','error'); return; }
+  loadLedger(id);
+});
+document.getElementById('btn-back-to-list').addEventListener('click', backToList);
+
+// Also allow selecting from dropdown + Enter
+document.getElementById('party-select').addEventListener('change', e => {
+  if (e.target.value) loadLedger(e.target.value);
+});
+
+/* ── INIT ── */
+populatePartySelect();
+renderAllPartiesSummary();
+if (BF.sheetUrl) syncFromSheet();
+</script>
+</body>
+</html>

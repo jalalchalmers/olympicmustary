@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — সেটিংস</title>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">সেটিংস</span>
+      </div>
+      <div class="bf-topbar-right">
+        <span style="font-size:12px;padding:4px 14px;border-radius:20px;font-weight:600;background:#dcfce7;color:#15803d">
+          👑 Super User Only
+        </span>
+      </div>
+    </div>
+    <div class="bf-body">
+
+      <!-- ACCESS DENIED — shown to non-super if they somehow reach this page -->
+      <div id="access-denied" style="display:none">
+        <div class="card" style="border:2px solid #fecaca;text-align:center;padding:48px">
+          <div style="font-size:48px;margin-bottom:16px">🔒</div>
+          <div style="font-size:18px;font-weight:700;color:#dc2626;margin-bottom:8px">অ্যাক্সেস নেই</div>
+          <div style="font-size:13px;color:var(--ink2);margin-bottom:20px">শুধুমাত্র Super User এই পেজ দেখতে পারবেন।</div>
+          <a href="dashboard.html" class="btn btn-primary">ড্যাশবোর্ডে যান</a>
+        </div>
+      </div>
+
+      <!-- SETTINGS CONTENT — super only -->
+      <div id="settings-content">
+
+        <!-- ── GOOGLE SHEET URL ── -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Google Sheet সংযোগ</div>
+              <div class="card-sub">সকল ব্রাউজার এই URL থেকে ডেটা লোড করবে</div>
+            </div>
+            <span id="sheet-status"
+              style="font-size:12px;padding:5px 14px;border-radius:20px;font-weight:600;background:#fee2e2;color:#dc2626">
+              ✗ সংযুক্ত নয়
+            </span>
+          </div>
+          <div style="max-width:580px;display:grid;gap:12px">
+            <div class="field">
+              <label>Apps Script Web App URL</label>
+              <input type="url" id="s-sheet-url"
+                placeholder="https://script.google.com/macros/s/…/exec"/>
+              <p style="font-size:11px;color:var(--ink3);margin-top:5px">
+                Apps Script → Deploy → Web App → Anyone → Copy URL
+              </p>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-primary"  id="btn-save-url">💾 সেভ করুন</button>
+              <button class="btn btn-outline"  id="btn-test-url">🔗 পরীক্ষা করুন (নতুন ট্যাব)</button>
+              <button class="btn btn-outline"  id="btn-sync-now">🔄 এখনই সিঙ্ক করুন</button>
+            </div>
+            <div id="url-feedback" style="font-size:12px;color:var(--ink3);min-height:16px"></div>
+          </div>
+        </div>
+
+        <!-- ── COMPANY INFO ── -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">ব্যবসার তথ্য</div>
+              <div class="card-sub">ইনভয়েস প্রিন্টে দেখাবে — Sheet-এ সেভ হয়, সব ব্রাউজারে লোড হয়</div>
+            </div>
+          </div>
+          <div style="max-width:560px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field">
+              <label>ব্যবসার নাম</label>
+              <input type="text" id="s-biz-name" placeholder="আপনার কোম্পানির নাম"/>
+            </div>
+            <div class="field">
+              <label>ফোন নম্বর</label>
+              <input type="tel" id="s-biz-phone" placeholder="01XXXXXXXXX"/>
+            </div>
+            <div class="field" style="grid-column:1/-1">
+              <label>ঠিকানা</label>
+              <textarea id="s-biz-address" placeholder="ব্যবসার পূর্ণ ঠিকানা"
+                style="min-height:56px"></textarea>
+            </div>
+            <div style="grid-column:1/-1">
+              <button class="btn btn-primary" id="btn-save-biz">ব্যবসার তথ্য সেভ করুন</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── PASSWORDS ── -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">পাসওয়ার্ড ম্যানেজমেন্ট</div>
+              <div class="card-sub">
+                শুধুমাত্র Super User পাসওয়ার্ড পরিবর্তন করতে পারবেন।
+                Admin নিজের পাসওয়ার্ড পরিবর্তন করতে পারবে না।
+                পরিবর্তন Sheet-এ সেভ হয় — পরবর্তী লগইনে সব ব্রাউজারে কার্যকর।
+              </div>
+            </div>
+          </div>
+          <div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6d4c00">
+            ⚠️ পাসওয়ার্ড পরিবর্তনের পর পরবর্তী লগইনে স্বয়ংক্রিয়ভাবে নতুন পাসওয়ার্ড কার্যকর হবে।
+          </div>
+          <div style="max-width:500px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field">
+              <label>নতুন Super User পাসওয়ার্ড</label>
+              <input type="password" id="s-pw-super" placeholder="নতুন পাসওয়ার্ড"
+                autocomplete="new-password"/>
+              <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
+            </div>
+            <div class="field">
+              <label>নতুন Admin পাসওয়ার্ড</label>
+              <input type="password" id="s-pw-admin" placeholder="নতুন পাসওয়ার্ড"
+                autocomplete="new-password"/>
+              <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
+            </div>
+            <div class="field">
+              <label>নতুন Viewer পাসওয়ার্ড (শুধু দেখার অনুমতি)</label>
+              <input type="password" id="s-pw-viewer" placeholder="নতুন পাসওয়ার্ড"
+                autocomplete="new-password"/>
+              <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
+            </div>
+            <div style="grid-column:1/-1">
+              <button class="btn btn-primary" id="btn-save-pw">পাসওয়ার্ড আপডেট করুন</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SYNC STATUS ── -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">সিঙ্ক স্ট্যাটাস</div>
+          </div>
+          <p id="last-sync-label" style="font-size:13px;color:var(--ink2);margin-bottom:14px"></p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" id="btn-clear-cache">🗑 লোকাল ক্যাশ পরিষ্কার করুন</button>
+          </div>
+        </div>
+
+        <!-- ── DANGER ZONE ── -->
+        <div class="card" style="border:1.5px solid #fecaca">
+          <div class="card-header">
+            <div>
+              <div class="card-title" style="color:var(--danger)">⚠️ ডেটা রিসেট</div>
+              <div class="card-sub">সমস্ত স্থানীয় ডেটা মুছে Sheet থেকে পুনরায় লোড করুন</div>
+            </div>
+          </div>
+          <button class="btn btn-danger btn-sm" id="btn-reset-all">সব লোকাল ডেটা মুছুন</button>
+        </div>
+
+      </div><!-- /settings-content -->
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('settings');
+
+// Block admin and non-logged-in users
+if (!Auth.isSuper()) {
+  document.getElementById('access-denied').style.display  = 'block';
+  document.getElementById('settings-content').style.display = 'none';
+} else {
+  initSettings();
+}
+
+function initSettings() {
+  // Load saved values
+  document.getElementById('s-sheet-url').value   = localStorage.getItem('bf_sheet_url')   || '';
+  document.getElementById('s-biz-name').value    = localStorage.getItem('bf_biz_name')    || '';
+  document.getElementById('s-biz-phone').value   = localStorage.getItem('bf_biz_phone')   || '';
+  document.getElementById('s-biz-address').value = localStorage.getItem('bf_biz_address') || '';
+
+  // Sheet status indicator
+  setSheetStatus(!!BF.sheetUrl);
+
+  const lastSync = localStorage.getItem('bf_last_sync');
+  document.getElementById('last-sync-label').textContent = lastSync
+    ? 'শেষ সিঙ্ক: ' + new Date(lastSync).toLocaleString('en-BD')
+    : 'এখনো সিঙ্ক হয়নি';
+
+  // ── Save URL ──
+  document.getElementById('btn-save-url').addEventListener('click', () => {
+    const url = document.getElementById('s-sheet-url').value.trim();
+    if (!url) { toast('URL লিখুন', 'error'); return; }
+    localStorage.setItem('bf_sheet_url', url);
+    BF.sheetUrl = url;
+    setSheetStatus(true);
+    document.getElementById('url-feedback').textContent = '✓ URL সেভ হয়েছে। "পরীক্ষা করুন" বোতামে সংযোগ যাচাই করুন।';
+    toast('URL সেভ হয়েছে ✓', 'success');
+  });
+
+  // ── Test URL (opens in new tab — avoids CORS entirely) ──
+  document.getElementById('btn-test-url').addEventListener('click', () => {
+    const url = document.getElementById('s-sheet-url').value.trim();
+    if (!url) { toast('আগে URL লিখুন', 'error'); return; }
+    window.open(url + '?action=ping', '_blank');
+    document.getElementById('url-feedback').textContent =
+      '↗ নতুন ট্যাবে খুলেছে। {"status":"ok"} দেখা গেলে সংযোগ সফল।';
+  });
+
+  // ── Sync now ──
+  document.getElementById('btn-sync-now').addEventListener('click', async () => {
+    if (!BF.sheetUrl) { toast('আগে URL সেভ করুন', 'error'); return; }
+    const btn = document.getElementById('btn-sync-now');
+    spinBtn(btn, true);
+    const ok = await API.syncAllData(msg => {
+      document.getElementById('url-feedback').textContent = msg;
+    });
+    const now = new Date().toISOString();
+    localStorage.setItem('bf_last_sync', now);
+    document.getElementById('last-sync-label').textContent = 'শেষ সিঙ্ক: ' + new Date(now).toLocaleString('en-BD');
+    document.getElementById('url-feedback').textContent = ok ? '✓ সিঙ্ক সম্পন্ন' : '⚠ সিঙ্ক আংশিক ব্যর্থ';
+    toast(ok ? 'সিঙ্ক সম্পন্ন ✓' : 'সিঙ্ক আংশিক ব্যর্থ', ok ? 'success' : 'error');
+    spinBtn(btn, false);
+  });
+
+  // ── Save business info → push to Sheet ──
+  document.getElementById('btn-save-biz').addEventListener('click', async () => {
+    const name    = document.getElementById('s-biz-name').value.trim();
+    const phone   = document.getElementById('s-biz-phone').value.trim();
+    const address = document.getElementById('s-biz-address').value.trim();
+    localStorage.setItem('bf_biz_name',    name);
+    localStorage.setItem('bf_biz_phone',   phone);
+    localStorage.setItem('bf_biz_address', address);
+    const btn = document.getElementById('btn-save-biz');
+    spinBtn(btn, true);
+    try {
+      await API.post({ action:'saveConfig', key:'biz', biz_name:name, biz_phone:phone, biz_address:address });
+      toast('ব্যবসার তথ্য সেভ হয়েছে ✓', 'success');
+    } catch(e) {
+      toast('লোকালি সেভ হয়েছে — Sheet সিঙ্ক ব্যর্থ', 'error');
+    }
+    spinBtn(btn, false);
+  });
+
+  // ── Save passwords → push to Sheet (only super can do this) ──
+  document.getElementById('btn-save-pw').addEventListener('click', async () => {
+    const sup = document.getElementById('s-pw-super').value.trim();
+    const adm = document.getElementById('s-pw-admin').value.trim();
+    var vwCheck = document.getElementById('s-pw-viewer').value.trim();
+    if (!sup && !adm && !vwCheck) { toast('কমপক্ষে একটি পাসওয়ার্ড লিখুন', 'error'); return; }
+    const btn = document.getElementById('btn-save-pw');
+    spinBtn(btn, true);
+    const payload = { action:'saveConfig', key:'passwords' };
+    var vw = document.getElementById('s-pw-viewer').value.trim();
+    if (sup) { payload.pw_super  = sup; localStorage.setItem('bf_pw_super',  sup); BF.roles.super  = sup; }
+    if (adm) { payload.pw_admin  = adm; localStorage.setItem('bf_pw_admin',  adm); BF.roles.admin  = adm; }
+    if (vw)  { payload.pw_viewer = vw;  localStorage.setItem('bf_pw_viewer', vw);  BF.roles.viewer = vw; }
+    try {
+      await API.post(payload);
+      toast('পাসওয়ার্ড আপডেট হয়েছে ✓', 'success');
+    } catch(e) {
+      toast('লোকালি আপডেট হয়েছে — Sheet সিঙ্ক ব্যর্থ', 'error');
+    }
+    document.getElementById('s-pw-super').value = '';
+    document.getElementById('s-pw-admin').value = '';
+    document.getElementById('s-pw-viewer').value = '';
+    spinBtn(btn, false);
+  });
+
+  // ── Clear cache ──
+  document.getElementById('btn-clear-cache').addEventListener('click', () => {
+    const keep = ['bf_sheet_url','bf_pw_super','bf_pw_admin','bf_biz_name','bf_biz_phone','bf_biz_address'];
+    Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
+    toast('ক্যাশ পরিষ্কার হয়েছে ✓', 'success');
+  });
+
+  // ── Full reset ──
+  document.getElementById('btn-reset-all').addEventListener('click', () => {
+    if (!window.confirm('সমস্ত লোকাল ডেটা মুছে যাবে। নিশ্চিত?')) return;
+    const keep = ['bf_sheet_url','bf_pw_super','bf_pw_admin'];
+    Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
+    toast('ডেটা রিসেট হয়েছে', 'success');
+  });
+}
+
+function setSheetStatus(ok) {
+  const el = document.getElementById('sheet-status');
+  el.textContent = ok ? '✓ URL সেট আছে' : '✗ URL সেট নেই';
+  el.style.background = ok ? '#dcfce7' : '#fee2e2';
+  el.style.color      = ok ? '#15803d' : '#dc2626';
+}
+</script>
+</body>
+</html>

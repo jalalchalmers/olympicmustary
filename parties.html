@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — পার্টি লিস্ট</title>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">পার্টি লিস্ট</span>
+      </div>
+      <div class="bf-topbar-right">
+        <button class="btn btn-primary btn-sm" id="btn-new-party">+ নতুন পার্টি</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- STATS -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-label">মোট পার্টি</div><div class="stat-value" id="s-total">0</div></div>
+        <div class="stat-card"><div class="stat-icon">🏭</div><div class="stat-label">সরবরাহকারী</div><div class="stat-value" id="s-supplier">0</div></div>
+        <div class="stat-card"><div class="stat-icon">🛒</div><div class="stat-label">গ্রাহক</div><div class="stat-value" id="s-customer">0</div></div>
+        <div class="stat-card"><div class="stat-icon">🔄</div><div class="stat-label">উভয়</div><div class="stat-value" id="s-both">0</div></div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="card" style="padding:14px 20px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <div class="search-bar" style="flex:1;min-width:200px">
+            <input type="text" id="search-input" placeholder="নাম, ফোন বা এলাকা দিয়ে খুঁজুন…"/>
+          </div>
+          <select id="filter-type" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;color:var(--ink);outline:none;background:#fff">
+            <option value="">সব ধরন</option>
+            <option value="supplier">সরবরাহকারী</option>
+            <option value="customer">গ্রাহক</option>
+            <option value="both">উভয়</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
+          <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>নাম</th>
+                <th>ধরন</th>
+                <th>ফোন</th>
+                <th>এলাকা / ঠিকানা</th>
+                <th style="text-align:right">ব্যালেন্স (৳)</th>
+                <th>অ্যাকশন</th>
+              </tr>
+            </thead>
+            <tbody id="parties-body">
+              <tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div><p>লোড হচ্ছে…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-overlay" id="party-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">নতুন পার্টি যোগ করুন</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field" style="grid-column:1/-1">
+        <label>পার্টির নাম *</label>
+        <input type="text" id="p-name" placeholder="পার্টির পূর্ণ নাম"/>
+      </div>
+      <div class="field">
+        <label>ধরন *</label>
+        <select id="p-type">
+          <option value="customer">গ্রাহক</option>
+          <option value="supplier">সরবরাহকারী</option>
+          <option value="both">উভয়</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>ফোন নম্বর</label>
+        <input type="tel" id="p-phone" placeholder="01XXXXXXXXX"/>
+      </div>
+      <div class="field">
+        <label>ইমেইল</label>
+        <input type="email" id="p-email" placeholder="email@example.com"/>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>ঠিকানা</label>
+        <textarea id="p-address" placeholder="পূর্ণ ঠিকানা লিখুন…" style="min-height:60px"></textarea>
+      </div>
+      <div class="field">
+        <label>এলাকা / জেলা</label>
+        <input type="text" id="p-area" placeholder="যেমন: ঢাকা, চট্টগ্রাম"/>
+      </div>
+      <div class="field">
+        <label>প্রারম্ভিক ব্যালেন্স (৳)</label>
+        <input type="number" id="p-balance" placeholder="0.00" value="0"/>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>নোট</label>
+        <input type="text" id="p-notes" placeholder="অতিরিক্ত তথ্য (ঐচ্ছিক)"/>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">বাতিল</button>
+      <button class="btn btn-primary" id="save-party-btn">সেভ করুন</button>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('parties');
+
+/* ── STATE ── */
+let parties = JSON.parse(localStorage.getItem('bf_parties') || '[]');
+let editId  = null;
+
+function saveLocal() {
+  localStorage.setItem('bf_parties', JSON.stringify(parties));
+  localStorage.setItem('bf_count_parties', parties.length);
+}
+
+/* ── STATS ── */
+function updateStats() {
+  document.getElementById('s-total').textContent    = parties.length;
+  document.getElementById('s-supplier').textContent = parties.filter(p=>p.type==='supplier').length;
+  document.getElementById('s-customer').textContent = parties.filter(p=>p.type==='customer').length;
+  document.getElementById('s-both').textContent     = parties.filter(p=>p.type==='both').length;
+}
+
+/* ── RENDER TABLE ── */
+function renderTable(list) {
+  const tbody = document.getElementById('parties-body');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty">
+      <div class="empty-icon">👥</div>
+      <p>কোনো পার্টি নেই। উপরের বোতাম দিয়ে যোগ করুন।</p>
+    </div></td></tr>`;
+    return;
+  }
+  const typeLabel = { supplier:'সরবরাহকারী', customer:'গ্রাহক', both:'উভয়' };
+  const typeBadge = { supplier:'badge-supplier', customer:'badge-customer', both:'badge-both' };
+
+  tbody.innerHTML = list.map((p, i) => `
+    <tr>
+      <td style="color:var(--ink3);font-size:12px">${i+1}</td>
+      <td>
+        <strong>${p.name}</strong>
+        ${p.area ? `<br><span style="font-size:11px;color:var(--ink3)">${p.area}</span>` : ''}
+      </td>
+      <td><span class="badge ${typeBadge[p.type]||''}">${typeLabel[p.type]||p.type}</span></td>
+      <td>${p.phone||'—'}</td>
+      <td style="font-size:12px;max-width:180px;color:var(--ink2)">${p.address||'—'}</td>
+      <td style="text-align:right;font-weight:600;color:${parseFloat(p.balance||0)<0?'var(--danger)':'var(--success)'}">
+        ${fmt.currency(p.balance||0)}
+      </td>
+      <td>
+        <div class="td-actions">
+          <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${p.id}')" title="সম্পাদনা">✏️</button>
+          <button class="btn btn-danger  btn-sm btn-icon" onclick="deleteParty('${p.id}')" title="মুছুন">🗑️</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function applyFilters() {
+  const q    = document.getElementById('search-input').value.toLowerCase();
+  const type = document.getElementById('filter-type').value;
+  const list = parties.filter(p => {
+    const mQ = !q || p.name.toLowerCase().includes(q) || (p.phone||'').includes(q) || (p.area||'').toLowerCase().includes(q);
+    const mT = !type || p.type === type;
+    return mQ && mT;
+  });
+  renderTable(list);
+}
+
+/* ── MODAL ── */
+function openModal(id = null) {
+  editId = id;
+  const p = id ? parties.find(x => x.id === id) : null;
+  document.getElementById('modal-title').textContent = p ? 'পার্টি সম্পাদনা করুন' : 'নতুন পার্টি যোগ করুন';
+  document.getElementById('p-name').value    = p?.name    || '';
+  document.getElementById('p-type').value    = p?.type    || 'customer';
+  document.getElementById('p-phone').value   = p?.phone   || '';
+  document.getElementById('p-email').value   = p?.email   || '';
+  document.getElementById('p-address').value = p?.address || '';
+  document.getElementById('p-area').value    = p?.area    || '';
+  document.getElementById('p-balance').value = p?.balance || '0';
+  document.getElementById('p-notes').value   = p?.notes   || '';
+  document.getElementById('party-modal').classList.add('open');
+  setTimeout(() => document.getElementById('p-name').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('party-modal').classList.remove('open');
+}
+
+/* ── SAVE ── */
+async function saveParty() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { toast('পার্টির নাম লিখুন', 'error'); document.getElementById('p-name').focus(); return; }
+
+  const btn = document.getElementById('save-party-btn');
+  spinBtn(btn, true);
+
+  const party = {
+    id:      editId || ('P' + Date.now()),
+    name,
+    type:    document.getElementById('p-type').value,
+    phone:   document.getElementById('p-phone').value.trim(),
+    email:   document.getElementById('p-email').value.trim(),
+    address: document.getElementById('p-address').value.trim(),
+    area:    document.getElementById('p-area').value.trim(),
+    balance: parseFloat(document.getElementById('p-balance').value) || 0,
+    notes:   document.getElementById('p-notes').value.trim(),
+    updated: new Date().toISOString(),
+  };
+
+  if (editId) {
+    const idx = parties.findIndex(x => x.id === editId);
+    if (idx > -1) parties[idx] = party; else parties.unshift(party);
+  } else {
+    parties.unshift(party);
+  }
+
+  saveLocal();
+  applyFilters();
+  updateStats();
+  closeModal();
+  toast(editId ? 'পার্টি আপডেট হয়েছে ✓' : 'নতুন পার্টি সেভ হয়েছে ✓', 'success');
+
+  // Sync to Sheet
+  if (BF.sheetUrl) {
+    try { await API.post({ action: 'saveParty', ...party }); }
+    catch(e) { toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে', 'error'); }
+  }
+  spinBtn(btn, false);
+}
+
+/* ── DELETE ── */
+function deleteParty(id) {
+  const p = parties.find(x => x.id === id);
+  if (!p) return;
+  bfConfirm(`"${p.name}" মুছে দেবেন?`, async () => {
+    parties = parties.filter(x => x.id !== id);
+    saveLocal();
+    applyFilters();
+    updateStats();
+    toast('পার্টি মুছে ফেলা হয়েছে', 'success');
+    if (BF.sheetUrl) {
+      try { await API.post({ action: 'deleteParty', id }); } catch(e) {}
+    }
+  });
+}
+
+/* ── SYNC FROM SHEET ── */
+async function syncFromSheet() {
+  if (!BF.sheetUrl) { toast('Settings-এ Sheet URL দিন', 'error'); return; }
+  const btn = document.getElementById('btn-sync');
+  spinBtn(btn, true);
+  try {
+    const data = await API.fetch('getParties');
+    if (Array.isArray(data) && data.length) {
+      parties = data;
+      saveLocal();
+      applyFilters();
+      updateStats();
+      toast(`${data.length}টি পার্টি লোড হয়েছে ✓`, 'success');
+    } else {
+      toast('Sheet-এ কোনো পার্টি নেই', 'info');
+    }
+  } catch(e) {
+    toast('লোড ব্যর্থ: ' + e.message, 'error');
+  }
+  spinBtn(btn, false);
+}
+
+/* ── EXPORT CSV ── */
+function exportCSV() {
+  if (!parties.length) { toast('কোনো ডেটা নেই', 'error'); return; }
+  const header = ['ID','নাম','ধরন','ফোন','ইমেইল','ঠিকানা','এলাকা','ব্যালেন্স','নোট'];
+  const rows   = parties.map(p =>
+    [p.id,p.name,p.type,p.phone,p.email,p.address,p.area,p.balance,p.notes]
+    .map(v => `"${v||''}"`).join(',')
+  );
+  const a = document.createElement('a');
+  a.href     = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF' + [header.join(','),...rows].join('\n'));
+  a.download = 'parties_' + fmt.dateInput() + '.csv';
+  a.click();
+}
+
+/* ── EVENTS ── */
+document.getElementById('btn-new-party').addEventListener('click',  () => openModal());
+document.getElementById('save-party-btn').addEventListener('click', saveParty);
+document.getElementById('search-input').addEventListener('input',   applyFilters);
+document.getElementById('filter-type').addEventListener('change',   applyFilters);
+document.getElementById('btn-sync').addEventListener('click',       syncFromSheet);
+document.getElementById('btn-export').addEventListener('click',     exportCSV);
+document.getElementById('party-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('party-modal')) closeModal();
+});
+
+// Enter key in modal
+document.getElementById('party-modal').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') saveParty();
+});
+
+/* ── URL param: open new modal directly ── */
+if (new URLSearchParams(window.location.search).get('new') === '1') openModal();
+
+/* ── INIT ── */
+renderTable(parties);
+updateStats();
+
+// Auto-sync from Sheet on load if URL is set
+if (BF.sheetUrl) syncFromSheet();
+</script>
+</body>
+</html>
