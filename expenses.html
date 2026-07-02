@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — দৈনিক খরচ</title>
+  <style>
+    .ex-cat{font-size:11px;background:#e0e7ff;color:#3730a3;padding:2px 9px;border-radius:10px;font-weight:600;white-space:nowrap}
+    table.ex-cat-table{width:100%;border-collapse:collapse;font-size:13px}
+    table.ex-cat-table td,table.ex-cat-table th{padding:8px 12px;border-bottom:1px solid var(--border)}
+    table.ex-cat-table td:last-child,table.ex-cat-table th:last-child{text-align:right;font-weight:600}
+    .ex-modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:300;align-items:center;justify-content:center;padding:16px}
+    .ex-modal-overlay.open{display:flex}
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">দৈনিক খরচ</span>
+      </div>
+      <div class="bf-topbar-right">
+        <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
+        <button class="btn btn-primary btn-sm" id="btn-new">+ নতুন খরচ</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- MONTHLY SUMMARY -->
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-label">এই মাসের খরচ</div><div class="stat-value" id="s-this" style="font-size:18px">৳0</div></div>
+        <div class="stat-card"><div class="stat-icon">📆</div><div class="stat-label">গত মাসের খরচ</div><div class="stat-value" id="s-last" style="font-size:18px">৳0</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-label">পার্থক্য</div><div class="stat-value" id="s-diff" style="font-size:18px">৳0</div></div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="card" style="padding:14px 20px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">শুরুর তারিখ</label>
+            <input type="date" id="f-from" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">শেষ তারিখ</label>
+            <input type="date" id="f-to" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">ধরন</label>
+            <select id="f-category" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff;min-width:150px">
+              <option value="">সব ধরন</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-clear">সব দেখুন</button>
+          <span style="margin-left:auto;font-size:14px;color:var(--ink2)">মোট: <strong id="filtered-total" style="color:var(--danger)">৳0</strong></span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start">
+        <!-- ENTRIES TABLE -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>তারিখ</th><th>ধরন</th><th style="text-align:right">পরিমাণ (৳)</th><th>নোট</th><th>অ্যাকশন</th></tr>
+              </thead>
+              <tbody id="ex-body">
+                <tr><td colspan="5"><div class="empty"><div class="empty-icon">💸</div><p>লোড হচ্ছে…</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PER-CATEGORY TOTALS -->
+        <div class="card" style="padding:16px">
+          <div style="font-size:14px;font-weight:700;color:var(--ink2);margin-bottom:10px">ধরন অনুযায়ী মোট</div>
+          <table class="ex-cat-table" id="cat-totals">
+            <tbody><tr><td style="color:var(--ink3)">—</td><td></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ADD / EDIT MODAL -->
+<div class="ex-modal-overlay" id="ex-modal">
+  <div style="background:#fff;border-radius:16px;max-width:440px;width:100%;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-size:18px;font-weight:700;margin:0" id="ex-modal-title">নতুন খরচ</h3>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink3)">×</button>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>তারিখ *</label>
+      <input type="date" id="ex-date"/>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>ধরন / ক্যাটাগরি *</label>
+      <input type="text" id="ex-category" list="cat-suggestions" placeholder="যেমন: পরিবহন, বেতন, ভাড়া, চা-নাস্তা"/>
+      <datalist id="cat-suggestions"></datalist>
+      <p style="font-size:11px;color:var(--ink3);margin-top:3px">আগের ধরন থেকে বেছে নিন বা নতুন লিখুন</p>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>পরিমাণ (৳) *</label>
+      <input type="number" id="ex-amount" min="0" step="0.01" placeholder="0.00"/>
+    </div>
+    <div class="field" style="margin-bottom:18px">
+      <label>নোট</label>
+      <input type="text" id="ex-note" placeholder="বিবরণ (ঐচ্ছিক)"/>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal()">বাতিল</button>
+      <button class="btn btn-primary" id="ex-save-btn">সেভ করুন</button>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('expenses');
+
+let expenses = JSON.parse(localStorage.getItem('bf_expenses')||'[]');
+let editId = null;
+
+function saveLocal(){ localStorage.setItem('bf_expenses',JSON.stringify(expenses)); }
+
+/* distinct categories from history (for datalist + filter) */
+function categories(){
+  return [...new Set(expenses.map(e=>e.category).filter(Boolean))].sort();
+}
+
+/* ── month helpers ── */
+function ym(d){ return (d||'').slice(0,7); }         // 'YYYY-MM'
+function thisMonth(){ return new Date().toISOString().slice(0,7); }
+function lastMonth(){ const d=new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); }
+
+function updateSummary(){
+  const tm=thisMonth(), lm=lastMonth();
+  const sum=m=>expenses.filter(e=>ym(e.date)===m).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const t=sum(tm), l=sum(lm), diff=t-l;
+  document.getElementById('s-this').textContent=fmt.currency(t);
+  document.getElementById('s-last').textContent=fmt.currency(l);
+  const de=document.getElementById('s-diff');
+  de.textContent=(diff>=0?'+':'−')+fmt.currency(Math.abs(diff)).replace('৳','৳');
+  de.style.color = diff>0 ? 'var(--danger)' : 'var(--success)';
+}
+
+/* ── filtering ── */
+function getFiltered(){
+  const from=document.getElementById('f-from').value;
+  const to=document.getElementById('f-to').value;
+  const cat=document.getElementById('f-category').value;
+  return expenses.filter(e=>{
+    if(from && (e.date||'')<from) return false;
+    if(to && (e.date||'')>to) return false;
+    if(cat && e.category!==cat) return false;
+    return true;
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+
+function render(){
+  // category dropdown + datalist
+  const cats=categories();
+  const fc=document.getElementById('f-category');
+  const cur=fc.value;
+  fc.innerHTML='<option value="">সব ধরন</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  fc.value=cur;
+  document.getElementById('cat-suggestions').innerHTML=cats.map(c=>`<option value="${c}">`).join('');
+
+  const list=getFiltered();
+  const tb=document.getElementById('ex-body');
+  if(!list.length){
+    tb.innerHTML='<tr><td colspan="5"><div class="empty"><div class="empty-icon">💸</div><p>কোনো খরচ নেই</p></div></td></tr>';
+  } else {
+    tb.innerHTML=list.map(e=>`<tr>
+      <td style="font-size:12px">${e.date||''}</td>
+      <td><span class="ex-cat">${e.category||'—'}</span></td>
+      <td style="text-align:right;font-weight:600">${fmt.currency(e.amount)}</td>
+      <td style="font-size:12px;color:var(--ink2)">${e.note||''}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${e.id}')" title="সম্পাদনা">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="del('${e.id}')" title="মুছুন">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+  }
+
+  // filtered total
+  const total=list.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  document.getElementById('filtered-total').textContent=fmt.currency(total);
+
+  // per-category totals (within filtered set)
+  const byCat={};
+  list.forEach(e=>{ const c=e.category||'—'; byCat[c]=(byCat[c]||0)+(parseFloat(e.amount)||0); });
+  const rows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const ct=document.querySelector('#cat-totals tbody');
+  ct.innerHTML = rows.length
+    ? rows.map(([c,v])=>`<tr><td><span class="ex-cat">${c}</span></td><td>${fmt.currency(v)}</td></tr>`).join('')
+      + `<tr style="border-top:2px solid var(--border)"><td style="font-weight:700">মোট</td><td style="font-weight:700;color:var(--danger)">${fmt.currency(total)}</td></tr>`
+    : '<tr><td style="color:var(--ink3)">—</td><td></td></tr>';
+
+  updateSummary();
+}
+
+/* ── modal ── */
+function openModal(id=null){
+  editId=id;
+  const e=id?expenses.find(x=>x.id===id):null;
+  document.getElementById('ex-modal-title').textContent=e?'খরচ সম্পাদনা':'নতুন খরচ';
+  document.getElementById('ex-date').value=e?.date||fmt.dateInput();
+  document.getElementById('ex-category').value=e?.category||'';
+  document.getElementById('ex-amount').value=e?.amount||'';
+  document.getElementById('ex-note').value=e?.note||'';
+  document.getElementById('cat-suggestions').innerHTML=categories().map(c=>`<option value="${c}">`).join('');
+  document.getElementById('ex-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('ex-category').focus(),100);
+}
+function closeModal(){ document.getElementById('ex-modal').classList.remove('open'); }
+
+async function save(){
+  const date=document.getElementById('ex-date').value;
+  const category=document.getElementById('ex-category').value.trim();
+  const amount=parseFloat(document.getElementById('ex-amount').value);
+  const note=document.getElementById('ex-note').value.trim();
+  if(!date){ toast('তারিখ দিন','error'); return; }
+  if(!category){ toast('ধরন লিখুন','error'); return; }
+  if(!amount||amount<=0){ toast('সঠিক পরিমাণ দিন','error'); return; }
+
+  const rec={ id: editId||('EX'+Date.now()), date, category, amount, note, savedAt:new Date().toISOString() };
+  const idx=expenses.findIndex(x=>x.id===rec.id);
+  if(idx>-1) expenses[idx]=rec; else expenses.unshift(rec);
+  saveLocal(); render(); closeModal();
+  toast(editId?'খরচ আপডেট হয়েছে ✓':'খরচ সেভ হয়েছে ✓','success');
+  if(BF.sheetUrl){ try{ await API.post({action:'saveExpense',...rec}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error'); } }
+}
+
+function del(id){
+  const e=expenses.find(x=>x.id===id); if(!e) return;
+  bfConfirm(`"${e.category}" — ${fmt.currency(e.amount)} মুছে দেবেন?`, async ()=>{
+    expenses=expenses.filter(x=>x.id!==id);
+    saveLocal(); render();
+    toast('খরচ মুছে ফেলা হয়েছে','success');
+    if(BF.sheetUrl) API.post({action:'deleteExpense',id}).catch(()=>{});
+  });
+}
+
+function exportCsv(){
+  const list=getFiltered();
+  if(!list.length){ toast('কোনো ডেটা নেই','error'); return; }
+  const h=['তারিখ','ধরন','পরিমাণ','নোট'];
+  const rows=list.map(e=>[e.date,e.category,e.amount,e.note].map(v=>`"${v||''}"`).join(','));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
+  a.download='expenses_'+fmt.dateInput()+'.csv'; a.click();
+}
+
+/* ── events ── */
+document.getElementById('btn-new').addEventListener('click',()=>openModal());
+document.getElementById('ex-save-btn').addEventListener('click',save);
+document.getElementById('btn-export').addEventListener('click',exportCsv);
+document.getElementById('f-from').addEventListener('change',render);
+document.getElementById('f-to').addEventListener('change',render);
+document.getElementById('f-category').addEventListener('change',render);
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  document.getElementById('f-from').value='';
+  document.getElementById('f-to').value='';
+  document.getElementById('f-category').value='';
+  render();
+});
+document.getElementById('ex-modal').addEventListener('click',e=>{ if(e.target.id==='ex-modal') closeModal(); });
+
+/* ── load from sheet ── */
+async function load(){
+  if(BF.sheetUrl){
+    try{
+      const d=await API.fetch('getExpenses');
+      if(Array.isArray(d)){ expenses=d; saveLocal(); }
+    }catch(e){}
+  }
+  render();
+}
+load();
+</script>
+</body>
+</html>
