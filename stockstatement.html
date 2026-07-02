@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — স্টক স্টেটমেন্ট</title>
+  <style>
+    table.ss{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+    table.ss th,table.ss td{padding:9px 11px;border-bottom:1px solid var(--border)}
+    table.ss thead th{background:var(--bg);font-weight:700;color:var(--ink2);position:sticky;top:0;text-align:right;white-space:nowrap}
+    table.ss thead th:nth-child(1),table.ss thead th:nth-child(2){text-align:left}
+    table.ss td:nth-child(1),table.ss td:nth-child(2){text-align:left}
+    table.ss td{text-align:right;white-space:nowrap}
+    .ss-in{color:var(--success);font-weight:600}
+    .ss-out{color:var(--danger);font-weight:600}
+    .ss-bal{font-weight:700}
+    .ss-type{font-size:11px;padding:1px 8px;border-radius:8px;font-weight:600}
+    .ss-type.in{background:#dcfce7;color:#166534}
+    .ss-type.out{background:#fee2e2;color:#991b1b}
+    tr.ss-foot td{border-top:2px solid var(--ink3);font-weight:700;background:var(--bg)}
+    @media print{
+      .bf-nav,.bf-topbar,.ss-filters,.no-print{display:none!important}
+      .bf-main{margin-left:0}.bf-body{padding:0}
+      table.ss{font-size:10px}
+      table.ss th,table.ss td{border:1px solid #94a3b8;padding:3px 6px}
+    }
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">স্টক স্টেটমেন্ট</span>
+      </div>
+      <div class="bf-topbar-right">
+        <button class="btn btn-outline btn-sm" id="btn-print">🖨️ প্রিন্ট</button>
+        <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <!-- FILTERS -->
+      <div class="card ss-filters" style="padding:14px 20px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">শুরুর তারিখ</label>
+            <input type="date" id="f-from" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">শেষ তারিখ</label>
+            <input type="date" id="f-to" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">নাম (পার্টি/সরবরাহকারী)</label>
+            <select id="f-name" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff;min-width:180px">
+              <option value="">সব নাম</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">ধরন</label>
+            <select id="f-flow" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff">
+              <option value="">In + Out</option>
+              <option value="in">শুধু In (ক্রয়)</option>
+              <option value="out">শুধু Out (বিক্রয়)</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-clear">সব দেখুন</button>
+        </div>
+        <p style="font-size:11px;color:var(--ink3);margin:10px 0 0">
+          চলমান ব্যালেন্স সব পণ্যের সম্মিলিত (মোট In − মোট Out), প্রতিটি পণ্যের কার্টন সাইজ অনুযায়ী ctn+pcs হিসাবে দেখানো হয়েছে।
+          ব্যালেন্স সবসময় শুরু থেকে হিসাব করা হয় (ফিল্টার নির্বিশেষে) যাতে সঠিক থাকে।
+        </p>
+      </div>
+
+      <div class="card" style="padding:0;overflow:auto">
+        <table class="ss">
+          <thead>
+            <tr>
+              <th>তারিখ</th>
+              <th>নাম</th>
+              <th>Product In<br><span style="font-weight:400;font-size:11px">(ctn+pcs)</span></th>
+              <th>In পরিমাণ<br><span style="font-weight:400;font-size:11px">(৳)</span></th>
+              <th>Product Out<br><span style="font-weight:400;font-size:11px">(ctn+pcs)</span></th>
+              <th>Out পরিমাণ<br><span style="font-weight:400;font-size:11px">(৳)</span></th>
+              <th>ব্যালেন্স<br><span style="font-weight:400;font-size:11px">(ctn+pcs)</span></th>
+              <th>ব্যালেন্স পরিমাণ<br><span style="font-weight:400;font-size:11px">(৳)</span></th>
+            </tr>
+          </thead>
+          <tbody id="ss-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('stockstmt');
+
+let orders = JSON.parse(localStorage.getItem('bf_orders')||'[]');
+let products = JSON.parse(localStorage.getItem('bf_products')||'[]');
+
+/* carton size lookup: prefer product master, else item's stored cartonSize */
+const cartonById = {};
+products.forEach(p=>{ if(p.id) cartonById[p.id]=parseFloat(p.cartonSize)||0; });
+
+/* pieces → "X ctn + Y pcs" using each product's own carton size.
+   We accumulate ctn and loose pcs separately across products, since sizes differ. */
+function piecesDisp(ctn,pcs){
+  if(ctn && pcs) return ctn.toLocaleString()+' ctn + '+pcs+' pcs';
+  if(ctn) return ctn.toLocaleString()+' ctn';
+  return (pcs||0)+' pcs';
+}
+
+/* compute per-order in/out piece breakdown (ctn+pcs) + amount */
+function orderFlow(o){
+  let items=[]; try{ items=JSON.parse(o.items||'[]'); }catch(e){}
+  let ctn=0, pcs=0, pieces=0;
+  items.forEach(it=>{
+    const tp=parseFloat(it.totalPieces!==undefined?it.totalPieces:it.qty)||0;
+    const cs=parseFloat(it.cartonSize)|| cartonById[it.productId] || 0;
+    pieces+=tp;
+    if(cs>0){ ctn+=Math.floor(tp/cs); pcs+=tp%cs; }
+    else { pcs+=tp; }
+  });
+  return { ctn, pcs, pieces, amount:parseFloat(o.grandTotal)||0 };
+}
+
+/* build the full statement (chronological) with running balance across ALL products.
+   Running balance computed on the FULL set first (so filtering rows doesn't corrupt it). */
+function buildStatement(){
+  // sort all orders oldest→newest by date then savedAt
+  const all=[...orders].sort((a,b)=>{
+    const d=(a.date||'').localeCompare(b.date||'');
+    if(d) return d;
+    return (a.savedAt||'').localeCompare(b.savedAt||'');
+  });
+
+  let balPieces=0, balAmount=0;
+  // per-product running pieces to render balance as ctn+pcs correctly
+  const balByProduct={}; // productId → net pieces
+
+  const rows=all.map(o=>{
+    const isIn = o.orderType==='purchase';
+    const f=orderFlow(o);
+    // update per-product running balance
+    let items=[]; try{ items=JSON.parse(o.items||'[]'); }catch(e){}
+    items.forEach(it=>{
+      const tp=parseFloat(it.totalPieces!==undefined?it.totalPieces:it.qty)||0;
+      const pid=it.productId||('_'+(it.code||it.productName||'x'));
+      if(!balByProduct[pid]) balByProduct[pid]={pieces:0,cs:parseFloat(it.cartonSize)||cartonById[it.productId]||0};
+      balByProduct[pid].pieces += isIn ? tp : -tp;
+      if(!balByProduct[pid].cs && it.cartonSize) balByProduct[pid].cs=parseFloat(it.cartonSize)||0;
+    });
+    balPieces += isIn ? f.pieces : -f.pieces;
+    balAmount += isIn ? f.amount : -f.amount;
+
+    // render running balance as ctn+pcs summed per product
+    let bctn=0, bpcs=0;
+    Object.values(balByProduct).forEach(r=>{
+      if(r.cs>0){ bctn+=Math.floor(r.pieces/r.cs); bpcs+=r.pieces%r.cs; }
+      else { bpcs+=r.pieces; }
+    });
+
+    return {
+      order:o, isIn,
+      inCtn:isIn?f.ctn:0, inPcs:isIn?f.pcs:0, inAmt:isIn?f.amount:0,
+      outCtn:isIn?0:f.ctn, outPcs:isIn?0:f.pcs, outAmt:isIn?0:f.amount,
+      balPieces, balAmount, balCtn:bctn, balPcs:bpcs
+    };
+  });
+  return rows;
+}
+
+let statementRows = [];
+
+function render(){
+  // name dropdown
+  const names=[...new Set(orders.map(o=>o.partyName).filter(Boolean))].sort();
+  const fn=document.getElementById('f-name');
+  const cur=fn.value;
+  fn.innerHTML='<option value="">সব নাম</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  fn.value=cur;
+
+  statementRows = buildStatement();
+
+  // apply display filters (balance already baked in from full set)
+  const from=document.getElementById('f-from').value;
+  const to=document.getElementById('f-to').value;
+  const name=document.getElementById('f-name').value;
+  const flow=document.getElementById('f-flow').value;
+
+  const view=statementRows.filter(r=>{
+    const o=r.order;
+    if(from && (o.date||'')<from) return false;
+    if(to && (o.date||'')>to) return false;
+    if(name && o.partyName!==name) return false;
+    if(flow==='in' && !r.isIn) return false;
+    if(flow==='out' && r.isIn) return false;
+    return true;
+  });
+
+  const tb=document.getElementById('ss-body');
+  if(!view.length){
+    tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">কোনো তথ্য নেই</td></tr>';
+    return;
+  }
+
+  // totals for the filtered view
+  let tInAmt=0,tOutAmt=0,tInPieces=0,tOutPieces=0;
+
+  tb.innerHTML=view.map(r=>{
+    const o=r.order;
+    if(r.isIn){ tInAmt+=r.inAmt; } else { tOutAmt+=r.outAmt; }
+    return `<tr>
+      <td style="font-size:12px">${o.date||''}</td>
+      <td>${o.partyName||'—'} <span class="ss-type ${r.isIn?'in':'out'}">${r.isIn?'In':'Out'}</span></td>
+      <td class="ss-in">${r.isIn?piecesDisp(r.inCtn,r.inPcs):'—'}</td>
+      <td class="ss-in">${r.isIn?fmt.currency(r.inAmt):'—'}</td>
+      <td class="ss-out">${!r.isIn?piecesDisp(r.outCtn,r.outPcs):'—'}</td>
+      <td class="ss-out">${!r.isIn?fmt.currency(r.outAmt):'—'}</td>
+      <td class="ss-bal">${piecesDisp(r.balCtn,r.balPcs)}</td>
+      <td class="ss-bal">${fmt.currency(r.balAmount)}</td>
+    </tr>`;
+  }).join('')
+  + `<tr class="ss-foot">
+       <td colspan="2">মোট (ফিল্টার করা)</td>
+       <td class="ss-in" colspan="1"></td>
+       <td class="ss-in">${fmt.currency(tInAmt)}</td>
+       <td class="ss-out" colspan="1"></td>
+       <td class="ss-out">${fmt.currency(tOutAmt)}</td>
+       <td>নিট স্টক মূল্য</td>
+       <td>${fmt.currency(tInAmt-tOutAmt)}</td>
+     </tr>`;
+}
+
+function exportCsv(){
+  if(!statementRows.length){ toast('কোনো ডেটা নেই','error'); return; }
+  const from=document.getElementById('f-from').value;
+  const to=document.getElementById('f-to').value;
+  const name=document.getElementById('f-name').value;
+  const flow=document.getElementById('f-flow').value;
+  const view=statementRows.filter(r=>{
+    const o=r.order;
+    if(from&&(o.date||'')<from)return false;
+    if(to&&(o.date||'')>to)return false;
+    if(name&&o.partyName!==name)return false;
+    if(flow==='in'&&!r.isIn)return false;
+    if(flow==='out'&&r.isIn)return false;
+    return true;
+  });
+  if(!view.length){ toast('কোনো ডেটা নেই','error'); return; }
+  const h=['তারিখ','নাম','ধরন','Product In (ctn+pcs)','In পরিমাণ','Product Out (ctn+pcs)','Out পরিমাণ','ব্যালেন্স (ctn+pcs)','ব্যালেন্স পরিমাণ'];
+  const rows=view.map(r=>{
+    const o=r.order;
+    return [o.date,o.partyName,(r.isIn?'In':'Out'),
+      r.isIn?piecesDisp(r.inCtn,r.inPcs):'',r.isIn?r.inAmt:'',
+      !r.isIn?piecesDisp(r.outCtn,r.outPcs):'',!r.isIn?r.outAmt:'',
+      piecesDisp(r.balCtn,r.balPcs),r.balAmount
+    ].map(v=>`"${v==null?'':v}"`).join(',');
+  });
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
+  a.download='stock_statement_'+fmt.dateInput()+'.csv'; a.click();
+}
+
+/* events */
+document.getElementById('f-from').addEventListener('change',render);
+document.getElementById('f-to').addEventListener('change',render);
+document.getElementById('f-name').addEventListener('change',render);
+document.getElementById('f-flow').addEventListener('change',render);
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  document.getElementById('f-from').value='';
+  document.getElementById('f-to').value='';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-flow').value='';
+  render();
+});
+document.getElementById('btn-print').addEventListener('click',()=>window.print());
+document.getElementById('btn-export').addEventListener('click',exportCsv);
+
+/* load fresh orders/products from sheet if available */
+async function load(){
+  if(BF.sheetUrl){
+    try{
+      const [o,p]=await Promise.all([API.fetch('getOrders'),API.fetch('getProducts')]);
+      if(Array.isArray(o)){ orders=o; localStorage.setItem('bf_orders',JSON.stringify(o)); }
+      if(Array.isArray(p)){ products=p; products.forEach(x=>{if(x.id)cartonById[x.id]=parseFloat(x.cartonSize)||0;}); }
+    }catch(e){}
+  }
+  render();
+}
+load();
+</script>
+</body>
+</html>
