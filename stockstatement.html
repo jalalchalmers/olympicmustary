@@ -106,6 +106,15 @@
 <script>
 buildNav('stockstmt');
 
+/* format a YYYY-MM-DD (or ISO) date string as DD-MM-YYYY for display */
+function fmtDMY(d){
+  if(!d) return '';
+  const s=String(d).slice(0,10);            // YYYY-MM-DD
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? (m[3]+'-'+m[2]+'-'+m[1]) : s;  // DD-MM-YYYY
+}
+
+
 let orders = JSON.parse(localStorage.getItem('bf_orders')||'[]');
 let products = JSON.parse(localStorage.getItem('bf_products')||'[]');
 
@@ -222,7 +231,7 @@ function render(){
     const o=r.order;
     if(r.isIn){ tInAmt+=r.inAmt; } else { tOutAmt+=r.outAmt; }
     return `<tr>
-      <td style="font-size:12px">${o.date||''}</td>
+      <td style="font-size:12px">${fmtDMY(o.date)}</td>
       <td>${o.partyName||'—'} <span class="ss-type ${r.isIn?'in':'out'}">${r.isIn?'In':'Out'}</span></td>
       <td class="ss-in">${r.isIn?piecesDisp(r.inCtn,r.inPcs):'—'}</td>
       <td class="ss-in">${r.isIn?fmt.currency(r.inAmt):'—'}</td>
@@ -262,7 +271,7 @@ function exportCsv(){
   const h=['তারিখ','নাম','ধরন','Product In (ctn+pcs)','In পরিমাণ','Product Out (ctn+pcs)','Out পরিমাণ','ব্যালেন্স (ctn+pcs)','ব্যালেন্স পরিমাণ'];
   const rows=view.map(r=>{
     const o=r.order;
-    return [o.date,o.partyName,(r.isIn?'In':'Out'),
+    return [fmtDMY(o.date),o.partyName,(r.isIn?'In':'Out'),
       r.isIn?piecesDisp(r.inCtn,r.inPcs):'',r.isIn?r.inAmt:'',
       !r.isIn?piecesDisp(r.outCtn,r.outPcs):'',!r.isIn?r.outAmt:'',
       piecesDisp(r.balCtn,r.balPcs),r.balAmount
