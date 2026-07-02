@@ -3,14 +3,23 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — দৈনিক খরচ</title>
+  <title>BizFlow — নগদ প্রবাহ</title>
   <style>
-    .ex-cat{font-size:11px;background:#e0e7ff;color:#3730a3;padding:2px 9px;border-radius:10px;font-weight:600;white-space:nowrap}
-    table.ex-cat-table{width:100%;border-collapse:collapse;font-size:13px}
-    table.ex-cat-table td,table.ex-cat-table th{padding:8px 12px;border-bottom:1px solid var(--border)}
-    table.ex-cat-table td:last-child,table.ex-cat-table th:last-child{text-align:right;font-weight:600}
-    .ex-modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:300;align-items:center;justify-content:center;padding:16px}
-    .ex-modal-overlay.open{display:flex}
+    .cf-cat{font-size:11px;padding:2px 9px;border-radius:10px;font-weight:600;white-space:nowrap}
+    .cf-cat.inc{background:#dcfce7;color:#166534}
+    .cf-cat.exp{background:#fee2e2;color:#991b1b}
+    .cf-type-badge{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600}
+    .cf-type-badge.inc{background:#dcfce7;color:#166534}
+    .cf-type-badge.exp{background:#fee2e2;color:#991b1b}
+    table.cf-cat-table{width:100%;border-collapse:collapse;font-size:13px}
+    table.cf-cat-table td,table.cf-cat-table th{padding:8px 12px;border-bottom:1px solid var(--border)}
+    table.cf-cat-table td:last-child{text-align:right;font-weight:600}
+    .cf-modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:300;align-items:center;justify-content:center;padding:16px}
+    .cf-modal-overlay.open{display:flex}
+    .cf-type-toggle{display:flex;gap:10px;margin-bottom:14px}
+    .cf-type-toggle button{flex:1;padding:11px;border:2px solid var(--border);border-radius:11px;background:#fff;cursor:pointer;font-size:14px;font-weight:600;color:var(--ink2)}
+    .cf-type-toggle button.sel-inc{border-color:#16a34a;background:#dcfce7;color:#166534}
+    .cf-type-toggle button.sel-exp{border-color:#dc2626;background:#fee2e2;color:#991b1b}
   </style>
 </head>
 <body>
@@ -21,21 +30,28 @@
     <div class="bf-topbar">
       <div style="display:flex;align-items:center;gap:12px">
         <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
-        <span class="bf-page-title">দৈনিক খরচ</span>
+        <span class="bf-page-title">নগদ প্রবাহ</span>
       </div>
       <div class="bf-topbar-right">
         <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
-        <button class="btn btn-primary btn-sm" id="btn-new">+ নতুন খরচ</button>
+        <button class="btn btn-primary btn-sm" id="btn-new">+ নতুন এন্ট্রি</button>
       </div>
     </div>
 
     <div class="bf-body">
 
-      <!-- MONTHLY SUMMARY -->
+      <!-- MONTHLY SUMMARY: income / expense / net (this month) -->
       <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-label">এই মাসের খরচ</div><div class="stat-value" id="s-this" style="font-size:18px">৳0</div></div>
-        <div class="stat-card"><div class="stat-icon">📆</div><div class="stat-label">গত মাসের খরচ</div><div class="stat-value" id="s-last" style="font-size:18px">৳0</div></div>
-        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-label">পার্থক্য</div><div class="stat-value" id="s-diff" style="font-size:18px">৳0</div></div>
+        <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-label">এই মাসের আয়</div><div class="stat-value" id="s-income" style="font-size:18px;color:var(--success)">৳0</div></div>
+        <div class="stat-card"><div class="stat-icon">📉</div><div class="stat-label">এই মাসের ব্যয়</div><div class="stat-value" id="s-expense" style="font-size:18px;color:var(--danger)">৳0</div></div>
+        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">নিট (আয় − ব্যয়)</div><div class="stat-value" id="s-net" style="font-size:18px">৳0</div></div>
+      </div>
+
+      <!-- last month comparison strip -->
+      <div class="card" style="padding:10px 20px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--ink2)">
+        <span>গত মাস — আয়: <strong id="lm-income" style="color:var(--success)">৳0</strong></span>
+        <span>ব্যয়: <strong id="lm-expense" style="color:var(--danger)">৳0</strong></span>
+        <span>নিট: <strong id="lm-net">৳0</strong></span>
       </div>
 
       <!-- FILTERS -->
@@ -51,12 +67,24 @@
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
             <label style="font-size:12px;color:var(--ink2);font-weight:600">ধরন</label>
+            <select id="f-flow" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff">
+              <option value="">আয় + ব্যয়</option>
+              <option value="income">শুধু আয়</option>
+              <option value="expense">শুধু ব্যয়</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:12px;color:var(--ink2);font-weight:600">ক্যাটাগরি</label>
             <select id="f-category" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff;min-width:150px">
-              <option value="">সব ধরন</option>
+              <option value="">সব ক্যাটাগরি</option>
             </select>
           </div>
           <button class="btn btn-outline btn-sm" id="btn-clear">সব দেখুন</button>
-          <span style="margin-left:auto;font-size:14px;color:var(--ink2)">মোট: <strong id="filtered-total" style="color:var(--danger)">৳0</strong></span>
+          <span style="margin-left:auto;font-size:13px;color:var(--ink2)">
+            আয়: <strong id="flt-income" style="color:var(--success)">৳0</strong> ·
+            ব্যয়: <strong id="flt-expense" style="color:var(--danger)">৳0</strong> ·
+            নিট: <strong id="flt-net">৳0</strong>
+          </span>
         </div>
       </div>
 
@@ -66,10 +94,10 @@
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>তারিখ</th><th>ধরন</th><th style="text-align:right">পরিমাণ (৳)</th><th>নোট</th><th>অ্যাকশন</th></tr>
+                <tr><th>তারিখ</th><th>ধরন</th><th>ক্যাটাগরি</th><th style="text-align:right">পরিমাণ (৳)</th><th>নোট</th><th>অ্যাকশন</th></tr>
               </thead>
-              <tbody id="ex-body">
-                <tr><td colspan="5"><div class="empty"><div class="empty-icon">💸</div><p>লোড হচ্ছে…</p></div></td></tr>
+              <tbody id="cf-body">
+                <tr><td colspan="6"><div class="empty"><div class="empty-icon">💰</div><p>লোড হচ্ছে…</p></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -77,8 +105,8 @@
 
         <!-- PER-CATEGORY TOTALS -->
         <div class="card" style="padding:16px">
-          <div style="font-size:14px;font-weight:700;color:var(--ink2);margin-bottom:10px">ধরন অনুযায়ী মোট</div>
-          <table class="ex-cat-table" id="cat-totals">
+          <div style="font-size:14px;font-weight:700;color:var(--ink2);margin-bottom:10px">ক্যাটাগরি অনুযায়ী নিট</div>
+          <table class="cf-cat-table" id="cat-totals">
             <tbody><tr><td style="color:var(--ink3)">—</td><td></td></tr></tbody>
           </table>
         </div>
@@ -89,33 +117,40 @@
 </div>
 
 <!-- ADD / EDIT MODAL -->
-<div class="ex-modal-overlay" id="ex-modal">
+<div class="cf-modal-overlay" id="cf-modal">
   <div style="background:#fff;border-radius:16px;max-width:440px;width:100%;padding:24px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 style="font-size:18px;font-weight:700;margin:0" id="ex-modal-title">নতুন খরচ</h3>
+      <h3 style="font-size:18px;font-weight:700;margin:0" id="cf-modal-title">নতুন এন্ট্রি</h3>
       <button onclick="closeModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--ink3)">×</button>
     </div>
+
+    <!-- income / expense toggle -->
+    <div class="cf-type-toggle">
+      <button type="button" id="t-income" onclick="setFlow('income')">📈 আয়</button>
+      <button type="button" id="t-expense" onclick="setFlow('expense')">📉 ব্যয়</button>
+    </div>
+
     <div class="field" style="margin-bottom:14px">
       <label>তারিখ *</label>
-      <input type="date" id="ex-date"/>
+      <input type="date" id="cf-date"/>
     </div>
     <div class="field" style="margin-bottom:14px">
-      <label>ধরন / ক্যাটাগরি *</label>
-      <input type="text" id="ex-category" list="cat-suggestions" placeholder="যেমন: পরিবহন, বেতন, ভাড়া, চা-নাস্তা"/>
+      <label>ক্যাটাগরি *</label>
+      <input type="text" id="cf-category" list="cat-suggestions" placeholder="যেমন: বিক্রয়, পরিবহন, বেতন, ভাড়া"/>
       <datalist id="cat-suggestions"></datalist>
-      <p style="font-size:11px;color:var(--ink3);margin-top:3px">আগের ধরন থেকে বেছে নিন বা নতুন লিখুন</p>
+      <p style="font-size:11px;color:var(--ink3);margin-top:3px">আগের ক্যাটাগরি থেকে বেছে নিন বা নতুন লিখুন</p>
     </div>
     <div class="field" style="margin-bottom:14px">
       <label>পরিমাণ (৳) *</label>
-      <input type="number" id="ex-amount" min="0" step="0.01" placeholder="0.00"/>
+      <input type="number" id="cf-amount" min="0" step="0.01" placeholder="0.00"/>
     </div>
     <div class="field" style="margin-bottom:18px">
       <label>নোট</label>
-      <input type="text" id="ex-note" placeholder="বিবরণ (ঐচ্ছিক)"/>
+      <input type="text" id="cf-note" placeholder="বিবরণ (ঐচ্ছিক)"/>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeModal()">বাতিল</button>
-      <button class="btn btn-primary" id="ex-save-btn">সেভ করুন</button>
+      <button class="btn btn-primary" id="cf-save-btn">সেভ করুন</button>
     </div>
   </div>
 </div>
@@ -125,126 +160,160 @@
 <script>
 buildNav('expenses');
 
-let expenses = JSON.parse(localStorage.getItem('bf_expenses')||'[]');
+let flows = JSON.parse(localStorage.getItem('bf_expenses')||'[]');
 let editId = null;
+let curFlow = 'expense';
 
-function saveLocal(){ localStorage.setItem('bf_expenses',JSON.stringify(expenses)); }
+// migrate old rows without a type → treat as expense
+flows.forEach(f=>{ if(!f.type) f.type='expense'; });
 
-/* distinct categories from history (for datalist + filter) */
-function categories(){
-  return [...new Set(expenses.map(e=>e.category).filter(Boolean))].sort();
+function saveLocal(){ localStorage.setItem('bf_expenses',JSON.stringify(flows)); }
+
+/* categories separated by type */
+function categories(type){
+  return [...new Set(flows.filter(f=>f.type===type).map(f=>f.category).filter(Boolean))].sort();
 }
 
-/* ── month helpers ── */
-function ym(d){ return (d||'').slice(0,7); }         // 'YYYY-MM'
+/* month helpers */
+function ym(d){ return (d||'').slice(0,7); }
 function thisMonth(){ return new Date().toISOString().slice(0,7); }
 function lastMonth(){ const d=new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); }
+function sumMonth(m,type){ return flows.filter(f=>ym(f.date)===m&&f.type===type).reduce((s,f)=>s+(parseFloat(f.amount)||0),0); }
+
+function signedNet(v){ return (v>=0?'+':'−')+fmt.currency(Math.abs(v)); }
 
 function updateSummary(){
   const tm=thisMonth(), lm=lastMonth();
-  const sum=m=>expenses.filter(e=>ym(e.date)===m).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  const t=sum(tm), l=sum(lm), diff=t-l;
-  document.getElementById('s-this').textContent=fmt.currency(t);
-  document.getElementById('s-last').textContent=fmt.currency(l);
-  const de=document.getElementById('s-diff');
-  de.textContent=(diff>=0?'+':'−')+fmt.currency(Math.abs(diff)).replace('৳','৳');
-  de.style.color = diff>0 ? 'var(--danger)' : 'var(--success)';
+  const ti=sumMonth(tm,'income'), te=sumMonth(tm,'expense');
+  const li=sumMonth(lm,'income'), le=sumMonth(lm,'expense');
+  document.getElementById('s-income').textContent=fmt.currency(ti);
+  document.getElementById('s-expense').textContent=fmt.currency(te);
+  const net=document.getElementById('s-net');
+  net.textContent=signedNet(ti-te);
+  net.style.color=(ti-te)>=0?'var(--success)':'var(--danger)';
+  document.getElementById('lm-income').textContent=fmt.currency(li);
+  document.getElementById('lm-expense').textContent=fmt.currency(le);
+  const lnet=document.getElementById('lm-net');
+  lnet.textContent=signedNet(li-le);
+  lnet.style.color=(li-le)>=0?'var(--success)':'var(--danger)';
 }
 
-/* ── filtering ── */
+/* filtering */
 function getFiltered(){
   const from=document.getElementById('f-from').value;
   const to=document.getElementById('f-to').value;
+  const flow=document.getElementById('f-flow').value;
   const cat=document.getElementById('f-category').value;
-  return expenses.filter(e=>{
-    if(from && (e.date||'')<from) return false;
-    if(to && (e.date||'')>to) return false;
-    if(cat && e.category!==cat) return false;
+  return flows.filter(f=>{
+    if(from && (f.date||'')<from) return false;
+    if(to && (f.date||'')>to) return false;
+    if(flow && f.type!==flow) return false;
+    if(cat && f.category!==cat) return false;
     return true;
   }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 }
 
-function render(){
-  // category dropdown + datalist
-  const cats=categories();
+function refreshCategoryFilter(){
+  const all=[...new Set(flows.map(f=>f.category).filter(Boolean))].sort();
   const fc=document.getElementById('f-category');
   const cur=fc.value;
-  fc.innerHTML='<option value="">সব ধরন</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  fc.innerHTML='<option value="">সব ক্যাটাগরি</option>'+all.map(c=>`<option value="${c}">${c}</option>`).join('');
   fc.value=cur;
-  document.getElementById('cat-suggestions').innerHTML=cats.map(c=>`<option value="${c}">`).join('');
+}
 
+function render(){
+  refreshCategoryFilter();
   const list=getFiltered();
-  const tb=document.getElementById('ex-body');
+  const tb=document.getElementById('cf-body');
   if(!list.length){
-    tb.innerHTML='<tr><td colspan="5"><div class="empty"><div class="empty-icon">💸</div><p>কোনো খরচ নেই</p></div></td></tr>';
+    tb.innerHTML='<tr><td colspan="6"><div class="empty"><div class="empty-icon">💰</div><p>কোনো এন্ট্রি নেই</p></div></td></tr>';
   } else {
-    tb.innerHTML=list.map(e=>`<tr>
-      <td style="font-size:12px">${e.date||''}</td>
-      <td><span class="ex-cat">${e.category||'—'}</span></td>
-      <td style="text-align:right;font-weight:600">${fmt.currency(e.amount)}</td>
-      <td style="font-size:12px;color:var(--ink2)">${e.note||''}</td>
-      <td><div class="td-actions">
-        <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${e.id}')" title="সম্পাদনা">✏️</button>
-        <button class="btn btn-danger btn-sm btn-icon" onclick="del('${e.id}')" title="মুছুন">🗑️</button>
-      </div></td>
-    </tr>`).join('');
+    tb.innerHTML=list.map(f=>{
+      const inc=f.type==='income';
+      return `<tr>
+        <td style="font-size:12px">${f.date||''}</td>
+        <td><span class="cf-type-badge ${inc?'inc':'exp'}">${inc?'আয়':'ব্যয়'}</span></td>
+        <td><span class="cf-cat ${inc?'inc':'exp'}">${f.category||'—'}</span></td>
+        <td style="text-align:right;font-weight:600;color:${inc?'var(--success)':'var(--danger)'}">${inc?'+':'−'}${fmt.currency(f.amount)}</td>
+        <td style="font-size:12px;color:var(--ink2)">${f.note||''}</td>
+        <td><div class="td-actions">
+          <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${f.id}')" title="সম্পাদনা">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="del('${f.id}')" title="মুছুন">🗑️</button>
+        </div></td>
+      </tr>`;
+    }).join('');
   }
 
-  // filtered total
-  const total=list.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  document.getElementById('filtered-total').textContent=fmt.currency(total);
+  const inc=list.filter(f=>f.type==='income').reduce((s,f)=>s+(parseFloat(f.amount)||0),0);
+  const exp=list.filter(f=>f.type==='expense').reduce((s,f)=>s+(parseFloat(f.amount)||0),0);
+  document.getElementById('flt-income').textContent=fmt.currency(inc);
+  document.getElementById('flt-expense').textContent=fmt.currency(exp);
+  const fn=document.getElementById('flt-net');
+  fn.textContent=signedNet(inc-exp);
+  fn.style.color=(inc-exp)>=0?'var(--success)':'var(--danger)';
 
-  // per-category totals (within filtered set)
   const byCat={};
-  list.forEach(e=>{ const c=e.category||'—'; byCat[c]=(byCat[c]||0)+(parseFloat(e.amount)||0); });
-  const rows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  list.forEach(f=>{ const k=f.category||'—'; if(!byCat[k]) byCat[k]={inc:0,exp:0}; byCat[k][f.type==='income'?'inc':'exp']+=(parseFloat(f.amount)||0); });
+  const rows=Object.entries(byCat).sort((a,b)=>(b[1].inc+b[1].exp)-(a[1].inc+a[1].exp));
   const ct=document.querySelector('#cat-totals tbody');
   ct.innerHTML = rows.length
-    ? rows.map(([c,v])=>`<tr><td><span class="ex-cat">${c}</span></td><td>${fmt.currency(v)}</td></tr>`).join('')
-      + `<tr style="border-top:2px solid var(--border)"><td style="font-weight:700">মোট</td><td style="font-weight:700;color:var(--danger)">${fmt.currency(total)}</td></tr>`
+    ? rows.map(([c,v])=>{
+        const val=v.inc-v.exp;
+        const tag = (v.inc>0&&v.exp===0)?'inc':((v.exp>0&&v.inc===0)?'exp':'');
+        return `<tr><td><span class="cf-cat ${tag}">${c}</span></td>
+          <td style="color:${val>=0?'var(--success)':'var(--danger)'}">${signedNet(val)}</td></tr>`;
+      }).join('')
+      + `<tr style="border-top:2px solid var(--border)"><td style="font-weight:700">নিট</td>
+         <td style="font-weight:700;color:${(inc-exp)>=0?'var(--success)':'var(--danger)'}">${signedNet(inc-exp)}</td></tr>`
     : '<tr><td style="color:var(--ink3)">—</td><td></td></tr>';
 
   updateSummary();
 }
 
-/* ── modal ── */
+/* modal */
+function setFlow(type){
+  curFlow=type;
+  document.getElementById('t-income').className = type==='income'?'sel-inc':'';
+  document.getElementById('t-expense').className = type==='expense'?'sel-exp':'';
+  document.getElementById('cat-suggestions').innerHTML=categories(type).map(c=>`<option value="${c}">`).join('');
+}
 function openModal(id=null){
   editId=id;
-  const e=id?expenses.find(x=>x.id===id):null;
-  document.getElementById('ex-modal-title').textContent=e?'খরচ সম্পাদনা':'নতুন খরচ';
-  document.getElementById('ex-date').value=e?.date||fmt.dateInput();
-  document.getElementById('ex-category').value=e?.category||'';
-  document.getElementById('ex-amount').value=e?.amount||'';
-  document.getElementById('ex-note').value=e?.note||'';
-  document.getElementById('cat-suggestions').innerHTML=categories().map(c=>`<option value="${c}">`).join('');
-  document.getElementById('ex-modal').classList.add('open');
-  setTimeout(()=>document.getElementById('ex-category').focus(),100);
+  const f=id?flows.find(x=>x.id===id):null;
+  document.getElementById('cf-modal-title').textContent=f?'এন্ট্রি সম্পাদনা':'নতুন এন্ট্রি';
+  setFlow(f?.type||'expense');
+  document.getElementById('cf-date').value=f?.date||fmt.dateInput();
+  document.getElementById('cf-category').value=f?.category||'';
+  document.getElementById('cf-amount').value=f?.amount||'';
+  document.getElementById('cf-note').value=f?.note||'';
+  document.getElementById('cf-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('cf-category').focus(),100);
 }
-function closeModal(){ document.getElementById('ex-modal').classList.remove('open'); }
+function closeModal(){ document.getElementById('cf-modal').classList.remove('open'); }
 
 async function save(){
-  const date=document.getElementById('ex-date').value;
-  const category=document.getElementById('ex-category').value.trim();
-  const amount=parseFloat(document.getElementById('ex-amount').value);
-  const note=document.getElementById('ex-note').value.trim();
+  const date=document.getElementById('cf-date').value;
+  const category=document.getElementById('cf-category').value.trim();
+  const amount=parseFloat(document.getElementById('cf-amount').value);
+  const note=document.getElementById('cf-note').value.trim();
   if(!date){ toast('তারিখ দিন','error'); return; }
-  if(!category){ toast('ধরন লিখুন','error'); return; }
+  if(!category){ toast('ক্যাটাগরি লিখুন','error'); return; }
   if(!amount||amount<=0){ toast('সঠিক পরিমাণ দিন','error'); return; }
 
-  const rec={ id: editId||('EX'+Date.now()), date, category, amount, note, savedAt:new Date().toISOString() };
-  const idx=expenses.findIndex(x=>x.id===rec.id);
-  if(idx>-1) expenses[idx]=rec; else expenses.unshift(rec);
+  const rec={ id: editId||('CF'+Date.now()), date, type:curFlow, category, amount, note, savedAt:new Date().toISOString() };
+  const idx=flows.findIndex(x=>x.id===rec.id);
+  if(idx>-1) flows[idx]=rec; else flows.unshift(rec);
   saveLocal(); render(); closeModal();
-  toast(editId?'খরচ আপডেট হয়েছে ✓':'খরচ সেভ হয়েছে ✓','success');
+  toast(editId?'এন্ট্রি আপডেট হয়েছে ✓':'এন্ট্রি সেভ হয়েছে ✓','success');
   if(BF.sheetUrl){ try{ await API.post({action:'saveExpense',...rec}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error'); } }
 }
 
 function del(id){
-  const e=expenses.find(x=>x.id===id); if(!e) return;
-  bfConfirm(`"${e.category}" — ${fmt.currency(e.amount)} মুছে দেবেন?`, async ()=>{
-    expenses=expenses.filter(x=>x.id!==id);
+  const f=flows.find(x=>x.id===id); if(!f) return;
+  bfConfirm(`${f.type==='income'?'আয়':'ব্যয়'} — "${f.category}" ${fmt.currency(f.amount)} মুছে দেবেন?`, async ()=>{
+    flows=flows.filter(x=>x.id!==id);
     saveLocal(); render();
-    toast('খরচ মুছে ফেলা হয়েছে','success');
+    toast('এন্ট্রি মুছে ফেলা হয়েছে','success');
     if(BF.sheetUrl) API.post({action:'deleteExpense',id}).catch(()=>{});
   });
 }
@@ -252,34 +321,36 @@ function del(id){
 function exportCsv(){
   const list=getFiltered();
   if(!list.length){ toast('কোনো ডেটা নেই','error'); return; }
-  const h=['তারিখ','ধরন','পরিমাণ','নোট'];
-  const rows=list.map(e=>[e.date,e.category,e.amount,e.note].map(v=>`"${v||''}"`).join(','));
+  const h=['তারিখ','ধরন','ক্যাটাগরি','পরিমাণ','নোট'];
+  const rows=list.map(f=>[f.date,(f.type==='income'?'আয়':'ব্যয়'),f.category,f.amount,f.note].map(v=>`"${v||''}"`).join(','));
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
-  a.download='expenses_'+fmt.dateInput()+'.csv'; a.click();
+  a.download='cashflow_'+fmt.dateInput()+'.csv'; a.click();
 }
 
-/* ── events ── */
+/* events */
 document.getElementById('btn-new').addEventListener('click',()=>openModal());
-document.getElementById('ex-save-btn').addEventListener('click',save);
+document.getElementById('cf-save-btn').addEventListener('click',save);
 document.getElementById('btn-export').addEventListener('click',exportCsv);
 document.getElementById('f-from').addEventListener('change',render);
 document.getElementById('f-to').addEventListener('change',render);
+document.getElementById('f-flow').addEventListener('change',render);
 document.getElementById('f-category').addEventListener('change',render);
 document.getElementById('btn-clear').addEventListener('click',()=>{
   document.getElementById('f-from').value='';
   document.getElementById('f-to').value='';
+  document.getElementById('f-flow').value='';
   document.getElementById('f-category').value='';
   render();
 });
-document.getElementById('ex-modal').addEventListener('click',e=>{ if(e.target.id==='ex-modal') closeModal(); });
+document.getElementById('cf-modal').addEventListener('click',e=>{ if(e.target.id==='cf-modal') closeModal(); });
 
-/* ── load from sheet ── */
+/* load */
 async function load(){
   if(BF.sheetUrl){
     try{
       const d=await API.fetch('getExpenses');
-      if(Array.isArray(d)){ expenses=d; saveLocal(); }
+      if(Array.isArray(d)){ d.forEach(x=>{ if(!x.type) x.type='expense'; }); flows=d; saveLocal(); }
     }catch(e){}
   }
   render();
