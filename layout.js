@@ -168,6 +168,7 @@ function buildNav(activePage) {
     { id:'pricelist', icon:'🏷️', label:'মূল্য তালিকা',    href:'pricelist.html' },
     { id:'orders',    icon:'📋', label:'ক্রয় / বিক্রয়', href:'orders.html' },
     { id:'payments',  icon:'🧾', label:'পেমেন্ট / সমন্বয়', href:'payments.html' },
+    { id:'expenses',  icon:'💸', label:'দৈনিক খরচ',        href:'expenses.html' },
     { section: 'রিপোর্ট' },
     { id:'stock',     icon:'🏭', label:'স্টক শিট',        href:'stock.html' },
     { id:'ledger',    icon:'📒', label:'পার্টি লেজার',    href:'ledger.html' },
