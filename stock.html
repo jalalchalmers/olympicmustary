@@ -61,12 +61,13 @@
       <div id="stock-screen">
 
         <!-- STATS — free card replaced by physical stock -->
-        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
+        <div class="stats-grid" style="grid-template-columns:repeat(6,1fr)">
           <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">মোট আইটেম</div><div class="stat-value" id="s-total">0</div></div>
           <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">স্টকে আছে</div><div class="stat-value" id="s-instock" style="color:var(--success)">0</div></div>
           <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-label">কম স্টক</div><div class="stat-value" id="s-low" style="color:var(--warn)">0</div></div>
           <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-label">স্টক শেষ</div><div class="stat-value" id="s-out" style="color:var(--danger)">0</div></div>
           <div class="stat-card"><div class="stat-icon">🏪</div><div class="stat-label">প্রকৃত স্টক (শেলফে)</div><div class="stat-value" id="s-physical" style="color:var(--success);font-size:15px">0</div></div>
+          <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">স্টকের মূল্য</div><div class="stat-value" id="s-value" style="color:var(--accent);font-size:15px">৳0</div></div>
         </div>
 
         <div class="card" style="padding:14px 20px">
@@ -161,6 +162,7 @@
           <span>মোট স্টক ইন: <span id="sp-tin">0</span></span>
           <span>মোট স্টক আউট: <span id="sp-tout">0</span></span>
           <span>🏪 প্রকৃত স্টক: <span id="sp-tphys">0</span></span>
+          <span>💰 স্টকের মূল্য: <span id="sp-tvalue">0</span></span>
         </div>
       </div>
 
@@ -194,14 +196,14 @@ function buildStockFromOrders(){
   const map={};
   productSupplierMap={};
   products.forEach(p=>{
-    map[p.id]={productId:p.id,productCode:p.code||'',productName:p.name,cartonSize:parseFloat(p.cartonSize)||0,stockIn:0,stockOut:0,freeIn:0,freeOut:0,lastUpdated:''};
+    map[p.id]={productId:p.id,productCode:p.code||'',productName:p.name,cartonSize:parseFloat(p.cartonSize)||0,price:parseFloat(p.price)||0,offerSize:parseFloat(p.offerSize)||0,freeQty:parseFloat(p.freeQty)||0,stockIn:0,stockOut:0,freeIn:0,freeOut:0,lastUpdated:''};
   });
   orders.forEach(o=>{
     let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){}
     items.forEach(item=>{
       if(!item.productId)return;
       if(!map[item.productId]){
-        map[item.productId]={productId:item.productId,productCode:item.code||'',productName:item.productName||item.productId,cartonSize:parseFloat(item.cartonSize)||0,stockIn:0,stockOut:0,freeIn:0,freeOut:0,lastUpdated:o.date||''};
+        map[item.productId]={productId:item.productId,productCode:item.code||'',productName:item.productName||item.productId,cartonSize:parseFloat(item.cartonSize)||0,price:0,offerSize:0,freeQty:0,stockIn:0,stockOut:0,freeIn:0,freeOut:0,lastUpdated:o.date||''};
       }
       const rec=map[item.productId];
       const qtyP=parseFloat(item.qtyPieces!==undefined?item.qtyPieces:item.qty)||0;
@@ -252,11 +254,18 @@ function updateStats(list){
     else physPcs+=p;
   });
   const physDisp=(physCtn?physCtn+' ctn':'')+(physCtn&&physPcs?' + ':'')+(physPcs||!physCtn?physPcs+' pcs':'');
+  // Stock value = physical pieces × effective price (full precision, from offer)
+  const effOf=(price,offerSize,freeQty)=>{price=parseFloat(price)||0;offerSize=parseFloat(offerSize)||0;freeQty=parseFloat(freeQty)||0;return (offerSize>0&&(offerSize+freeQty)>0)?price*offerSize/(offerSize+freeQty):price;};
+  const totalValue=list.reduce((s,r)=>{
+    const phys=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut);
+    return s + phys*effOf(r.price,r.offerSize,r.freeQty);
+  },0);
   document.getElementById('s-total').textContent=withMovement.length;
   document.getElementById('s-instock').textContent=inStock.length;
   document.getElementById('s-low').textContent=low.length;
   document.getElementById('s-out').textContent=out.length;
   document.getElementById('s-physical').textContent=physDisp;
+  document.getElementById('s-value').textContent=fmt.currency(totalValue);
   document.getElementById('total-in').textContent=totalIn.toLocaleString()+' pcs';
   document.getElementById('total-out').textContent=totalOut.toLocaleString()+' pcs';
   document.getElementById('total-free').textContent=totalFreeBal.toLocaleString()+' pcs';
@@ -285,7 +294,7 @@ function renderTable(list){
   if(sup){note.style.display='block';note.textContent=`🏭 সরবরাহকারী: ${sup} — ${filtered.length}টি পণ্য`;}
   else note.style.display='none';
   if(!filtered.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty"><div class="empty-icon">🏭</div><p>কোনো স্টক ডেটা নেই।</p></div></td></tr>`;return;}
-  const sorted=[...filtered].sort((a,b)=>(b.stockIn-b.stockOut)-(a.stockIn-a.stockOut));
+  const sorted=[...filtered].sort((a,b)=>(a.productCode||'').localeCompare(b.productCode||'',undefined,{numeric:true,sensitivity:'base'}));
   tbody.innerHTML=sorted.map((r,i)=>{
     const balance=r.stockIn-r.stockOut;
     const freeBal=r.freeIn-r.freeOut;
@@ -346,12 +355,14 @@ function buildPrintReport(){
   document.getElementById('sp-brand').textContent = sup || '';
   document.getElementById('sp-date').textContent='তারিখ: '+new Date().toLocaleDateString('en-CA');
   document.getElementById('sp-supplier').textContent = sup ? '' : 'সব সরবরাহকারী';
-  const sorted=[...filtered].sort((a,b)=>(b.stockIn-b.stockOut)-(a.stockIn-a.stockOut));
-  let tin=0,tout=0,tphys=0,physCtn=0,physPcs=0;
+  const sorted=[...filtered].sort((a,b)=>(a.productCode||'').localeCompare(b.productCode||'',undefined,{numeric:true,sensitivity:'base'}));
+  let tin=0,tout=0,tphys=0,physCtn=0,physPcs=0,tval=0;
+  const effOfPdf=(price,offerSize,freeQty)=>{price=parseFloat(price)||0;offerSize=parseFloat(offerSize)||0;freeQty=parseFloat(freeQty)||0;return (offerSize>0&&(offerSize+freeQty)>0)?price*offerSize/(offerSize+freeQty):price;};
   const tbody=document.getElementById('sp-items');tbody.innerHTML='';
   sorted.forEach((r,i)=>{
     const bal=r.stockIn-r.stockOut,fb=r.freeIn-r.freeOut,phys=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut),cs=r.cartonSize;
     tin+=r.stockIn;tout+=r.stockOut;tphys+=phys;
+    tval+=phys*effOfPdf(r.price,r.offerSize,r.freeQty);
     if(cs>0){physCtn+=Math.trunc(phys/cs);physPcs+=phys%cs;}else physPcs+=phys;
     const tr=document.createElement('tr');
     tr.innerHTML='<td class="c">'+(i+1)+'</td><td>'+r.productName+'</td><td class="c">'+(r.productCode||'')+'</td><td class="r">'+pcsDisp(r.stockIn,cs)+'</td><td class="r">'+pcsDisp(r.stockOut,cs)+'</td><td class="r">'+pcsDisp(bal,cs)+'</td><td class="r">'+pcsDisp(fb,cs)+'</td><td class="r">'+pcsDisp(phys,cs)+'</td>';
@@ -363,6 +374,7 @@ function buildPrintReport(){
   document.getElementById('sp-tin').textContent=tin.toLocaleString()+' pcs';
   document.getElementById('sp-tout').textContent=tout.toLocaleString()+' pcs';
   document.getElementById('sp-tphys').textContent=physDisp;
+  document.getElementById('sp-tvalue').textContent=fmt.currency(tval);
 }
 
 document.getElementById('btn-sync').addEventListener('click',syncFromSheet);
