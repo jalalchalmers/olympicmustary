@@ -40,8 +40,28 @@
       .bf-nav, .bf-topbar, .no-print { display:none !important; }
       .bf-main { margin-left:0 !important; }
       .bf-body { padding:16px !important; }
-      .card { box-shadow:none !important; border:1px solid #ddd !important; }
+      .card { box-shadow:none !important; border:none !important; }
       #party-selector-card { display:none !important; }
+      /* Excel-style compact grid for the ledger statement */
+      #ledger-statement-table{ width:100%; border-collapse:collapse; font-size:10px; }
+      #ledger-statement-table th,
+      #ledger-statement-table td{
+        border:1px solid #94a3b8 !important;
+        padding:2px 6px !important;
+        white-space:nowrap;
+        line-height:1.35;
+      }
+      #ledger-statement-table thead th{
+        background:#e2e8f0 !important;
+        -webkit-print-color-adjust:exact; print-color-adjust:exact;
+        font-weight:700; text-align:center;
+      }
+      /* right-align the numeric columns (debit, credit, balance) */
+      #ledger-statement-table td:nth-child(3),
+      #ledger-statement-table td:nth-child(4),
+      #ledger-statement-table td:nth-child(5){ text-align:right; }
+      #ledger-statement-table tbody tr{ page-break-inside:avoid; }
+      #ledger-statement-table .table-wrap{ overflow:visible !important; }
     }
   </style>
 </head>
@@ -58,7 +78,7 @@
       <div class="bf-topbar-right no-print">
         <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
         <button class="btn btn-outline btn-sm" id="btn-export" style="display:none">⬇ Export CSV</button>
-        <button class="btn btn-outline btn-sm" id="btn-print" style="display:none" onclick="window.print()">🖨 Print</button>
+        <button class="btn btn-outline btn-sm" id="btn-print" style="display:none" onclick="printLedger()">🖨 Print / PDF</button>
       </div>
     </div>
 
@@ -155,7 +175,7 @@
         <!-- Ledger table -->
         <div class="card" style="padding:0;overflow:hidden">
           <div class="table-wrap">
-            <table>
+            <table id="ledger-statement-table">
               <thead>
                 <tr>
                   <th>তারিখ</th>
@@ -406,6 +426,18 @@ function loadLedger(partyId) {
 }
 
 /* ── RENDER LEDGER TABLE ── */
+/* Print / Save as PDF with a proper filename: PartyName_Ledger_Date */
+function printLedger(){
+  const pname=(selectedParty&&selectedParty.name)?selectedParty.name:'party';
+  const today=(function(){const t=new Date();return String(t.getDate()).padStart(2,'0')+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+t.getFullYear();})();
+  const clean=s=>String(s).replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'').trim();
+  const fname=[clean(pname),'Ledger',today].filter(Boolean).join('_')||'ledger';
+  const prev=document.title;
+  document.title=fname;
+  window.print();
+  setTimeout(()=>{document.title=prev;},1000);
+}
+
 function fmtDMY(d){
   // Show DD/MM/YY; leave non-date values (like the '—' opening row) untouched
   if(!d || d==='—') return d || '—';
