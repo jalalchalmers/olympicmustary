@@ -360,6 +360,35 @@ let parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
 let products=JSON.parse(localStorage.getItem('bf_products')||'[]');
 let editOrderId=null;
 let itemCount=0;
+
+/* Parse a date that may be 'YYYY-MM-DD' OR a JS Date string like
+   'Wed Jun 24 2026 00:00:00 GMT+0600' (as Google Sheets returns dates).
+   Returns a Date, or null. Uses the date's LOCAL components to avoid
+   timezone day-shifts. */
+function parseOrderDate(d){
+  if(!d) return null;
+  const s=String(d).trim();
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  // 'Wed Jun 24 2026 ...' → read month name + day + year directly
+  const mo=s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+  if(mo){
+    const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    return new Date(+mo[3], months[mo[1]], +mo[2]);
+  }
+  const t=new Date(s);
+  return isNaN(t.getTime()) ? null : t;
+}
+/* Display any stored date as DD-MM-YYYY */
+function fmtOrderDate(d){
+  const t=parseOrderDate(d);
+  if(!t) return String(d||'');
+  const dd=String(t.getDate()).padStart(2,'0');
+  const mm=String(t.getMonth()+1).padStart(2,'0');
+  return dd+'-'+mm+'-'+t.getFullYear();
+}
+/* Sort key (ms) for newest-first ordering */
+function orderDateMs(d){ const t=parseOrderDate(d); return t?t.getTime():0; }
 let cartonMode=false;
 
 function renderItemsHeader(){
@@ -720,7 +749,7 @@ function buildPrintInvoice(){
   document.getElementById('pi-cust-label').textContent=currentType==='sales'?'গ্রাহক':'সরবরাহকারী';
   document.getElementById('pi-cust-name').textContent=party.name||'';
   document.getElementById('pi-cust-addr').textContent=[party.address,party.area,party.phone].filter(Boolean).join(' | ');
-  document.getElementById('pi-date').textContent=date?('তারিখ: '+new Date(date).toLocaleDateString('en-CA')):'';
+  document.getElementById('pi-date').textContent=date?('তারিখ: '+fmtOrderDate(date)):'';
   const tbody=document.getElementById('pi-items');tbody.innerHTML='';let sl=0;
   document.querySelectorAll('.order-item-row').forEach(row=>{
     const ps=row.querySelector('.oi-product');
@@ -835,7 +864,7 @@ function populateForm(o){
   applyCartonMode();
   document.getElementById('form-title').textContent=`${currentType==='sales'?'বিক্রয়':'ক্রয়'} — ${o.orderId}`;
   document.getElementById('f-order-id').value=o.orderId;
-  document.getElementById('f-date').value=o.date;
+  document.getElementById('f-date').value=(function(d){const t=parseOrderDate(d);if(!t)return '';return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');})(o.date);
   document.getElementById('f-discount').value=o.discount||0;
   document.getElementById('f-cash').value=o.cash||0;
   document.getElementById('f-bank').value=o.bankDeposit||0;
@@ -877,13 +906,20 @@ function getFilteredOrders(){
   const df=document.getElementById('list-date-from').value;
   const dt=document.getElementById('list-date-to').value;
   const st=document.getElementById('list-status').value;
-  return orders.filter(o=>o.orderType===currentType&&(!q||(o.orderId||'').toLowerCase().includes(q)||(o.partyName||'').toLowerCase().includes(q))&&(!df||o.date>=df)&&(!dt||o.date<=dt)&&(!st||o.status===st));
+  return orders.filter(o=>o.orderType===currentType&&(!q||(o.orderId||'').toLowerCase().includes(q)||(o.partyName||'').toLowerCase().includes(q))&&(!df||o.date>=df)&&(!dt||o.date<=dt)&&(!st||o.status===st))
+    .sort((a,b)=>{
+      const d=orderDateMs(b.date)-orderDateMs(a.date);       // newest date first
+      if(d) return d;
+      const s=(b.savedAt||'').localeCompare(a.savedAt||'');   // then latest saved
+      if(s) return s;
+      return (b.orderId||'').localeCompare(a.orderId||'',undefined,{numeric:true}); // then higher order id
+    });
 }
 function renderOrderList(){
   const tbody=document.getElementById('orders-body');const list=getFilteredOrders();
   if(!list.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">${currentType==='sales'?'🟢':'🔵'}</div><p>কোনো ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার নেই।</p></div></td></tr>`;return;}
   const sl={paid:'পরিশোধিত',partial:'আংশিক',due:'বাকি'};const sb={paid:'badge-paid',partial:'badge-partial',due:'badge-due'};
-  tbody.innerHTML=list.map(o=>`<tr><td><strong style="color:var(--accent)">${o.orderId}</strong></td><td style="font-size:12px">${o.date}</td><td><strong>${o.partyName}</strong>${o.partyPhone?`<br><span style="font-size:11px;color:var(--ink3)">${o.partyPhone}</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt.currency(o.grandTotal)}</td><td style="text-align:right;color:var(--success)">${fmt.currency(o.totalPaid)}</td><td style="text-align:right;font-weight:600;color:${parseFloat(o.balance)>0?'var(--danger)':'var(--success)'}">${fmt.currency(o.balance)}</td><td style="text-align:center"><span class="badge ${sb[o.status]||''}">${sl[o.status]||o.status}</span></td><td><div class="td-actions"><button class="btn btn-outline btn-sm btn-icon" onclick="viewOrder('${o.orderId}')" title="দেখুন">👁</button><button class="btn btn-outline btn-sm btn-icon" onclick="editOrder('${o.orderId}')" title="সম্পাদনা">✏️</button><button class="btn btn-outline btn-sm btn-icon" onclick="printOrder('${o.orderId}')" title="প্রিন্ট">🖨</button><button class="btn btn-danger btn-sm btn-icon" onclick="deleteOrder('${o.orderId}')" title="মুছুন">🗑️</button></div></td></tr>`).join('');
+  tbody.innerHTML=list.map(o=>`<tr><td><strong style="color:var(--accent)">${o.orderId}</strong></td><td style="font-size:12px">${fmtOrderDate(o.date)}</td><td><strong>${o.partyName}</strong>${o.partyPhone?`<br><span style="font-size:11px;color:var(--ink3)">${o.partyPhone}</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt.currency(o.grandTotal)}</td><td style="text-align:right;color:var(--success)">${fmt.currency(o.totalPaid)}</td><td style="text-align:right;font-weight:600;color:${parseFloat(o.balance)>0?'var(--danger)':'var(--success)'}">${fmt.currency(o.balance)}</td><td style="text-align:center"><span class="badge ${sb[o.status]||''}">${sl[o.status]||o.status}</span></td><td><div class="td-actions"><button class="btn btn-outline btn-sm btn-icon" onclick="viewOrder('${o.orderId}')" title="দেখুন">👁</button><button class="btn btn-outline btn-sm btn-icon" onclick="editOrder('${o.orderId}')" title="সম্পাদনা">✏️</button><button class="btn btn-outline btn-sm btn-icon" onclick="printOrder('${o.orderId}')" title="প্রিন্ট">🖨</button><button class="btn btn-danger btn-sm btn-icon" onclick="deleteOrder('${o.orderId}')" title="মুছুন">🗑️</button></div></td></tr>`).join('');
 }
 function updateListStats(){
   const list=orders.filter(o=>o.orderType===currentType);
@@ -903,7 +939,7 @@ function deleteOrder(id){if(!window.confirm(`"${id}" মুছে দেবে�
 function exportOrders(){
   const list=getFilteredOrders();if(!list.length){toast('কোনো ডেটা নেই','error');return;}
   const h=['অর্ডার নং','তারিখ','পার্টি','সাবটোটাল','ছাড়','মোট','পূর্ব বাকি','সর্বমোট বাকি','নগদ','ব্যাংক','মোবাইল','বেতন','TA','DA','ক্ষতি','অন্যান্য','মোট কর্তন','মোট জমা','অবশিষ্ট','স্ট্যাটাস'];
-  const rows=list.map(o=>[o.orderId,o.date,o.partyName,o.subtotal,o.discount,o.grandTotal,o.prevDue,o.totalDue,o.cash,o.bankDeposit,o.mobile,o.salary,o.ta,o.da,o.damage,o.othersDeduction,o.totalDeductions,o.totalPaid,o.balance,o.status].map(v=>`"${v||''}"`).join(','));
+  const rows=list.map(o=>[o.orderId,fmtOrderDate(o.date),o.partyName,o.subtotal,o.discount,o.grandTotal,o.prevDue,o.totalDue,o.cash,o.bankDeposit,o.mobile,o.salary,o.ta,o.da,o.damage,o.othersDeduction,o.totalDeductions,o.totalPaid,o.balance,o.status].map(v=>`"${v||''}"`).join(','));
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));a.download=`${currentType}_${fmt.dateInput()}.csv`;a.click();
 }
 
