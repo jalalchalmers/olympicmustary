@@ -233,7 +233,7 @@
             <div class="si"><span class="k">অবশিষ্ট বাকি</span><span class="v due" id="sb-balance">৳0.00</span></div>
           </div>
           <div class="sticky-actions">
-            <button class="btn btn-outline btn-sm" id="btn-print-order">🖨 Print</button>
+            <button class="btn btn-outline btn-sm" id="btn-print-order">🖨 Print / PDF</button>
             <button class="btn btn-primary btn-sm" id="btn-save-order">💾 সেভ করুন</button>
           </div>
         </div>
@@ -312,7 +312,7 @@
 
         <div class="no-print" style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
           <button class="btn btn-outline"  id="btn-back-list-2">বাতিল</button>
-          <button class="btn btn-outline"  id="btn-print-order-2">🖨 Print</button>
+          <button class="btn btn-outline"  id="btn-print-order-2">🖨 Print / PDF</button>
           <button class="btn btn-primary"  id="btn-save-order-2">💾 সেভ করুন</button>
         </div>
       </section>
@@ -948,8 +948,26 @@ document.getElementById('btn-back-list').addEventListener('click',showList);
 document.getElementById('btn-back-list-2').addEventListener('click',showList);
 document.getElementById('btn-save-order').addEventListener('click',saveOrder);
 document.getElementById('btn-save-order-2').addEventListener('click',saveOrder);
-document.getElementById('btn-print-order').addEventListener('click',()=>{buildPrintInvoice();window.print();});
-document.getElementById('btn-print-order-2').addEventListener('click',()=>{buildPrintInvoice();window.print();});
+/* Print / Save as PDF — sets a proper filename (PartyName_OrderID_Date) so that
+   choosing "Save as PDF" from the print dialog produces a correctly-named file.
+   Printing to paper works the same; the title only affects the PDF filename. */
+function printOrderInvoice(){
+  buildPrintInvoice();
+  const orderId=(document.getElementById('f-order-id').value||'order').trim();
+  const partyName=(document.getElementById('f-party').options[document.getElementById('f-party').selectedIndex]?.text||'')
+    .replace(/^—.*$/,'').trim();
+  const dateVal=document.getElementById('f-date').value;
+  const dateStr=fmtOrderDate(dateVal)||'';
+  const clean=s=>String(s).replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'').trim();
+  const parts=[clean(partyName),clean(orderId),clean(dateStr)].filter(Boolean);
+  const fname=parts.join('_')||'order';
+  const prevTitle=document.title;
+  document.title=fname;                 // browsers use document.title as the PDF filename
+  window.print();
+  setTimeout(()=>{document.title=prevTitle;},1000);
+}
+document.getElementById('btn-print-order').addEventListener('click',printOrderInvoice);
+document.getElementById('btn-print-order-2').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-add-item').addEventListener('click',()=>addOrderItem());
 document.getElementById('btn-load-all').addEventListener('click',loadAllProducts);
 document.getElementById('btn-upload-file').addEventListener('click',()=>document.getElementById('file-input').click());
