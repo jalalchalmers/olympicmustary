@@ -91,12 +91,16 @@
           <table class="pl-table">
             <thead>
               <tr>
-                <th>কোড</th><th>পণ্য</th><th>কার্যকর তারিখ</th>
-                <th>বর্তমান মূল্য</th><th>অফার</th><th>কার্যকর মূল্য</th><th class="no-print"></th>
+                <th rowspan="2">কোড</th><th rowspan="2">পণ্য</th>
+                <th colspan="3" style="text-align:center;background:#eef2ff;color:var(--accent);border-bottom:1px solid var(--border)" id="pl-date-header">কার্যকর তারিখ: —</th>
+                <th rowspan="2" class="no-print"></th>
+              </tr>
+              <tr>
+                <th>বর্তমান মূল্য</th><th>অফার</th><th>কার্যকর মূল্য</th>
               </tr>
             </thead>
             <tbody id="pl-tbody">
-              <tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+              <tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
             </tbody>
           </table>
         </div>
@@ -173,6 +177,20 @@ buildNav('pricelist');
 let products = JSON.parse(localStorage.getItem('bf_products')||'[]');
 let priceHist = JSON.parse(localStorage.getItem('bf_price_history')||'[]');
 const BASELINE_DATE = '2026-06-01';   // your real start date
+
+/* format YYYY-MM-DD → DD-MM-YY (2-digit year) */
+function fmtDMY2(d){
+  if(!d) return '—';
+  const s=String(d).slice(0,10);
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? (m[3]+'-'+m[2]+'-'+m[1].slice(2)) : s;
+}
+/* single latest effective date across ALL products (snapshots share one date) */
+function latestEffDateAll(){
+  const dates=priceHist.filter(h=>h.superseded!=='yes' && h.effectiveDate).map(h=>h.effectiveDate);
+  if(!dates.length) return '';
+  return dates.sort((a,b)=>(a<b?1:-1))[0];
+}
 let selectedDates = [];               // for print comparison
 let editing = null;                   // product being edited
 let chosenType = null;                // 'correction' | 'new-change'
@@ -218,18 +236,18 @@ function renderTable(){
   const tb=document.getElementById('pl-tbody');
   const active=products.filter(p=>p.status==='active');
   document.getElementById('pl-count').textContent=active.length+' টি পণ্য';
+  // single latest effective date shown as the grouped header
+  document.getElementById('pl-date-header').textContent='কার্যকর তারিখ: '+fmtDMY2(latestEffDateAll());
   if(!products.length){
-    tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:30px">কোনো পণ্য নেই। প্রথমে পণ্য যোগ করুন।</td></tr>';
+    tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">কোনো পণ্য নেই। প্রথমে পণ্য যোগ করুন।</td></tr>';
     return;
   }
   tb.innerHTML=products.map(p=>{
     const eff=effOf(p.price,p.offerSize,p.freeQty);
     const ol=offerLabel(p.offerSize,p.freeQty);
-    const ed=lastEffDate(p.id)||'—';
     return `<tr>
       <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${p.code||''}</code></td>
       <td>${p.name||''}</td>
-      <td class="pl-date">${ed}</td>
       <td>${fmt.currency(p.price)}</td>
       <td>${ol?`<span class="pl-offer">${ol}</span>`:'<span class="pl-noo">—</span>'}</td>
       <td class="pl-eff">${fmt.currency(eff)}</td>
@@ -243,7 +261,7 @@ function renderDateChips(){
   const wrap=document.getElementById('pl-date-chips');
   const dates=allDates();
   if(!dates.length){ wrap.innerHTML='<span class="pl-date">কোনো ইতিহাস নেই</span>'; return; }
-  wrap.innerHTML=dates.map(d=>`<span class="pl-date-chip ${selectedDates.includes(d)?'sel':''}" onclick="toggleDate('${d}')">${d}</span>`).join('');
+  wrap.innerHTML=dates.map(d=>`<span class="pl-date-chip ${selectedDates.includes(d)?'sel':''}" onclick="toggleDate('${d}')">${fmtDMY2(d)}</span>`).join('');
 }
 function toggleDate(d){
   const i=selectedDates.indexOf(d);
@@ -372,9 +390,15 @@ async function saveEdit(){
 function buildPrint(){
   const area=document.getElementById('print-area');
   const biz=localStorage.getItem('bf_biz_name')||'Mustari Enterprise';
-  const today=new Date().toISOString().slice(0,10);
-  let head=`<th>কোড</th><th>পণ্য</th><th>বর্তমান মূল্য</th><th>বর্তমান অফার</th><th>কার্যকর মূল্য</th>`;
-  selectedDates.forEach(d=>{ head+=`<th>${d} মূল্য</th><th>${d} অফার</th><th>${d} কার্যকর</th>`; });
+  const today=fmtDMY2(new Date().toISOString().slice(0,10));
+  const curDate=fmtDMY2(latestEffDateAll());
+
+  // Two-row header: top row = grouped date labels, second = মূল্য/অফার/কার্যকর
+  let top=`<th rowspan="2">কোড</th><th rowspan="2">পণ্য</th>`
+        + `<th colspan="3" style="text-align:center;background:#e2e8f0">${curDate} (বর্তমান)</th>`;
+  selectedDates.forEach(d=>{ top+=`<th colspan="3" style="text-align:center;background:#e2e8f0">${fmtDMY2(d)}</th>`; });
+  const trio='<th>মূল্য</th><th>অফার</th><th>কার্যকর</th>';
+  let sub=trio; selectedDates.forEach(()=>{ sub+=trio; });
 
   const body=products.map(p=>{
     const eff=effOf(p.price,p.offerSize,p.freeQty);
@@ -390,10 +414,10 @@ function buildPrint(){
     return `<tr>${row}</tr>`;
   }).join('');
 
-  const cmp = selectedDates.length ? ('তুলনা তারিখ: '+selectedDates.join(', ')) : 'শুধু বর্তমান মূল্য';
+  const cmp = selectedDates.length ? ('তুলনা তারিখ: '+selectedDates.map(fmtDMY2).join(', ')) : 'শুধু বর্তমান মূল্য';
   area.innerHTML=`<div class="print-title">${biz} — মূল্য তালিকা</div>
     <div class="print-sub">প্রিন্ট তারিখ: ${today} · ${cmp} · কার্যকর মূল্য অফার থেকে হিসাবকৃত</div>
-    <table class="print-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    <table class="print-grid"><thead><tr>${top}</tr><tr>${sub}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 document.getElementById('btn-print').addEventListener('click',()=>{ buildPrint(); window.print(); });
