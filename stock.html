@@ -248,7 +248,7 @@ function updateStats(list){
   let physCtn=0, physPcs=0;
   list.forEach(r=>{
     const p=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut);
-    if(r.cartonSize>0){ physCtn+=Math.floor(p/r.cartonSize); physPcs+=p%r.cartonSize; }
+    if(r.cartonSize>0){ physCtn+=Math.trunc(p/r.cartonSize); physPcs+=p%r.cartonSize; }
     else physPcs+=p;
   });
   const physDisp=(physCtn?physCtn+' ctn':'')+(physCtn&&physPcs?' + ':'')+(physPcs||!physCtn?physPcs+' pcs':'');
@@ -352,7 +352,7 @@ function buildPrintReport(){
   sorted.forEach((r,i)=>{
     const bal=r.stockIn-r.stockOut,fb=r.freeIn-r.freeOut,phys=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut),cs=r.cartonSize;
     tin+=r.stockIn;tout+=r.stockOut;tphys+=phys;
-    if(cs>0){physCtn+=Math.floor(phys/cs);physPcs+=phys%cs;}else physPcs+=phys;
+    if(cs>0){physCtn+=Math.trunc(phys/cs);physPcs+=phys%cs;}else physPcs+=phys;
     const tr=document.createElement('tr');
     tr.innerHTML='<td class="c">'+(i+1)+'</td><td>'+r.productName+'</td><td class="c">'+(r.productCode||'')+'</td><td class="r">'+pcsDisp(r.stockIn,cs)+'</td><td class="r">'+pcsDisp(r.stockOut,cs)+'</td><td class="r">'+pcsDisp(bal,cs)+'</td><td class="r">'+pcsDisp(fb,cs)+'</td><td class="r">'+pcsDisp(phys,cs)+'</td>';
     tbody.appendChild(tr);
