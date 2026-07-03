@@ -109,9 +109,19 @@ buildNav('stockstmt');
 /* format a YYYY-MM-DD (or ISO) date string as DD-MM-YYYY for display */
 function fmtDMY(d){
   if(!d) return '';
-  const s=String(d).slice(0,10);            // YYYY-MM-DD
-  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? (m[3]+'-'+m[2]+'-'+m[1]) : s;  // DD-MM-YYYY
+  const s=String(d).trim();
+  let dt=null;
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){ dt=new Date(+m[1],+m[2]-1,+m[3]); }
+  else {
+    const mo=s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+    if(mo){ const M={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}; dt=new Date(+mo[3],M[mo[1]],+mo[2]); }
+    else { const t=new Date(s); if(!isNaN(t.getTime())) dt=t; }
+  }
+  if(!dt) return s;
+  const dd=String(dt.getDate()).padStart(2,'0');
+  const mm=String(dt.getMonth()+1).padStart(2,'0');
+  return dd+'-'+mm+'-'+dt.getFullYear();  // DD-MM-YYYY
 }
 
 
@@ -146,10 +156,21 @@ function orderFlow(o){
 
 /* build the full statement (chronological) with running balance across ALL products.
    Running balance computed on the FULL set first (so filtering rows doesn't corrupt it). */
+/* parse date (YYYY-MM-DD OR 'Fri Jun 05 2026 …') → ms for correct ordering/filtering */
+function dateMs(d){
+  if(!d) return 0;
+  const s=String(d).trim();
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return new Date(+m[1],+m[2]-1,+m[3]).getTime();
+  const mo=s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+  if(mo){ const M={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}; return new Date(+mo[3],M[mo[1]],+mo[2]).getTime(); }
+  const t=new Date(s); return isNaN(t.getTime())?0:t.getTime();
+}
+
 function buildStatement(){
   // sort all orders oldest→newest by date then savedAt
   const all=[...orders].sort((a,b)=>{
-    const d=(a.date||'').localeCompare(b.date||'');
+    const d=dateMs(a.date)-dateMs(b.date);
     if(d) return d;
     return (a.savedAt||'').localeCompare(b.savedAt||'');
   });
@@ -210,8 +231,9 @@ function render(){
 
   const view=statementRows.filter(r=>{
     const o=r.order;
-    if(from && (o.date||'')<from) return false;
-    if(to && (o.date||'')>to) return false;
+    const oms=dateMs(o.date);
+    if(from && oms<dateMs(from)) return false;
+    if(to && oms>dateMs(to)) return false;
     if(name && o.partyName!==name) return false;
     if(flow==='in' && !r.isIn) return false;
     if(flow==='out' && r.isIn) return false;
@@ -260,8 +282,9 @@ function exportCsv(){
   const flow=document.getElementById('f-flow').value;
   const view=statementRows.filter(r=>{
     const o=r.order;
-    if(from&&(o.date||'')<from)return false;
-    if(to&&(o.date||'')>to)return false;
+    const oms=dateMs(o.date);
+    if(from&&oms<dateMs(from))return false;
+    if(to&&oms>dateMs(to))return false;
     if(name&&o.partyName!==name)return false;
     if(flow==='in'&&!r.isIn)return false;
     if(flow==='out'&&r.isIn)return false;
