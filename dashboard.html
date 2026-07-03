@@ -236,16 +236,22 @@ function loadFromCache() {
   const salesDue     = sales.reduce((s,o)=>s+parseFloat(o.grandTotal||0),0)
                      - sales.reduce((s,o)=>s+parseFloat(o.totalPaid||0),0);
 
-  // Physical stock (on shelf) per product, then total as ctn + pcs
+  // Physical stock (on shelf) per product, then total as ctn + pcs.
+  // Carton size comes from the PRODUCTS MASTER (same source as the Stock page)
+  // so both pages produce identical totals.
+  const cartonById = {};
+  products.forEach(p => { if (p.id) cartonById[p.id] = parseFloat(p.cartonSize)||0; });
+
   const physMap = {}; // productId → { pieces, cartonSize }
   orders.forEach(o => {
     let items = [];
     try { items = JSON.parse(o.items||'[]'); } catch(e) {}
     items.forEach(it => {
       if (!it.productId) return;
-      if (!physMap[it.productId]) physMap[it.productId] = { pieces:0, cartonSize:parseFloat(it.cartonSize)||0 };
+      if (!physMap[it.productId]) physMap[it.productId] = { pieces:0, cartonSize: cartonById[it.productId]||parseFloat(it.cartonSize)||0 };
       const rec = physMap[it.productId];
-      if (!rec.cartonSize && it.cartonSize) rec.cartonSize = parseFloat(it.cartonSize)||0;
+      // always prefer the master carton size if we have it
+      if (cartonById[it.productId]) rec.cartonSize = cartonById[it.productId];
       const qp = parseFloat(it.qtyPieces!==undefined?it.qtyPieces:it.qty)||0;
       const fp = parseFloat(it.freePieces)||0;
       if (o.orderType === 'purchase') rec.pieces += (qp + fp);
@@ -255,7 +261,9 @@ function loadFromCache() {
   let physCtn = 0, physPcs = 0;
   Object.values(physMap).forEach(r => {
     if (r.cartonSize > 0) {
-      physCtn += Math.floor(r.pieces / r.cartonSize);
+      // Math.trunc keeps ctn and pcs on the same side of zero for negatives,
+      // so an oversold product reads e.g. "-5 pcs" not "-1 ctn + -5 pcs".
+      physCtn += Math.trunc(r.pieces / r.cartonSize);
       physPcs += r.pieces % r.cartonSize;
     } else {
       physPcs += r.pieces;
