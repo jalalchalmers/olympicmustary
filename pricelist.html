@@ -91,16 +91,16 @@
           <table class="pl-table">
             <thead>
               <tr>
-                <th rowspan="2">কোড</th><th rowspan="2">পণ্য</th>
-                <th colspan="3" style="text-align:center;background:#eef2ff;color:var(--accent);border-bottom:1px solid var(--border)" id="pl-date-header">কার্যকর তারিখ: —</th>
+                <th rowspan="2">কোড</th><th rowspan="2">পণ্য</th><th rowspan="2">পিস<br><span style="font-weight:400;font-size:10px">(কার্টন)</span></th>
+                <th colspan="4" style="text-align:center;background:#eef2ff;color:var(--accent);border-bottom:1px solid var(--border)" id="pl-date-header">কার্যকর তারিখ: —</th>
                 <th rowspan="2" class="no-print"></th>
               </tr>
               <tr>
-                <th>বর্তমান মূল্য</th><th>অফার</th><th>কার্যকর মূল্য</th>
+                <th>বর্তমান মূল্য</th><th>অফার</th><th>কার্যকর মূল্য<br><span style="font-weight:400;font-size:10px">(পিস)</span></th><th>কার্যকর মূল্য<br><span style="font-weight:400;font-size:10px">(কার্টন)</span></th>
               </tr>
             </thead>
             <tbody id="pl-tbody">
-              <tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+              <tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
             </tbody>
           </table>
         </div>
@@ -178,12 +178,23 @@ let products = JSON.parse(localStorage.getItem('bf_products')||'[]');
 let priceHist = JSON.parse(localStorage.getItem('bf_price_history')||'[]');
 const BASELINE_DATE = '2026-06-01';   // your real start date
 
-/* format YYYY-MM-DD → DD-MM-YY (2-digit year) */
+/* format a date (YYYY-MM-DD OR JS Date string like 'Wed Jul 01 2026 …')
+   → DD-MM-YYYY. Uses local components to avoid timezone day-shift. */
 function fmtDMY2(d){
   if(!d) return '—';
-  const s=String(d).slice(0,10);
-  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? (m[3]+'-'+m[2]+'-'+m[1].slice(2)) : s;
+  const s=String(d).trim();
+  let dt=null;
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){ dt=new Date(+m[1],+m[2]-1,+m[3]); }
+  else {
+    const mo=s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+    if(mo){ const M={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}; dt=new Date(+mo[3],M[mo[1]],+mo[2]); }
+    else { const t=new Date(s); if(!isNaN(t.getTime())) dt=t; }
+  }
+  if(!dt) return s;
+  const dd=String(dt.getDate()).padStart(2,'0');
+  const mm=String(dt.getMonth()+1).padStart(2,'0');
+  return dd+'-'+mm+'-'+dt.getFullYear();
 }
 /* single latest effective date across ALL products (snapshots share one date) */
 function latestEffDateAll(){
@@ -239,18 +250,22 @@ function renderTable(){
   // single latest effective date shown as the grouped header
   document.getElementById('pl-date-header').textContent='কার্যকর তারিখ: '+fmtDMY2(latestEffDateAll());
   if(!products.length){
-    tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">কোনো পণ্য নেই। প্রথমে পণ্য যোগ করুন।</td></tr>';
+    tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">কোনো পণ্য নেই। প্রথমে পণ্য যোগ করুন।</td></tr>';
     return;
   }
   tb.innerHTML=products.map(p=>{
     const eff=effOf(p.price,p.offerSize,p.freeQty);
+    const cSize=parseFloat(p.cartonSize)||0;
+    const effCarton=cSize>0?eff*cSize:0;
     const ol=offerLabel(p.offerSize,p.freeQty);
     return `<tr>
       <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${p.code||''}</code></td>
       <td>${p.name||''}</td>
+      <td style="text-align:center">${cSize?cSize:'—'}</td>
       <td>${fmt.currency(p.price)}</td>
       <td>${ol?`<span class="pl-offer">${ol}</span>`:'<span class="pl-noo">—</span>'}</td>
       <td class="pl-eff">${fmt.currency(eff)}</td>
+      <td class="pl-eff" style="color:var(--accent)">${cSize?fmt.currency(effCarton):'—'}</td>
       <td class="no-print"><button class="pl-edit-btn" onclick="openEdit('${p.id}')">পরিবর্তন</button></td>
     </tr>`;
   }).join('');
@@ -393,23 +408,26 @@ function buildPrint(){
   const today=fmtDMY2(new Date().toISOString().slice(0,10));
   const curDate=fmtDMY2(latestEffDateAll());
 
-  // Two-row header: top row = grouped date labels, second = মূল্য/অফার/কার্যকর
-  let top=`<th rowspan="2">কোড</th><th rowspan="2">পণ্য</th>`
-        + `<th colspan="3" style="text-align:center;background:#e2e8f0">${curDate} (বর্তমান)</th>`;
-  selectedDates.forEach(d=>{ top+=`<th colspan="3" style="text-align:center;background:#e2e8f0">${fmtDMY2(d)}</th>`; });
-  const trio='<th>মূল্য</th><th>অফার</th><th>কার্যকর</th>';
-  let sub=trio; selectedDates.forEach(()=>{ sub+=trio; });
+  // Two-row header: top = grouped date labels (4 cols each), second = মূল্য/অফার/কার্যকর(পিস)/কার্যকর(কার্টন)
+  let top=`<th rowspan="2">কোড</th><th rowspan="2">পণ্য</th><th rowspan="2">পিস</th>`
+        + `<th colspan="4" style="text-align:center;background:#e2e8f0">${curDate} (বর্তমান)</th>`;
+  selectedDates.forEach(d=>{ top+=`<th colspan="4" style="text-align:center;background:#e2e8f0">${fmtDMY2(d)}</th>`; });
+  const quad='<th>মূল্য</th><th>অফার</th><th>কার্যকর(পিস)</th><th>কার্যকর(কার্টন)</th>';
+  let sub=quad; selectedDates.forEach(()=>{ sub+=quad; });
 
   const body=products.map(p=>{
+    const cSize=parseFloat(p.cartonSize)||0;
     const eff=effOf(p.price,p.offerSize,p.freeQty);
-    let row=`<td>${p.code||''}</td><td>${p.name||''}</td><td>${fmt.currency(p.price)}</td>`
-          +`<td>${offerLabel(p.offerSize,p.freeQty)||'—'}</td><td>${fmt.currency(eff)}</td>`;
+    let row=`<td>${p.code||''}</td><td>${p.name||''}</td><td style="text-align:center">${cSize||'—'}</td>`
+          +`<td>${fmt.currency(p.price)}</td><td>${offerLabel(p.offerSize,p.freeQty)||'—'}</td>`
+          +`<td>${fmt.currency(eff)}</td><td>${cSize?fmt.currency(eff*cSize):'—'}</td>`;
     selectedDates.forEach(d=>{
       const past=priceAsOf(p.id,d);
       if(past){
+        const pe=effOf(past.price,past.offerSize,past.freeQty);
         row+=`<td>${fmt.currency(past.price)}</td><td>${offerLabel(past.offerSize,past.freeQty)||'—'}</td>`
-            +`<td>${fmt.currency(effOf(past.price,past.offerSize,past.freeQty))}</td>`;
-      }else{ row+=`<td>—</td><td>—</td><td>—</td>`; }
+            +`<td>${fmt.currency(pe)}</td><td>${cSize?fmt.currency(pe*cSize):'—'}</td>`;
+      }else{ row+=`<td>—</td><td>—</td><td>—</td><td>—</td>`; }
     });
     return `<tr>${row}</tr>`;
   }).join('');
