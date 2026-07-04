@@ -15,6 +15,7 @@
     table.pl-table thead th{background:var(--bg);font-weight:700;color:var(--ink2);position:sticky;top:0}
     table.pl-table tbody tr:hover{background:#f8fafc}
     .pl-offer{font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
+    .pl-chg-badge{font-size:10px;background:#f59e0b;color:#fff;padding:1px 7px;border-radius:9px;font-weight:700;white-space:nowrap;margin-left:4px}
     .pl-noo{color:var(--ink3)}
     .pl-eff{color:var(--success);font-weight:600}
     .pl-edit-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12px;color:var(--accent)}
@@ -72,6 +73,12 @@
         <div class="pl-toolbar">
           <button class="btn btn-primary" id="btn-print">🖨️ প্রিন্ট</button>
           <button class="btn btn-outline" id="btn-baseline" style="display:none">📅 বেসলাইন তৈরি করুন (১ জুন)</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)">
+            কার্যকর তারিখ:
+            <select id="pl-view-date" style="border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;background:#fff">
+              <option value="">সর্বশেষ (Latest)</option>
+            </select>
+          </label>
           <span class="spacer"></span>
           <span class="pl-date" id="pl-count">—</span>
         </div>
@@ -253,33 +260,81 @@ function priceAsOf(productId, date){
            freeQty:parseFloat(r.freeQty)||0, effectiveDate:r.effectiveDate };
 }
 
-/* ── render the screen table ── */
+/* did this product's price/offer change ON `date` vs the date immediately before it? */
+function changedOn(productId, date){
+  const dms=dateMs(date);
+  // this product's row effective exactly on `date`
+  const onDate=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)===dms);
+  if(!onDate.length) return false;            // product had no row on this date → unchanged
+  // find the price/offer as of the day BEFORE this date
+  const prior=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)<dms)
+                       .sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate))[0];
+  const cur=onDate[0];
+  if(!prior) return true;                     // first appearance on this date = a change (new)
+  return String(prior.price)!==String(cur.price)
+      || String(prior.offerSize||0)!==String(cur.offerSize||0)
+      || String(prior.freeQty||0)!==String(cur.freeQty||0);
+}
+
+/* ── render the screen table ──
+   viewDate === '' → current/latest products (live).
+   viewDate set    → each product's price/offer as of that date, changed rows highlighted. */
 function renderTable(){
   const tb=document.getElementById('pl-tbody');
   const active=products.filter(p=>p.status==='active');
   document.getElementById('pl-count').textContent=active.length+' টি পণ্য';
-  // single latest effective date shown as the grouped header
-  document.getElementById('pl-date-header').textContent='কার্যকর তারিখ: '+fmtDMY2(latestEffDateAll());
+  const viewDate=document.getElementById('pl-view-date').value;
+  const headerDate = viewDate || latestEffDateAll();
+  document.getElementById('pl-date-header').textContent='কার্যকর তারিখ: '+fmtDMY2(headerDate);
   if(!products.length){
     tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">কোনো পণ্য নেই। প্রথমে পণ্য যোগ করুন।</td></tr>';
     return;
   }
   tb.innerHTML=products.map(p=>{
-    const eff=effOf(p.price,p.offerSize,p.freeQty);
+    // choose the price/offer to show: current, or as-of the selected date
+    let price=p.price, offerSize=p.offerSize, freeQty=p.freeQty;
+    if(viewDate){
+      const past=priceAsOf(p.id,viewDate);
+      if(past){ price=past.price; offerSize=past.offerSize; freeQty=past.freeQty; }
+      else { price=null; }   // product didn't exist yet on that date
+    }
     const cSize=parseFloat(p.cartonSize)||0;
+    if(price===null){
+      // product not yet in history on the selected date
+      return `<tr style="opacity:.5">
+        <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${p.code||''}</code></td>
+        <td>${p.name||''}</td>
+        <td style="text-align:center">${cSize?cSize:'—'}</td>
+        <td colspan="4" style="text-align:center;color:var(--ink3);font-size:12px">এই তারিখে ছিল না</td>
+        <td class="no-print"></td>
+      </tr>`;
+    }
+    const eff=effOf(price,offerSize,freeQty);
     const effCarton=cSize>0?eff*cSize:0;
-    const ol=offerLabel(p.offerSize,p.freeQty);
-    return `<tr>
+    const ol=offerLabel(offerSize,freeQty);
+    const isChanged = viewDate && changedOn(p.id,viewDate);
+    const rowStyle = isChanged ? ' style="background:#fef9c3"' : '';
+    const badge = isChanged ? ' <span class="pl-chg-badge">পরিবর্তিত</span>' : '';
+    return `<tr${rowStyle}>
       <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${p.code||''}</code></td>
-      <td>${p.name||''}</td>
+      <td>${p.name||''}${badge}</td>
       <td style="text-align:center">${cSize?cSize:'—'}</td>
-      <td>${fmt.currency(p.price)}</td>
+      <td>${fmt.currency(price)}</td>
       <td>${ol?`<span class="pl-offer">${ol}</span>`:'<span class="pl-noo">—</span>'}</td>
       <td class="pl-eff">${fmt.currency(eff)}</td>
       <td class="pl-eff" style="color:var(--accent)">${cSize?fmt.currency(effCarton):'—'}</td>
       <td class="no-print"><button class="pl-edit-btn" onclick="openEdit('${p.id}')">পরিবর্তন</button></td>
     </tr>`;
   }).join('');
+}
+
+/* populate the effective-date dropdown (latest option + every date) */
+function renderViewDateOptions(){
+  const sel=document.getElementById('pl-view-date');
+  const cur=sel.value;
+  const dates=allDates();
+  sel.innerHTML='<option value="">সর্বশেষ (Latest)</option>'+dates.map(d=>`<option value="${d}">${fmtDMY2(d)}</option>`).join('');
+  sel.value=cur;
 }
 
 /* ── compare-date chips ── */
@@ -317,7 +372,7 @@ async function createBaseline(){
   // backend
   if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error'); } }
   toast('বেসলাইন তৈরি হয়েছে ✓','success');
-  maybeShowBaseline(); renderTable(); renderDateChips();
+  maybeShowBaseline(); renderViewDateOptions(); renderTable(); renderDateChips();
 }
 
 /* ── edit modal ── */
@@ -409,7 +464,7 @@ async function saveEdit(){
     toast('নতুন পরিবর্তন স্ন্যাপশট তৈরি হয়েছে ✓','success');
   }
   localStorage.setItem('bf_price_history',JSON.stringify(priceHist));
-  closeEdit(); maybeShowBaseline(); renderTable(); renderDateChips();
+  closeEdit(); maybeShowBaseline(); renderViewDateOptions(); renderTable(); renderDateChips();
 }
 
 /* ── build compact print view ── */
@@ -417,21 +472,36 @@ function buildPrint(){
   const area=document.getElementById('print-area');
   const biz=localStorage.getItem('bf_biz_name')||'Mustari Enterprise';
   const today=fmtDMY2(new Date().toISOString().slice(0,10));
-  const curDate=fmtDMY2(latestEffDateAll());
+  // Point 4/5: with no comparison dates, print the SELECTED effective date's snapshot.
+  // With comparison dates, the primary column stays "current/latest" and dates are added.
+  const viewDate=document.getElementById('pl-view-date').value;
+  const primaryDate = (selectedDates.length===0 && viewDate) ? viewDate : latestEffDateAll();
+  const primaryLabel = (selectedDates.length===0 && viewDate) ? fmtDMY2(viewDate) : (fmtDMY2(latestEffDateAll())+' (বর্তমান)');
 
   // Two-row header: top = grouped date labels (4 cols each), second = মূল্য/অফার/কার্যকর(পিস)/কার্যকর(কার্টন)
   let top=`<th rowspan="2">কোড</th><th rowspan="2">পণ্য</th><th rowspan="2">পিস</th>`
-        + `<th colspan="4" style="text-align:center;background:#e2e8f0">${curDate} (বর্তমান)</th>`;
+        + `<th colspan="4" style="text-align:center;background:#e2e8f0">${primaryLabel}</th>`;
   selectedDates.forEach(d=>{ top+=`<th colspan="4" style="text-align:center;background:#e2e8f0">${fmtDMY2(d)}</th>`; });
   const quad='<th>মূল্য</th><th>অফার</th><th>কার্যকর(পিস)</th><th>কার্যকর(কার্টন)</th>';
   let sub=quad; selectedDates.forEach(()=>{ sub+=quad; });
 
+  const usePrimarySnapshot = (selectedDates.length===0 && viewDate);
   const body=products.map(p=>{
     const cSize=parseFloat(p.cartonSize)||0;
-    const eff=effOf(p.price,p.offerSize,p.freeQty);
-    let row=`<td>${p.code||''}</td><td>${p.name||''}</td><td style="text-align:center">${cSize||'—'}</td>`
-          +`<td>${fmt.currency(p.price)}</td><td>${offerLabel(p.offerSize,p.freeQty)||'—'}</td>`
+    // primary column values: current product, OR as-of the selected view date
+    let pr=p.price, os=p.offerSize, fq=p.freeQty, exists=true;
+    if(usePrimarySnapshot){
+      const past=priceAsOf(p.id,viewDate);
+      if(past){ pr=past.price; os=past.offerSize; fq=past.freeQty; } else { exists=false; }
+    }
+    let row=`<td>${p.code||''}</td><td>${p.name||''}</td><td style="text-align:center">${cSize||'—'}</td>`;
+    if(exists){
+      const eff=effOf(pr,os,fq);
+      row+=`<td>${fmt.currency(pr)}</td><td>${offerLabel(os,fq)||'—'}</td>`
           +`<td>${fmt.currency(eff)}</td><td>${cSize?fmt.currency(eff*cSize):'—'}</td>`;
+    } else {
+      row+=`<td>—</td><td>—</td><td>—</td><td>—</td>`;
+    }
     selectedDates.forEach(d=>{
       const past=priceAsOf(p.id,d);
       if(past){
@@ -443,7 +513,9 @@ function buildPrint(){
     return `<tr>${row}</tr>`;
   }).join('');
 
-  const cmp = selectedDates.length ? ('তুলনা তারিখ: '+selectedDates.map(fmtDMY2).join(', ')) : 'শুধু বর্তমান মূল্য';
+  const cmp = selectedDates.length
+    ? ('তুলনা তারিখ: '+selectedDates.map(fmtDMY2).join(', '))
+    : (viewDate ? ('কার্যকর তারিখ: '+fmtDMY2(viewDate)) : 'সর্বশেষ মূল্য');
   area.innerHTML=`<div class="print-title">${biz} — মূল্য তালিকা</div>
     <div class="print-sub">প্রিন্ট তারিখ: ${today} · ${cmp} · কার্যকর মূল্য অফার থেকে হিসাবকৃত</div>
     <table class="print-grid"><thead><tr>${top}</tr><tr>${sub}</tr></thead><tbody>${body}</tbody></table>`;
@@ -451,6 +523,7 @@ function buildPrint(){
 
 document.getElementById('btn-print').addEventListener('click',()=>{ buildPrint(); window.print(); });
 document.getElementById('btn-baseline').addEventListener('click',createBaseline);
+document.getElementById('pl-view-date').addEventListener('change',renderTable);
 
 /* ── load history from backend, then render ── */
 async function loadHistory(){
@@ -460,7 +533,7 @@ async function loadHistory(){
       if(Array.isArray(h)){ priceHist=h; localStorage.setItem('bf_price_history',JSON.stringify(h)); }
     }catch(e){ /* offline: use local */ }
   }
-  maybeShowBaseline(); renderTable(); renderDateChips();
+  maybeShowBaseline(); renderViewDateOptions(); renderTable(); renderDateChips();
 }
 loadHistory();
 </script>
