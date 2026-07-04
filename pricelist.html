@@ -196,11 +196,21 @@ function fmtDMY2(d){
   const mm=String(dt.getMonth()+1).padStart(2,'0');
   return dd+'-'+mm+'-'+dt.getFullYear();
 }
+/* parse any stored date (YYYY-MM-DD or 'Fri Jul 04 2026 …') → ms, for reliable compare/sort */
+function dateMs(d){
+  if(!d) return 0;
+  const s=String(d).trim();
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return new Date(+m[1],+m[2]-1,+m[3]).getTime();
+  const mo=s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+  if(mo){ const M={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}; return new Date(+mo[3],M[mo[1]],+mo[2]).getTime(); }
+  const t=new Date(s); return isNaN(t.getTime())?0:t.getTime();
+}
 /* single latest effective date across ALL products (snapshots share one date) */
 function latestEffDateAll(){
   const dates=priceHist.filter(h=>h.superseded!=='yes' && h.effectiveDate).map(h=>h.effectiveDate);
   if(!dates.length) return '';
-  return dates.sort((a,b)=>(a<b?1:-1))[0];
+  return dates.sort((a,b)=>dateMs(b)-dateMs(a))[0];
 }
 let selectedDates = [];               // for print comparison
 let editing = null;                   // product being edited
@@ -221,22 +231,23 @@ function offerLabel(offerSize,freeQty){
 function lastEffDate(productId){
   const rows=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate);
   if(!rows.length) return '';
-  rows.sort((a,b)=>(a.effectiveDate<b.effectiveDate?1:-1)); // newest first
+  rows.sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate)); // newest first
   return rows[0].effectiveDate;
 }
 
 /* all distinct effective dates in history (newest first) */
 function allDates(){
   const s=new Set(priceHist.filter(h=>h.effectiveDate && h.type!=='correction').map(h=>h.effectiveDate));
-  return [...s].sort((a,b)=>(a<b?1:-1));
+  return [...s].sort((a,b)=>dateMs(b)-dateMs(a));
 }
 
 /* product price/offer as of a given date (latest row on/before that date) */
 function priceAsOf(productId, date){
+  const dms=dateMs(date);
   const rows=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes'
-              && h.effectiveDate && h.effectiveDate<=date);
+              && h.effectiveDate && dateMs(h.effectiveDate)<=dms);
   if(!rows.length) return null;
-  rows.sort((a,b)=>(a.effectiveDate<b.effectiveDate?1:-1));
+  rows.sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate));
   const r=rows[0];
   return { price:parseFloat(r.price)||0, offerSize:parseFloat(r.offerSize)||0,
            freeQty:parseFloat(r.freeQty)||0, effectiveDate:r.effectiveDate };
