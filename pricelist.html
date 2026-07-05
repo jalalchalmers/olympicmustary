@@ -213,6 +213,13 @@ function dateMs(d){
   if(mo){ const M={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}; return new Date(+mo[3],M[mo[1]],+mo[2]).getTime(); }
   const t=new Date(s); return isNaN(t.getTime())?0:t.getTime();
 }
+/* normalize any date (YYYY-MM-DD or 'Wed Jul 01 2026 …') → clean 'YYYY-MM-DD' for storage */
+function toISODate(d){
+  const ms=dateMs(d);
+  if(!ms) return String(d||'');
+  const dt=new Date(ms);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
 /* single latest effective date across ALL products (snapshots share one date) */
 function latestEffDateAll(){
   const dates=priceHist.filter(h=>h.superseded!=='yes' && h.effectiveDate).map(h=>h.effectiveDate);
@@ -436,7 +443,7 @@ async function saveEdit(){
 
   // 2) write history
   if(chosenType==='correction'){
-    const effDate=lastEffDate(editing.id)||BASELINE_DATE;
+    const effDate=toISODate(lastEffDate(editing.id)||BASELINE_DATE);
     // mark prior local row superseded
     for(let i=priceHist.length-1;i>=0;i--){
       if(priceHist[i].productId===editing.id && priceHist[i].superseded!=='yes'){ priceHist[i].superseded='yes'; break; }
