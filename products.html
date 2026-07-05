@@ -23,7 +23,7 @@
         <span class="bf-page-title">পণ্য তালিকা</span>
       </div>
       <div class="bf-topbar-right">
-        <button class="btn btn-outline btn-sm" id="btn-price-history">📈 মূল্য ইতিহাস</button>
+        <a class="btn btn-outline btn-sm" href="pricelist.html" style="text-decoration:none">📈 মূল্য তালিকা ও ইতিহাস</a>
         <button class="btn btn-primary btn-sm" id="btn-new-product">+ নতুন পণ্য</button>
       </div>
     </div>
@@ -181,41 +181,7 @@
   </div>
 </div>
 
-<!-- PRICE HISTORY MODAL -->
-<div class="modal-overlay" id="history-modal">
-  <div class="modal" style="max-width:680px">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title">📈 মূল্য পরিবর্তনের ইতিহাস</div>
-        <div style="font-size:12px;color:var(--ink3);margin-top:2px">পণ্যের মূল্য পরিবর্তনের রেকর্ড</div>
-      </div>
-      <button class="modal-close" onclick="closeHistoryModal()">×</button>
-    </div>
-    <div style="margin-bottom:14px">
-      <select id="history-filter" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-family:inherit;font-size:13px;color:var(--ink);outline:none">
-        <option value="">— সব পণ্য —</option>
-      </select>
-    </div>
-    <div class="table-wrap" style="max-height:380px;overflow-y:auto">
-      <table>
-        <thead>
-          <tr>
-            <th>তারিখ</th>
-            <th>পণ্য</th>
-            <th style="text-align:right">পুরনো মূল্য</th>
-            <th style="text-align:right">নতুন মূল্য</th>
-            <th style="text-align:right">পরিবর্তন</th>
-            <th>অফার</th>
-          </tr>
-        </thead>
-        <tbody id="history-body"></tbody>
-      </table>
-    </div>
-    <div class="modal-footer" style="justify-content:flex-start;padding-bottom:0">
-      <button class="btn btn-outline btn-sm" onclick="exportPriceHistory()">⬇ Export CSV</button>
-    </div>
-  </div>
-</div>
+<!-- (old local price-history modal retired — history now lives on pricelist.html, sheet-backed) -->
 
 <script src="shared.js"></script>
 <script src="layout.js"></script>
@@ -224,12 +190,10 @@ buildNav('products');
 
 /* ── STATE ── */
 let products     = JSON.parse(localStorage.getItem('bf_products')      || '[]');
-let priceHistory = JSON.parse(localStorage.getItem('bf_price_history') || '[]');
 let editProdId   = null;
 
 function saveLocal() {
   localStorage.setItem('bf_products',      JSON.stringify(products));
-  localStorage.setItem('bf_price_history', JSON.stringify(priceHistory));
   localStorage.setItem('bf_count_products', products.filter(p=>p.status==='active').length);
 }
 
@@ -435,6 +399,7 @@ async function saveProduct() {
     hasOffer,
     offerSize:     hasOffer ? offerSize : 0,
     freeQty:       hasOffer ? freeQty   : 0,
+    // DISPLAY CACHE ONLY — never read for money math; always recompute from price+offer.
     effectivePrice: (typeof effectivePrice === 'number' ? effectivePrice : parseFloat(effectivePrice)),
     notForSale:    notForSale ? 'yes' : '',
     status:        document.getElementById('pr-status').value,
@@ -442,24 +407,9 @@ async function saveProduct() {
     updated:       new Date().toISOString(),
   };
 
-  // Track price history if price changed during edit
+  // (old local price-history logging retired — sheet-backed history is written
+  //  by saveProductWithHistory below, which calls the PriceHistory backend)
   if (editProdId) {
-    const old = products.find(x => x.id === editProdId);
-    if (old && parseFloat(old.price) !== price) {
-      priceHistory.unshift({
-        id:          'H' + Date.now(),
-        date:        fmt.dateInput(),
-        productId:   product.id,
-        productName: product.name,
-        productCode: product.code,
-        oldPrice:    old.price,
-        newPrice:    price,
-        oldOffer:    (old.hasOffer===true||old.hasOffer==='true') ? `${old.offerSize}+${old.freeQty}` : '—',
-        newOffer:    hasOffer ? `${offerSize}+${freeQty}` : '—',
-        oldEffective: old.effectivePrice,
-        newEffective: effectivePrice,
-      });
-    }
     const idx = products.findIndex(x => x.id === editProdId);
     if (idx>-1) products[idx] = product; else products.unshift(product);
   } else {
@@ -512,56 +462,6 @@ async function syncFromSheet() {
   spinBtn(btn, false);
 }
 
-/* ── PRICE HISTORY MODAL ── */
-function openHistoryModal() {
-  const sel = document.getElementById('history-filter');
-  sel.innerHTML = '<option value="">— সব পণ্য —</option>' +
-    products.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
-  renderHistory('');
-  document.getElementById('history-modal').classList.add('open');
-}
-
-function closeHistoryModal() {
-  document.getElementById('history-modal').classList.remove('open');
-}
-
-function renderHistory(filterProdId) {
-  const tbody = document.getElementById('history-body');
-  const list  = filterProdId ? priceHistory.filter(h=>h.productId===filterProdId) : priceHistory;
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><p>কোনো মূল্য পরিবর্তন নেই</p></div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = list.map(h => {
-    const diff    = parseFloat(h.newPrice) - parseFloat(h.oldPrice);
-    const diffStr = diff > 0
-      ? `<span style="color:var(--danger)">▲ ${fmt.currency(diff)}</span>`
-      : `<span style="color:var(--success)">▼ ${fmt.currency(Math.abs(diff))}</span>`;
-    return `<tr>
-      <td style="font-size:12px">${h.date}</td>
-      <td>
-        <code style="font-size:11px;background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--accent)">${h.productCode}</code>
-        <span style="font-size:12px;margin-left:6px">${h.productName}</span>
-      </td>
-      <td style="text-align:right;color:var(--ink3)">${fmt.currency(h.oldPrice)}</td>
-      <td style="text-align:right;font-weight:600">${fmt.currency(h.newPrice)}</td>
-      <td style="text-align:right">${diffStr}</td>
-      <td style="font-size:11px;color:var(--ink3)">${h.newOffer||'—'}</td>
-    </tr>`;
-  }).join('');
-}
-
-function exportPriceHistory() {
-  if (!priceHistory.length) { toast('কোনো ইতিহাস নেই','error'); return; }
-  const h = ['তারিখ','কোড','পণ্য','পুরনো মূল্য','নতুন মূল্য','পুরনো অফার','নতুন অফার'];
-  const rows = priceHistory.map(r =>
-    [r.date,r.productCode,r.productName,r.oldPrice,r.newPrice,r.oldOffer,r.newOffer]
-    .map(v=>`"${v||''}"`).join(','));
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
-  a.download = 'price_history_'+fmt.dateInput()+'.csv'; a.click();
-}
-
 /* ── EXPORT PRODUCTS CSV ── */
 function exportProducts() {
   if (!products.length) { toast('কোনো ডেটা নেই','error'); return; }
@@ -576,14 +476,13 @@ function exportProducts() {
 
 /* ── EVENTS ── */
 document.getElementById('btn-new-product').addEventListener('click',   () => openProductModal());
-document.getElementById('btn-price-history').addEventListener('click', openHistoryModal);
 document.getElementById('btn-sync').addEventListener('click',          syncFromSheet);
 document.getElementById('btn-export').addEventListener('click',        exportProducts);
 document.getElementById('search-input').addEventListener('input',      applyFilters);
 document.getElementById('filter-status').addEventListener('change',    applyFilters);
 document.getElementById('filter-offer').addEventListener('change',     applyFilters);
 document.getElementById('filter-sale').addEventListener('change',      applyFilters);
-document.getElementById('save-product-btn').addEventListener('click',  saveProduct);
+document.getElementById('save-product-btn').addEventListener('click',  saveProductWithHistory);
 
 document.getElementById('pr-has-offer').addEventListener('change', e => {
   toggleOfferFields(e.target.checked);
@@ -602,10 +501,8 @@ document.getElementById('pr-carton').addEventListener('input', function(){
   document.getElementById(id).addEventListener('input', calcEffectivePrice)
 );
 
-document.getElementById('history-filter').addEventListener('change', e => renderHistory(e.target.value));
-
-[document.getElementById('product-modal'), document.getElementById('history-modal')].forEach(m => {
-  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); });
+document.getElementById('product-modal').addEventListener('click', e => {
+  if(e.target.id==='product-modal') e.target.classList.remove('open');
 });
 
 if (new URLSearchParams(window.location.search).get('new')==='1') openProductModal();
@@ -614,6 +511,177 @@ if (new URLSearchParams(window.location.search).get('new')==='1') openProductMod
 renderTable(products);
 updateStats();
 if (BF.sheetUrl) syncFromSheet();
+
+
+/* ═══ Price-History integration (sheet-backed) ═══ */
+const PH_BASELINE_DATE = '2026-06-01';   // your price-list start date
+
+/* full-precision effective piece price (never stored/truncated) */
+function phEff(price, offerSize, freeQty){
+  price=parseFloat(price)||0; offerSize=parseFloat(offerSize)||0; freeQty=parseFloat(freeQty)||0;
+  if(offerSize>0 && (offerSize+freeQty)>0) return price*offerSize/(offerSize+freeQty);
+  return price;
+}
+
+/* latest non-superseded effective date for a product from the sheet-backed history */
+function phLastEffDate(productId){
+  const hist=JSON.parse(localStorage.getItem('bf_price_history')||'[]');
+  const rows=hist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate);
+  if(!rows.length) return '';
+  rows.sort((a,b)=>(a.effectiveDate<b.effectiveDate?1:-1));
+  return rows[0].effectiveDate;
+}
+
+/* build a full snapshot of ALL current products for a revision */
+function phSnapshotRows(){
+  return products.map(p=>({
+    productId:p.id, code:p.code, name:p.name,
+    price:p.price, offerSize:p.offerSize||0, freeQty:p.freeQty||0, hasOffer:!!p.hasOffer
+  }));
+}
+
+/* ── lightweight prompt modal (built in JS, no HTML edits) ── */
+function phPrompt(opts){
+  // opts: { mode:'new'|'edit', productName, lastDate, onDone(result) }
+  return new Promise(resolve=>{
+    const isEdit = opts.mode==='edit';
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px';
+    const today=new Date().toISOString().slice(0,10);
+    wrap.innerHTML=`
+      <div style="background:#fff;border-radius:16px;max-width:440px;width:100%;padding:24px">
+        <h3 style="font-size:17px;font-weight:700;margin:0 0 4px">${isEdit?'মূল্য / অফার পরিবর্তন':'নতুন পণ্যের কার্যকর তারিখ'}</h3>
+        <p style="font-size:13px;color:var(--ink2);margin:0 0 16px">${opts.productName||''}</p>
+        ${isEdit?`
+          <label style="font-size:13px;font-weight:600;color:var(--ink2)">এটি কী ধরনের পরিবর্তন?</label>
+          <div style="display:flex;gap:10px;margin:8px 0 14px">
+            <button type="button" id="ph-corr" style="flex:1;padding:11px;border:2px solid var(--border);border-radius:11px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink2)">সংশোধন<br><span style="font-weight:400;font-size:11px">(ভুল ঠিক করা)</span></button>
+            <button type="button" id="ph-new" style="flex:1;padding:11px;border:2px solid var(--border);border-radius:11px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink2)">নতুন পরিবর্তন<br><span style="font-weight:400;font-size:11px">(নতুন দর)</span></button>
+          </div>`:''}
+        <div id="ph-date-wrap" style="${isEdit?'display:none;':''}margin-bottom:14px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:5px">কার্যকর তারিখ</label>
+          <input type="date" id="ph-date" value="${today}" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px"/>
+          <div style="font-size:12px;color:var(--ink3);margin-top:5px">সর্বশেষ কার্যকর তারিখ: ${opts.lastDate||'—'}</div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:5px">নোট <span id="ph-note-req" style="color:var(--danger);display:none">(আবশ্যক)</span></label>
+          <input type="text" id="ph-note" placeholder="কারণ / ব্যাখ্যা" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px"/>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" id="ph-cancel" class="btn btn-outline">বাতিল</button>
+          <button type="button" id="ph-ok" class="btn btn-primary">নিশ্চিত করুন</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    let chosen = isEdit ? null : 'new-product';
+    const dateWrap=wrap.querySelector('#ph-date-wrap');
+    const noteReq=wrap.querySelector('#ph-note-req');
+    const close=r=>{ document.body.removeChild(wrap); resolve(r); };
+
+    if(isEdit){
+      wrap.querySelector('#ph-corr').onclick=()=>{
+        chosen='correction';
+        wrap.querySelector('#ph-corr').style.borderColor='var(--accent)'; wrap.querySelector('#ph-corr').style.background='#eef2ff';
+        wrap.querySelector('#ph-new').style.borderColor='var(--border)'; wrap.querySelector('#ph-new').style.background='#fff';
+        dateWrap.style.display='none';         // correction keeps existing date
+        noteReq.style.display='';              // note required for corrections
+      };
+      wrap.querySelector('#ph-new').onclick=()=>{
+        chosen='new-change';
+        wrap.querySelector('#ph-new').style.borderColor='var(--accent)'; wrap.querySelector('#ph-new').style.background='#eef2ff';
+        wrap.querySelector('#ph-corr').style.borderColor='var(--border)'; wrap.querySelector('#ph-corr').style.background='#fff';
+        dateWrap.style.display='';             // new-change asks effective date
+        noteReq.style.display='none';
+      };
+    }
+
+    wrap.querySelector('#ph-cancel').onclick=()=>close(null);
+    wrap.querySelector('#ph-ok').onclick=()=>{
+      if(isEdit && !chosen){ toast('সংশোধন না নতুন পরিবর্তন — বেছে নিন','error'); return; }
+      const note=wrap.querySelector('#ph-note').value.trim();
+      const effDate=(chosen==='correction')?(opts.lastDate||PH_BASELINE_DATE):wrap.querySelector('#ph-date').value;
+      if(chosen==='correction' && !note){ toast('সংশোধনের কারণ লিখুন','error'); return; }
+      if(chosen!=='correction' && !effDate){ toast('কার্যকর তারিখ দিন','error'); return; }
+      close({ type:chosen, effectiveDate:effDate, note });
+    };
+  });
+}
+
+/* ── the new save handler that wraps the original saveProduct ── */
+async function saveProductWithHistory(){
+  // Validate the same way saveProduct does (name/code/price) before prompting.
+  const name  = document.getElementById('pr-name').value.trim();
+  const code  = document.getElementById('pr-code').value.trim();
+  const price = parseFloat(document.getElementById('pr-price').value);
+  if(!name){ toast('পণ্যের নাম লিখুন','error'); return; }
+  if(!code){ toast('পণ্য কোড লিখুন','error'); return; }
+  if(!price||price<=0){ toast('সঠিক মূল্য লিখুন','error'); return; }
+  const dupe = products.find(p=>p.code===code && p.id!==editProdId);
+  if(dupe){ toast(`কোড "${code}" আগে থেকে আছে`,'error'); return; }
+
+  const offerSize=parseFloat(document.getElementById('pr-offer-size').value)||0;
+  const freeQty=parseFloat(document.getElementById('pr-free-qty').value)||0;
+  const hasOffer=document.getElementById('pr-has-offer').checked;
+
+  const isNew = !editProdId;
+  let changed = isNew;
+  if(!isNew){
+    const old=products.find(p=>p.id===editProdId)||{};
+    const oldOffer=(old.hasOffer===true||old.hasOffer==='true');
+    changed = (parseFloat(old.price)!==price)
+           || (oldOffer!==hasOffer)
+           || (parseFloat(old.offerSize||0)!==(hasOffer?offerSize:0))
+           || (parseFloat(old.freeQty||0)!==(hasOffer?freeQty:0));
+  }
+
+  // If nothing price/offer-related changed on an edit, just save normally (no prompt).
+  if(!changed){ await saveProduct(); return; }
+
+  // Prompt for date / correction-vs-new
+  const res = await phPrompt({
+    mode: isNew ? 'new' : 'edit',
+    productName: `[${code}] ${name}`,
+    lastDate: isNew ? '' : phLastEffDate(editProdId)
+  });
+  if(!res) return; // cancelled → do not save
+
+  // Save the product first (writes products sheet + local) via the original function.
+  // saveProduct reads the form fields and also closes the modal + toasts.
+  await saveProduct();
+
+  // Now log to PriceHistory (sheet-backed). Find the saved product id.
+  const saved = products.find(p=>p.code===code) || {};
+  const hist=JSON.parse(localStorage.getItem('bf_price_history')||'[]');
+
+  if(res.type==='correction'){
+    // supersede latest local row, append correction
+    for(let i=hist.length-1;i>=0;i--){
+      if(hist[i].productId===saved.id && hist[i].superseded!=='yes'){ hist[i].superseded='yes'; break; }
+    }
+    const rec={revisionId:'C'+Date.now(),effectiveDate:res.effectiveDate,type:'correction',
+      productId:saved.id,code:saved.code,name:saved.name,price:String(saved.price),
+      offerSize:String(saved.offerSize||0),freeQty:String(saved.freeQty||0),hasOffer:String(!!saved.hasOffer),
+      note:res.note,superseded:'',createdAt:new Date().toISOString()};
+    hist.push(rec);
+    localStorage.setItem('bf_price_history',JSON.stringify(hist));
+    if(BF.sheetUrl){ try{ await API.post({action:'savePriceCorrection',data:rec}); }catch(e){ toast('মূল্য ইতিহাস সিঙ্ক ব্যর্থ','error'); } }
+    toast('সংশোধন লগ হয়েছে ✓','success');
+  } else {
+    // new-product OR new-change → full snapshot of all products on effectiveDate
+    const revisionId='REV'+Date.now();
+    const rows=phSnapshotRows();
+    const payload={revisionId,effectiveDate:res.effectiveDate,type:res.type,note:res.note||(isNew?'নতুন পণ্য':'নতুন দর'),rows};
+    rows.forEach(r=>hist.push({revisionId,effectiveDate:res.effectiveDate,type:res.type,
+      productId:r.productId,code:r.code,name:r.name,price:String(r.price),
+      offerSize:String(r.offerSize),freeQty:String(r.freeQty),hasOffer:String(r.hasOffer),
+      note:res.note||(isNew?'নতুন পণ্য':'নতুন দর'),superseded:'',createdAt:new Date().toISOString()}));
+    localStorage.setItem('bf_price_history',JSON.stringify(hist));
+    if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('মূল্য ইতিহাস সিঙ্ক ব্যর্থ','error'); } }
+    toast(isNew?'নতুন পণ্য ও স্ন্যাপশট সেভ হয়েছে ✓':'নতুন পরিবর্তন স্ন্যাপশট সেভ হয়েছে ✓','success');
+  }
+}
+
 </script>
 </body>
 </html>
