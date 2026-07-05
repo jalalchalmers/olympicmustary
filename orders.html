@@ -836,6 +836,34 @@ async function saveOrder(){
   if(!data.date){toast('তারিখ দিন','error');return;}
   if(!JSON.parse(data.items).length){toast('কমপক্ষে একটি পণ্য যোগ করুন','error');return;}
   const btn=document.getElementById('btn-save-order');spinBtn(btn,true);
+
+  // FIFO stock guard: for a SALE, ask the server first (cors mode reads the
+  // response). If the server blocks it (would oversell), do NOT save locally.
+  if(BF.sheetUrl && data.orderType==='sales'){
+    try{
+      const res=await API.fetch('saveOrder',data);
+      if(res && res.status==='blocked'){
+        spinBtn(btn,false);
+        const first=(res.shortages||[])[0];
+        const extra=(res.shortages||[]).length>1?` (+${res.shortages.length-1} আরও)`:'';
+        const msg=first?`পর্যাপ্ত স্টক নেই — ${first.name}: আছে ${first.have}, প্রয়োজন ${first.need}${extra}`:'পর্যাপ্ত স্টক নেই — বিক্রয় সেভ হয়নি';
+        toast(msg,'error');
+        return;
+      }
+      // accepted by server (already written server-side) → update local cache
+      if(editOrderId){const idx=orders.findIndex(o=>o.orderId===editOrderId);if(idx>-1)orders[idx]=data;else orders.unshift(data);}else orders.unshift(data);
+      localStorage.setItem('bf_orders',JSON.stringify(orders));
+      updatePartyBalance(data.partyId);
+      toast(editOrderId?'অর্ডার আপডেট হয়েছে ✓':'অর্ডার সেভ হয়েছে ✓','success');
+      spinBtn(btn,false);showList();
+      return;
+    }catch(e){
+      // server unreachable → fall back to local save + fire-and-forget post
+      // (block can't be enforced offline; sale is saved locally to avoid data loss)
+    }
+  }
+
+  // Purchases, edits, or offline: save locally then post.
   if(editOrderId){const idx=orders.findIndex(o=>o.orderId===editOrderId);if(idx>-1)orders[idx]=data;else orders.unshift(data);}else orders.unshift(data);
   localStorage.setItem('bf_orders',JSON.stringify(orders));
   updatePartyBalance(data.partyId);
@@ -934,7 +962,11 @@ function updateListStats(){
 function viewOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);document.getElementById('btn-save-order').style.display='none';document.getElementById('btn-save-order-2').style.display='none';}
 function editOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);}
 function printOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);setTimeout(()=>{buildPrintInvoice();window.print();},600);}
-function deleteOrder(id){if(!window.confirm(`"${id}" মুছে দেবেন?`))return;orders=orders.filter(o=>o.orderId!==id);localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();updateListStats();toast('অর্ডার মুছে ফেলা হয়েছে','success');if(BF.sheetUrl)API.post({action:'deleteOrder',orderId:id}).catch(()=>{});}
+function deleteOrder(id){
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_orders')==='off')){
+    toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+  }
+  if(!window.confirm(`"${id}" মুছে দেবেন?`))return;orders=orders.filter(o=>o.orderId!==id);localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();updateListStats();toast('অর্ডার মুছে ফেলা হয়েছে','success');if(BF.sheetUrl)API.post({action:'deleteOrder',orderId:id}).catch(()=>{});}
 
 function exportOrders(){
   const list=getFilteredOrders();if(!list.length){toast('কোনো ডেটা নেই','error');return;}
