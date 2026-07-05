@@ -96,6 +96,12 @@
           <div class="stat-value" id="stat-physical-stock" style="font-size:18px;color:var(--success)">—</div>
           <div class="stat-sub">শেলফে মোট পণ্য</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-icon">💰</div>
+          <div class="stat-label">স্টকের মূল্য (ক্রয়মূল্যে)</div>
+          <div class="stat-value" id="stat-stock-value" style="font-size:18px;color:var(--accent)">৳—</div>
+          <div class="stat-sub">FIFO ক্রয়মূল্যে</div>
+        </div>
       </div>
 
       <!-- QUICK ACTIONS -->
@@ -413,6 +419,19 @@ async function syncAndRefresh() {
   localStorage.setItem('bf_last_sync', new Date().toISOString());
   bar.style.display = 'none';
   loadFromCache();
+  loadDashFifoValue();
+}
+
+/* fetch FIFO (acquisition-cost) stock value and show it on the dashboard */
+async function loadDashFifoValue(){
+  if(!BF.sheetUrl) return;
+  try{
+    const r = await API.fetch('getStockValue');
+    if(r && typeof r.totalValue==='number'){
+      const el = document.getElementById('stat-stock-value');
+      if(el) el.textContent = fmt.currency(r.totalValue);
+    }
+  }catch(e){ /* leave as — */ }
 }
 
 /* ── EVENTS ── */
@@ -426,6 +445,7 @@ document.getElementById('btn-refresh').addEventListener('click', () => {
 
 /* ── INIT ── */
 loadFromCache();      // Show cached data immediately
+loadDashFifoValue();  // FIFO stock value
 syncAndRefresh();     // Then fetch fresh data in background
 </script>
 </body>
