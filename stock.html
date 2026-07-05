@@ -61,13 +61,14 @@
       <div id="stock-screen">
 
         <!-- STATS — free card replaced by physical stock -->
-        <div class="stats-grid" style="grid-template-columns:repeat(6,1fr)">
+        <div class="stats-grid" style="grid-template-columns:repeat(7,1fr)">
           <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">মোট আইটেম</div><div class="stat-value" id="s-total">0</div></div>
           <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">স্টকে আছে</div><div class="stat-value" id="s-instock" style="color:var(--success)">0</div></div>
           <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-label">কম স্টক</div><div class="stat-value" id="s-low" style="color:var(--warn)">0</div></div>
           <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-label">স্টক শেষ</div><div class="stat-value" id="s-out" style="color:var(--danger)">0</div></div>
           <div class="stat-card"><div class="stat-icon">🏪</div><div class="stat-label">প্রকৃত স্টক (শেলফে)</div><div class="stat-value" id="s-physical" style="color:var(--success);font-size:15px">0</div></div>
-          <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">স্টকের মূল্য</div><div class="stat-value" id="s-value" style="color:var(--accent);font-size:15px">৳0</div></div>
+          <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">স্টকের মূল্য (ক্রয়মূল্যে)</div><div class="stat-value" id="s-value-fifo" style="color:var(--accent);font-size:15px">৳0</div></div>
+          <div class="stat-card"><div class="stat-icon">🏷️</div><div class="stat-label">বর্তমান বাজারমূল্যে</div><div class="stat-value" id="s-value" style="color:var(--ink2);font-size:15px">৳0</div></div>
         </div>
 
         <div class="card" style="padding:14px 20px">
@@ -162,7 +163,8 @@
           <span>মোট স্টক ইন: <span id="sp-tin">0</span></span>
           <span>মোট স্টক আউট: <span id="sp-tout">0</span></span>
           <span>🏪 প্রকৃত স্টক: <span id="sp-tphys">0</span></span>
-          <span>💰 স্টকের মূল্য: <span id="sp-tvalue">0</span></span>
+          <span>💰 স্টকের মূল্য (ক্রয়): <span id="sp-tvalue-fifo">0</span></span>
+          <span>🏷️ বর্তমান বাজারে: <span id="sp-tvalue">0</span></span>
         </div>
       </div>
 
@@ -177,6 +179,20 @@ buildNav('stock');
 
 let stockData=[];
 let productSupplierMap={}; // productId → Set of supplier names (from purchase orders)
+let fifoStockValue=null;   // FIFO cost value from backend (null until fetched)
+
+/* fetch the FIFO (acquisition-cost) stock value from the layer engine */
+async function loadFifoValue(){
+  if(!BF.sheetUrl) return;
+  try{
+    const r=await API.fetch('getStockValue');
+    if(r && typeof r.totalValue==='number'){
+      fifoStockValue=r.totalValue;
+      const el=document.getElementById('s-value-fifo');
+      if(el) el.textContent=fmt.currency(fifoStockValue);
+    }
+  }catch(e){ /* leave as-is; current-price value still shows */ }
+}
 
 function pcsDisp(pieces,cartonSize){
   pieces=Math.round(pieces);
@@ -266,6 +282,7 @@ function updateStats(list){
   document.getElementById('s-out').textContent=out.length;
   document.getElementById('s-physical').textContent=physDisp;
   document.getElementById('s-value').textContent=fmt.currency(totalValue);
+  if(fifoStockValue!==null) document.getElementById('s-value-fifo').textContent=fmt.currency(fifoStockValue);
   document.getElementById('total-in').textContent=totalIn.toLocaleString()+' pcs';
   document.getElementById('total-out').textContent=totalOut.toLocaleString()+' pcs';
   document.getElementById('total-free').textContent=totalFreeBal.toLocaleString()+' pcs';
@@ -331,7 +348,7 @@ async function syncFromSheet(){
     if(Array.isArray(products))localStorage.setItem('bf_products',JSON.stringify(products.map(p=>({...p,hasOffer:p.hasOffer==='true'||p.hasOffer===true}))));
     const parties=await API.fetch('getParties');
     if(Array.isArray(parties))localStorage.setItem('bf_parties',JSON.stringify(parties));
-    refresh();toast('স্টক আপডেট হয়েছে ✓','success');
+    refresh();loadFifoValue();toast('স্টক আপডেট হয়েছে ✓','success');
   }catch(e){toast('লোড ব্যর্থ: '+e.message,'error');}
   spinBtn(btn,false);
 }
@@ -375,6 +392,7 @@ function buildPrintReport(){
   document.getElementById('sp-tout').textContent=tout.toLocaleString()+' pcs';
   document.getElementById('sp-tphys').textContent=physDisp;
   document.getElementById('sp-tvalue').textContent=fmt.currency(tval);
+  document.getElementById('sp-tvalue-fifo').textContent=(fifoStockValue!==null)?fmt.currency(fifoStockValue):'—';
 }
 
 document.getElementById('btn-sync').addEventListener('click',syncFromSheet);
@@ -385,6 +403,7 @@ document.getElementById('filter-status').addEventListener('change',()=>renderTab
 document.getElementById('filter-supplier').addEventListener('change',()=>{renderTable(stockData);updateStats(applyFilterLogic(stockData));});
 
 refresh();
+loadFifoValue();
 if(BF.sheetUrl)syncFromSheet();
 </script>
 </body>
