@@ -269,20 +269,21 @@ function priceAsOf(productId, date){
            freeQty:parseFloat(r.freeQty)||0, effectiveDate:r.effectiveDate };
 }
 
-/* did this product's price/offer change ON `date` vs the date immediately before it? */
+/* what changed for this product ON `date` vs the date immediately before it?
+   returns {any, price, offer} booleans. */
 function changedOn(productId, date){
+  const none={any:false,price:false,offer:false};
   const dms=dateMs(date);
-  // this product's row effective exactly on `date`
   const onDate=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)===dms);
-  if(!onDate.length) return false;            // product had no row on this date → unchanged
-  // find the price/offer as of the day BEFORE this date
+  if(!onDate.length) return none;             // product had no row on this date → unchanged
   const prior=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)<dms)
                        .sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate))[0];
   const cur=onDate[0];
-  if(!prior) return true;                     // first appearance on this date = a change (new)
-  return String(prior.price)!==String(cur.price)
-      || String(prior.offerSize||0)!==String(cur.offerSize||0)
-      || String(prior.freeQty||0)!==String(cur.freeQty||0);
+  if(!prior) return {any:true,price:true,offer:true};   // first appearance = all new
+  const priceChg = String(prior.price)!==String(cur.price);
+  const offerChg = String(prior.offerSize||0)!==String(cur.offerSize||0)
+                || String(prior.freeQty||0)!==String(cur.freeQty||0);
+  return {any:priceChg||offerChg, price:priceChg, offer:offerChg};
 }
 
 /* ── render the screen table ──
@@ -321,15 +322,19 @@ function renderTable(){
     const eff=effOf(price,offerSize,freeQty);
     const effCarton=cSize>0?eff*cSize:0;
     const ol=offerLabel(offerSize,freeQty);
-    const isChanged = viewDate && changedOn(p.id,viewDate);
-    const rowStyle = isChanged ? ' style="background:#fef9c3"' : '';
-    const badge = isChanged ? ' <span class="pl-chg-badge">পরিবর্তিত</span>' : '';
+    const chg = viewDate ? changedOn(p.id,viewDate) : {any:false,price:false,offer:false};
+    const rowStyle = chg.any ? ' style="background:#fffdf5"' : '';   // subtle row tint
+    const badge = chg.any
+      ? ` <span class="pl-chg-badge">${chg.price&&chg.offer?'মূল্য+অফার':(chg.price?'মূল্য':'অফার')} পরিবর্তিত</span>`
+      : '';
+    const priceCellStyle = chg.price ? ' style="background:#fde68a;font-weight:700"' : '';
+    const offerCellStyle = chg.offer ? ' style="background:#fde68a"' : '';
     return `<tr${rowStyle}>
       <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${p.code||''}</code></td>
       <td>${p.name||''}${badge}</td>
       <td style="text-align:center">${cSize?cSize:'—'}</td>
-      <td>${fmt.currency(price)}</td>
-      <td>${ol?`<span class="pl-offer">${ol}</span>`:'<span class="pl-noo">—</span>'}</td>
+      <td${priceCellStyle}>${fmt.currency(price)}</td>
+      <td${offerCellStyle}>${ol?`<span class="pl-offer">${ol}</span>`:'<span class="pl-noo">—</span>'}</td>
       <td class="pl-eff">${fmt.currency(eff)}</td>
       <td class="pl-eff" style="color:var(--accent)">${cSize?fmt.currency(effCarton):'—'}</td>
       <td class="no-print"><button class="pl-edit-btn" onclick="openEdit('${p.id}')">পরিবর্তন</button></td>
