@@ -212,6 +212,15 @@ function buildStatement(){
 }
 
 let statementRows = [];
+let fifoStockValue = null;   // FIFO acquisition-cost value of current stock
+
+async function loadFifoValue(){
+  if(!BF.sheetUrl) return;
+  try{
+    const r = await API.fetch('getStockValue');
+    if(r && typeof r.totalValue==='number'){ fifoStockValue = r.totalValue; render(); }
+  }catch(e){ /* ignore — footer shows — */ }
+}
 
 function render(){
   // name dropdown
@@ -271,6 +280,11 @@ function render(){
        <td class="ss-out">${fmt.currency(tOutAmt)}</td>
        <td>নিট স্টক মূল্য</td>
        <td>${fmt.currency(tInAmt-tOutAmt)}</td>
+     </tr>`
+  + `<tr class="ss-foot" style="background:#eef2ff">
+       <td colspan="6" style="text-align:right;color:var(--ink2)">বর্তমান স্টকের মূল্য (FIFO ক্রয়মূল্যে) —</td>
+       <td>স্টক মূল্য</td>
+       <td style="color:var(--accent)">${fifoStockValue!==null?fmt.currency(fifoStockValue):'—'}</td>
      </tr>`;
 }
 
@@ -330,6 +344,7 @@ async function load(){
     }catch(e){}
   }
   render();
+  loadFifoValue();
 }
 load();
 </script>
