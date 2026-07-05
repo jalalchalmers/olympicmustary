@@ -164,8 +164,6 @@ function buildNav(activePage) {
     { id:'dashboard', icon:'🏠', label:'ড্যাশবোর্ড',    href:'dashboard.html' },
     { section: 'ব্যবসা' },
     { id:'parties',   icon:'👥', label:'পার্টি লিস্ট',   href:'parties.html' },
-    { id:'products',  icon:'📦', label:'পণ্য তালিকা',    href:'products.html' },
-    { id:'pricelist', icon:'🏷️', label:'মূল্য তালিকা',    href:'pricelist.html' },
     { id:'orders',    icon:'📋', label:'ক্রয় / বিক্রয়', href:'orders.html' },
     { id:'payments',  icon:'🧾', label:'পেমেন্ট / সমন্বয়', href:'payments.html' },
     { id:'expenses',  icon:'💰', label:'নগদ প্রবাহ',        href:'expenses.html' },
