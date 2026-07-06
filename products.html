@@ -632,7 +632,13 @@ async function saveProductWithHistory(){
   const price = parseFloat(document.getElementById('pr-price').value);
   if(!name){ toast('পণ্যের নাম লিখুন','error'); return; }
   if(!code){ toast('পণ্য কোড লিখুন','error'); return; }
-  if(!price||price<=0){ toast('সঠিক মূল্য লিখুন','error'); return; }
+  // Price 0 is allowed ONLY for "not for sale" items; otherwise must be > 0.
+  const notForSale = document.getElementById('pr-not-for-sale').checked;
+  if(notForSale){
+    if(isNaN(price) || price < 0){ toast('মূল্য ০ বা তার বেশি দিন','error'); return; }
+  } else if(!price || price<=0){
+    toast('সঠিক মূল্য লিখুন','error'); return;
+  }
   const dupe = products.find(p=>p.code===code && p.id!==editProdId);
   if(dupe){ toast(`কোড "${code}" আগে থেকে আছে`,'error'); return; }
 
@@ -653,6 +659,9 @@ async function saveProductWithHistory(){
 
   // If nothing price/offer-related changed on an edit, just save normally (no prompt).
   if(!changed){ await saveProduct(); return; }
+
+  // Not-for-sale items have no real price to track — skip the history prompt.
+  if(notForSale){ await saveProduct(); return; }
 
   // Prompt for date / correction-vs-new
   const res = await phPrompt({
