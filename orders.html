@@ -705,8 +705,22 @@ function recalcRow(row){
     const pEff=parseFloat(opt.dataset.peff)||0, sEff=parseFloat(opt.dataset.seff)||0;
     if(Math.abs(pEff-sEff)>0.009){
       if(!noteEl){ noteEl=document.createElement('div'); noteEl.className='oi-price-note'; noteEl.style.cssText='color:#b91c1c;font-size:11px;font-weight:600;margin-top:2px'; row.querySelector('.oi-product').parentElement.appendChild(noteEl); }
-      noteEl.textContent=`⚠️ ক্রয় ও বিক্রয় কার্যকর মূল্য ভিন্ন (ক্রয় ৳${pEff.toFixed(2)} / বিক্রয় ৳${sEff.toFixed(2)}) — পুরনো স্টক শেষ হলে বিক্রয় মূল্য আপডেট করুন`;
+      const baseMsg=`⚠️ ক্রয় ও বিক্রয় কার্যকর মূল্য ভিন্ন (ক্রয় ৳${pEff.toFixed(2)} / বিক্রয় ৳${sEff.toFixed(2)}) — পুরনো স্টক শেষ হলে বিক্রয় মূল্য আপডেট করুন`;
+      noteEl.textContent=baseMsg;
       noteEl.style.display='';
+      // fetch remaining old-price stock and append the carton count
+      const pid=opt.value, csz=parseFloat(opt.dataset.csize)||0;
+      if(BF.sheetUrl){
+        API.fetch('salesPriceLockStatus',{productId:pid}).then(st=>{
+          // only update if this row still shows the same product
+          const curOpt=row.querySelector('.oi-product'); if(!curOpt||curOpt.value!==pid) return;
+          if(st && st.locked && st.remainingOld>0){
+            const pcs=st.remainingOld;
+            const qtyTxt = csz>0 ? `${Math.floor(pcs/csz)} কার্টন + ${pcs%csz} পিস` : `${pcs} পিস`;
+            noteEl.textContent=baseMsg+` — পুরনো দরের অবশিষ্ট স্টক: ${qtyTxt}`;
+          }
+        }).catch(()=>{});
+      }
     } else if(noteEl){ noteEl.style.display='none'; }
   } else if(noteEl){ noteEl.style.display='none'; }
   recalc();
