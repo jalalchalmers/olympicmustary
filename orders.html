@@ -505,7 +505,21 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
   // When reopening a saved order, lock the original per-piece price so an offer
   // change does NOT silently re-price a historical invoice.
   if(savedPrice!==''&&savedPrice!==null&&!isNaN(parseFloat(savedPrice)))row.dataset.lockedPrice=parseFloat(savedPrice);
-  const prodOpts=products.filter(p=>p.status==='active').map(p=>`<option value="${p.id}" data-name="${p.name}" data-code="${p.code||''}" data-price="${p.price||0}" data-eff="${p.effectivePrice||p.price||0}" data-offersize="${p.offerSize||0}" data-freeunits="${p.freeQty||0}" data-cprice="${p.cartonPrice||0}" data-csize="${p.cartonSize||0}" data-offer="${(p.hasOffer===true||p.hasOffer==='true')?'1':'0'}" ${p.id===productId?'selected':''}>${p.code?'['+p.code+'] ':''}${p.name}</option>`).join('');
+  const isSale = (currentType==='sales');
+  const prodOpts=products.filter(p=>p.status==='active').map(p=>{
+    // For a SALES order use the sales-side fields; for purchase use purchase fields.
+    const salesHas=(p.salesHasOffer===true||p.salesHasOffer==='true');
+    const purchHas=(p.hasOffer===true||p.hasOffer==='true');
+    const price     = isSale ? ((p.salesPrice!==undefined&&p.salesPrice!=='')?p.salesPrice:(p.price||0)) : (p.price||0);
+    const offerSize = isSale ? (salesHas?(p.salesOfferSize||0):0) : (p.offerSize||0);
+    const freeUnits = isSale ? (salesHas?(p.salesFreeQty||0):0)   : (p.freeQty||0);
+    const hasOffer  = isSale ? salesHas : purchHas;
+    // purchase & sales effective prices for the red note (Rule F)
+    const pEff = (parseFloat(p.offerSize)>0)? (parseFloat(p.price||0)*parseFloat(p.offerSize)/(parseFloat(p.offerSize)+parseFloat(p.freeQty||0))) : parseFloat(p.price||0);
+    const sBase= (p.salesPrice!==undefined&&p.salesPrice!=='')?parseFloat(p.salesPrice):parseFloat(p.price||0);
+    const sEff = (salesHas&&parseFloat(p.salesOfferSize)>0)? (sBase*parseFloat(p.salesOfferSize)/(parseFloat(p.salesOfferSize)+parseFloat(p.salesFreeQty||0))) : sBase;
+    return `<option value="${p.id}" data-name="${p.name}" data-code="${p.code||''}" data-price="${price||0}" data-eff="${p.effectivePrice||price||0}" data-offersize="${offerSize||0}" data-freeunits="${freeUnits||0}" data-cprice="${p.cartonPrice||0}" data-csize="${p.cartonSize||0}" data-offer="${hasOffer?'1':'0'}" data-peff="${pEff.toFixed(4)}" data-seff="${sEff.toFixed(4)}" ${p.id===productId?'selected':''}>${p.code?'['+p.code+'] ':''}${p.name}</option>`;
+  }).join('');
   row.innerHTML=`
     <div class="oi-cell oi-cell-product"><span class="oi-lbl">পণ্য</span><select class="oi-product"><option value="">— পণ্য —</option>${prodOpts}</select></div>
     <div class="oi-cell oi-cell-code"><span class="oi-lbl">কোড</span><input type="text" class="oi-code" placeholder="কোড" value="${code}" style="text-align:right"/></div>
@@ -680,6 +694,16 @@ function recalcRow(row){
   row.querySelector('.oi-price').value=priceDisp;
   row.querySelector('.oi-total').value=amount.toFixed(2);
   row.dataset.qtyPieces=qtyPieces;row.dataset.freePieces=freePieces;row.dataset.totalPieces=totalPieces;row.dataset.usedPrice=usedPiecePrice;row.dataset.cSize=cSize;row.dataset.cPrice=cPrice;
+  // Rule F: red note when purchase & sales effective prices differ (sales orders only)
+  let noteEl=row.querySelector('.oi-price-note');
+  if(currentType==='sales' && opt && opt.value){
+    const pEff=parseFloat(opt.dataset.peff)||0, sEff=parseFloat(opt.dataset.seff)||0;
+    if(Math.abs(pEff-sEff)>0.009){
+      if(!noteEl){ noteEl=document.createElement('div'); noteEl.className='oi-price-note'; noteEl.style.cssText='color:#b91c1c;font-size:11px;font-weight:600;margin-top:2px'; row.querySelector('.oi-product').parentElement.appendChild(noteEl); }
+      noteEl.textContent=`⚠️ ক্রয় ও বিক্রয় কার্যকর মূল্য ভিন্ন (ক্রয় ৳${pEff.toFixed(2)} / বিক্রয় ৳${sEff.toFixed(2)}) — পুরনো স্টক শেষ হলে বিক্রয় মূল্য আপডেট করুন`;
+      noteEl.style.display='';
+    } else if(noteEl){ noteEl.style.display='none'; }
+  } else if(noteEl){ noteEl.style.display='none'; }
   recalc();
 }
 
@@ -855,6 +879,10 @@ async function saveOrder(){
       localStorage.setItem('bf_orders',JSON.stringify(orders));
       updatePartyBalance(data.partyId);
       toast(editOrderId?'অর্ডার আপডেট হয়েছে ✓':'অর্ডার সেভ হয়েছে ✓','success');
+      // Rule C step 4 notification: old stock cleared → sales price auto-updated
+      if(res && Array.isArray(res.salesAutoUpdated) && res.salesAutoUpdated.length){
+        setTimeout(()=>toast(`ℹ️ ${res.salesAutoUpdated.length}টি পণ্যের পুরনো স্টক শেষ — বিক্রয় মূল্য স্বয়ংক্রিয়ভাবে আপডেট হয়েছে`,'success'),900);
+      }
       spinBtn(btn,false);showList();
       return;
     }catch(e){
