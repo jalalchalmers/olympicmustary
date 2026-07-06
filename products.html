@@ -390,6 +390,16 @@ async function saveProduct() {
     ? parseFloat(document.getElementById('pr-effective-price').value)||price
     : price;
 
+  // Preserve existing sales-side values on edit; for new products or products
+  // that never had a sales price, initialize sales = purchase (they're identical
+  // today, and diverge only during a price transition per the two-price plan).
+  const existing = editProdId ? products.find(p => p.id === editProdId) : null;
+  const hasSalesPrice = existing && existing.salesPrice !== undefined && existing.salesPrice !== '' && existing.salesPrice !== null;
+  const salesPrice     = hasSalesPrice ? (parseFloat(existing.salesPrice)||0) : price;
+  const salesHasOffer  = hasSalesPrice ? (existing.salesHasOffer===true||existing.salesHasOffer==='true') : hasOffer;
+  const salesOfferSize = hasSalesPrice ? (parseFloat(existing.salesOfferSize)||0) : (hasOffer ? offerSize : 0);
+  const salesFreeQty   = hasSalesPrice ? (parseFloat(existing.salesFreeQty)||0)   : (hasOffer ? freeQty   : 0);
+
   const product = {
     id:            editProdId || ('PR' + Date.now()),
     code, name,
@@ -399,6 +409,12 @@ async function saveProduct() {
     hasOffer,
     offerSize:     hasOffer ? offerSize : 0,
     freeQty:       hasOffer ? freeQty   : 0,
+    // ── sales side (purchase = price/offer above; sales below). Both effective
+    //    prices are always computed live; these stored values are inputs, not caches.
+    salesPrice:     salesPrice,
+    salesHasOffer:  salesHasOffer,
+    salesOfferSize: salesHasOffer ? salesOfferSize : 0,
+    salesFreeQty:   salesHasOffer ? salesFreeQty   : 0,
     // DISPLAY CACHE ONLY — never read for money math; always recompute from price+offer.
     effectivePrice: (typeof effectivePrice === 'number' ? effectivePrice : parseFloat(effectivePrice)),
     notForSale:    notForSale ? 'yes' : '',
@@ -422,7 +438,7 @@ async function saveProduct() {
   toast(editProdId ? 'পণ্য আপডেট হয়েছে ✓' : 'নতুন পণ্য সেভ হয়েছে ✓', 'success');
 
   if (BF.sheetUrl) {
-    try { await API.post({ action:'saveProduct', ...product, hasOffer: String(product.hasOffer) }); }
+    try { await API.post({ action:'saveProduct', ...product, hasOffer: String(product.hasOffer), salesHasOffer: String(product.salesHasOffer) }); }
     catch(e) { toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error'); }
   }
   spinBtn(btn, false);
@@ -449,7 +465,7 @@ async function syncFromSheet() {
   try {
     const data = await API.fetch('getProducts');
     if (Array.isArray(data) && data.length) {
-      products = data.map(p => ({ ...p, hasOffer: p.hasOffer==='true'||p.hasOffer===true }));
+      products = data.map(p => ({ ...p, hasOffer: p.hasOffer==='true'||p.hasOffer===true, salesHasOffer: p.salesHasOffer==='true'||p.salesHasOffer===true }));
       saveLocal();
       applyFilters();
       toast(`${data.length}টি পণ্য লোড হয়েছে ✓`,'success');
