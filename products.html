@@ -10,6 +10,14 @@
     .formula-hint{font-size:12px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:10px 14px;border:1px solid var(--border);margin-top:8px;display:none}
     .formula-hint.visible{display:block}
     .formula-result{display:block;margin-top:4px;color:var(--accent);font-weight:600}
+    /* highlight rows where sales effective price differs from purchase */
+    tr.row-price-diff{background:#fffbeb}
+    tr.row-price-diff td{border-bottom-color:#fde68a}
+    @media print{
+      /* hide the sales-eff column in print UNLESS body says there is a difference */
+      body:not(.print-show-sales-eff) .col-sales-eff{display:none}
+      tr.row-price-diff{background:#fffbeb !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    }
   </style>
 </head>
 <body>
@@ -76,7 +84,8 @@
                 <th style="text-align:center">কার্টন সাইজ</th>
                 <th style="text-align:right">মূল মূল্য (৳)</th>
                 <th style="text-align:center">অফার</th>
-                <th style="text-align:right">কার্যকর মূল্য (৳)</th>
+                <th style="text-align:right">ক্রয় কার্যকর মূল্য (৳)</th>
+                <th style="text-align:right" class="col-sales-eff">বিক্রয় কার্যকর মূল্য (৳)</th>
                 <th style="text-align:center">স্ট্যাটাস</th>
                 <th>অ্যাকশন</th>
               </tr>
@@ -215,7 +224,7 @@ function updateStats() {
 function renderTable(list) {
   const tbody = document.getElementById('products-body');
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty">
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty">
       <div class="empty-icon">📦</div>
       <p>কোনো পণ্য নেই। উপরের বোতাম দিয়ে যোগ করুন।</p>
     </div></td></tr>`;
@@ -233,12 +242,22 @@ function renderTable(list) {
     // effective piece price computed live from price + offer (full precision, no stored rounding)
     const effPiece  = (hasOffer && oSize>0 && (oSize+fQty)>0) ? basePrice*oSize/(oSize+fQty) : basePrice;
     const effCarton = cSize>0 ? effPiece*cSize : 0;
+    // ── sales effective price, computed live from salesPrice + sales offer ──
+    const salesSet   = (p.salesPrice!==undefined && p.salesPrice!=='' && p.salesPrice!==null);
+    const sBase      = salesSet ? (parseFloat(p.salesPrice)||0) : basePrice;
+    const sHas       = salesSet ? (p.salesHasOffer===true||p.salesHasOffer==='true') : hasOffer;
+    const sOSize     = salesSet ? (sHas?(parseFloat(p.salesOfferSize)||0):0) : oSize;
+    const sFQty      = salesSet ? (sHas?(parseFloat(p.salesFreeQty)||0):0)   : fQty;
+    const sEffPiece  = (sHas && sOSize>0 && (sOSize+sFQty)>0) ? sBase*sOSize/(sOSize+sFQty) : sBase;
+    const sEffCarton = cSize>0 ? sEffPiece*cSize : 0;
+    const priceDiffers = Math.abs(sEffPiece - effPiece) > 0.009;
+    const salesEffCell = `<strong style="color:${priceDiffers?'#b45309':'var(--ink2)'}">${fmt.currency(sEffPiece)}</strong>${cSize>0?`<span style="font-size:10px;color:var(--accent);display:block">কার্টন: ${fmt.currency(sEffCarton)}</span>`:''}`;
     const effPrice  = hasOffer && oSize>0
       ? `<strong style="color:var(--success)">${fmt.currency(effPiece)}</strong>
          ${cSize>0?`<span style="font-size:10px;color:var(--accent);display:block">কার্টন: ${fmt.currency(effCarton)}</span>`:''}
          <span style="font-size:10px;color:var(--ink3);display:block">সাশ্রয়: ${fmt.currency(basePrice-effPiece)}</span>`
       : `<span style="color:var(--ink2)">${fmt.currency(basePrice)}</span>${cSize>0?`<span style="font-size:10px;color:var(--accent);display:block">কার্টন: ${fmt.currency(effCarton)}</span>`:''}`;
-    return `<tr>
+    return `<tr class="${priceDiffers?'row-price-diff':''}">
       <td style="color:var(--ink3);font-size:12px">${i+1}</td>
       <td><code style="font-size:11px;background:var(--bg);padding:2px 7px;border-radius:5px;color:var(--accent)">${p.code||'—'}</code></td>
       <td>
@@ -250,6 +269,7 @@ function renderTable(list) {
       <td style="text-align:right;font-weight:600">${fmt.currency(p.price)}</td>
       <td style="text-align:center">${offerLabel}</td>
       <td style="text-align:right">${effPrice}</td>
+      <td style="text-align:right" class="col-sales-eff">${salesEffCell}</td>
       <td style="text-align:center">
         <span class="badge ${p.status==='active'?'badge-active':'badge-inactive'}">
           ${p.status==='active'?'সক্রিয়':'নিষ্ক্রিয়'}
@@ -263,6 +283,20 @@ function renderTable(list) {
       </td>
     </tr>`;
   }).join('');
+  // Print rule: show the sales-eff column in print only if ANY product differs.
+  const anyDiff = list.some(p=>{
+    const bp=parseFloat(p.price)||0, ho=(p.hasOffer===true||p.hasOffer==='true');
+    const os=parseFloat(p.offerSize)||0, fq=parseFloat(p.freeQty)||0;
+    const pe=(ho&&os>0&&(os+fq)>0)?bp*os/(os+fq):bp;
+    const ss=(p.salesPrice!==undefined&&p.salesPrice!==''&&p.salesPrice!==null);
+    const sb=ss?(parseFloat(p.salesPrice)||0):bp;
+    const sh=ss?(p.salesHasOffer===true||p.salesHasOffer==='true'):ho;
+    const so=ss?(sh?(parseFloat(p.salesOfferSize)||0):0):os;
+    const sf=ss?(sh?(parseFloat(p.salesFreeQty)||0):0):fq;
+    const se=(sh&&so>0&&(so+sf)>0)?sb*so/(so+sf):sb;
+    return Math.abs(se-pe)>0.009;
+  });
+  document.body.classList.toggle('print-show-sales-eff', anyDiff);
 }
 
 function applyFilters() {
