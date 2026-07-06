@@ -508,16 +508,21 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
   const isSale = (currentType==='sales');
   const prodOpts=products.filter(p=>p.status==='active').map(p=>{
     // For a SALES order use the sales-side fields; for purchase use purchase fields.
+    const salesSet=(p.salesPrice!==undefined&&p.salesPrice!==''&&p.salesPrice!==null);
     const salesHas=(p.salesHasOffer===true||p.salesHasOffer==='true');
     const purchHas=(p.hasOffer===true||p.hasOffer==='true');
-    const price     = isSale ? ((p.salesPrice!==undefined&&p.salesPrice!=='')?p.salesPrice:(p.price||0)) : (p.price||0);
-    const offerSize = isSale ? (salesHas?(p.salesOfferSize||0):0) : (p.offerSize||0);
-    const freeUnits = isSale ? (salesHas?(p.salesFreeQty||0):0)   : (p.freeQty||0);
-    const hasOffer  = isSale ? salesHas : purchHas;
+    // For a SALES order use sales-side fields; if sales price is empty, fall back
+    // to the PURCHASE price AND its offer (not just the price).
+    const price     = isSale ? (salesSet?p.salesPrice:(p.price||0)) : (p.price||0);
+    const offerSize = isSale ? (salesSet?(salesHas?(p.salesOfferSize||0):0):(purchHas?(p.offerSize||0):0)) : (p.offerSize||0);
+    const freeUnits = isSale ? (salesSet?(salesHas?(p.salesFreeQty||0):0):(purchHas?(p.freeQty||0):0))     : (p.freeQty||0);
+    const hasOffer  = isSale ? (salesSet?salesHas:purchHas) : purchHas;
     // purchase & sales effective prices for the red note (Rule F)
     const pEff = (parseFloat(p.offerSize)>0)? (parseFloat(p.price||0)*parseFloat(p.offerSize)/(parseFloat(p.offerSize)+parseFloat(p.freeQty||0))) : parseFloat(p.price||0);
-    const sBase= (p.salesPrice!==undefined&&p.salesPrice!=='')?parseFloat(p.salesPrice):parseFloat(p.price||0);
-    const sEff = (salesHas&&parseFloat(p.salesOfferSize)>0)? (sBase*parseFloat(p.salesOfferSize)/(parseFloat(p.salesOfferSize)+parseFloat(p.salesFreeQty||0))) : sBase;
+    const sBase= salesSet?parseFloat(p.salesPrice):parseFloat(p.price||0);
+    const sEffOff = salesSet ? (salesHas?parseFloat(p.salesOfferSize):0) : (purchHas?parseFloat(p.offerSize):0);
+    const sEffFree= salesSet ? (salesHas?parseFloat(p.salesFreeQty||0):0) : (purchHas?parseFloat(p.freeQty||0):0);
+    const sEff = (sEffOff>0)? (sBase*sEffOff/(sEffOff+sEffFree)) : sBase;
     return `<option value="${p.id}" data-name="${p.name}" data-code="${p.code||''}" data-price="${price||0}" data-eff="${p.effectivePrice||price||0}" data-offersize="${offerSize||0}" data-freeunits="${freeUnits||0}" data-cprice="${p.cartonPrice||0}" data-csize="${p.cartonSize||0}" data-offer="${hasOffer?'1':'0'}" data-peff="${pEff.toFixed(4)}" data-seff="${sEff.toFixed(4)}" ${p.id===productId?'selected':''}>${p.code?'['+p.code+'] ':''}${p.name}</option>`;
   }).join('');
   row.innerHTML=`
