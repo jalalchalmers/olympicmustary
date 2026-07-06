@@ -171,6 +171,7 @@ function buildNav(activePage) {
     { section: 'রিপোর্ট' },
     { id:'stock',     icon:'🏭', label:'স্টক শিট',        href:'stock.html' },
     { id:'stockstmt', icon:'📊', label:'স্টক স্টেটমেন্ট',  href:'stockstatement.html' },
+    { id:'revaluation', icon:'⚖️', label:'পুনর্মূল্যায়ন',  href:'revaluation.html' },
     { id:'ledger',    icon:'📒', label:'পার্টি লেজার',    href:'ledger.html' },
   ];
 
