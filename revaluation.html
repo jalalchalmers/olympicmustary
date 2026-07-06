@@ -78,6 +78,28 @@
         ধনাত্মক হলে মূল্যবৃদ্ধি (লাভ), ঋণাত্মক হলে মূল্যহ্রাস (ক্ষতি)।
       </p>
 
+      <div style="margin-top:28px;border-top:2px solid var(--border);padding-top:20px">
+        <h3 style="font-size:16px;font-weight:800;margin:0 0 4px">🔒 পুরনো দরের স্টক</h3>
+        <p style="font-size:12px;color:var(--ink3);margin:0 0 14px">
+          যেসব পণ্যের স্টকের ক্রয় দর বর্তমান ক্রয় দর থেকে ভিন্ন — অর্থাৎ পুরনো দরের স্টক এখনো আছে, যা বিক্রয় মূল্য লক রাখছে।
+        </p>
+        <div class="card" style="padding:0;overflow:auto">
+          <table class="rv" id="os-table">
+            <thead>
+              <tr>
+                <th>কোড</th><th>পণ্য</th>
+                <th>পুরনো স্টক (কার্টন+পিস)</th>
+                <th>পুরনো দর</th><th>বর্তমান দর</th>
+                <th>পুরনো স্টকের মূল্য</th>
+              </tr>
+            </thead>
+            <tbody id="os-body">
+              <tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -139,6 +161,34 @@ async function load(){
     if(r && r.rows){ revData=r; render(); }
     else { document.getElementById('rv-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:30px">ডেটা লোড ব্যর্থ।</td></tr>'; }
   }catch(e){ document.getElementById('rv-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:30px">ডেটা লোড ব্যর্থ।</td></tr>'; }
+  loadOldStock();
+}
+
+function qtyCarton(pcs,csz){ return csz>0 ? `${Math.floor(pcs/csz)} কার্টন${pcs%csz?` + ${pcs%csz} পিস`:''}` : `${pcs} পিস`; }
+
+async function loadOldStock(){
+  const body=document.getElementById('os-body');
+  try{
+    const r=await API.fetch('getOldStockReport');
+    if(!r || !r.rows || !r.rows.length){
+      body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--success);padding:26px">✓ কোনো পুরনো দরের স্টক নেই — সব স্টক বর্তমান দরে।</td></tr>';
+      return;
+    }
+    body.innerHTML = r.rows.map(x=>`<tr>
+        <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${x.code||''}</code></td>
+        <td>${x.name||''}</td>
+        <td>${qtyCarton(x.oldPieces,x.cartonSize)}</td>
+        <td>${fmtC(x.oldRate)}</td>
+        <td>${fmtC(x.currentRate)}</td>
+        <td>${fmtC(x.oldValue)}</td>
+      </tr>`).join('')
+    + `<tr class="rv-foot">
+         <td colspan="2">মোট</td>
+         <td>${r.totalOldPieces.toLocaleString()} পিস</td>
+         <td></td><td></td>
+         <td>${fmtC(r.totalOldValue)}</td>
+       </tr>`;
+  }catch(e){ body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:26px">ডেটা লোড ব্যর্থ।</td></tr>'; }
 }
 
 function exportCsv(){
