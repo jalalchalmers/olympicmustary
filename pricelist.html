@@ -16,6 +16,8 @@
     table.pl-table tbody tr:hover{background:#f8fafc}
     .pl-offer{font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
     .pl-chg-badge{font-size:10px;background:#f59e0b;color:#fff;padding:1px 7px;border-radius:9px;font-weight:700;white-space:nowrap;margin-left:4px}
+    .pl-side-btn{border:none;background:#fff;color:var(--ink2);padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+    .pl-side-btn.active{background:var(--accent);color:#fff}
     .pl-noo{color:var(--ink3)}
     .pl-eff{color:var(--success);font-weight:600}
     .pl-edit-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12px;color:var(--accent)}
@@ -72,6 +74,10 @@
 
         <div class="pl-toolbar">
           <a class="btn btn-outline" href="products.html" style="text-decoration:none">📦 পণ্য তালিকা</a>
+          <div style="display:inline-flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
+            <button class="pl-side-btn" id="pl-side-purchase" data-side="purchase">🛒 ক্রয় মূল্য</button>
+            <button class="pl-side-btn" id="pl-side-sales" data-side="sales">🏷️ বিক্রয় মূল্য</button>
+          </div>
           <button class="btn btn-primary" id="btn-print">🖨️ প্রিন্ট</button>
           <button class="btn btn-outline" id="btn-baseline" style="display:none">📅 বেসলাইন তৈরি করুন (১ জুন)</button>
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)">
@@ -161,6 +167,7 @@
       <input type="date" id="pl-effdate"/>
       <div class="pl-date" id="pl-lastdate" style="margin-top:5px">সর্বশেষ কার্যকর তারিখ: —</div>
     </div>
+    <div id="pl-lock-note" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:8px 12px;border-radius:8px;font-size:12.5px;font-weight:600;margin-bottom:10px"></div>
 
     <div class="pl-field">
       <label>নোট <span id="pl-note-req" style="color:var(--danger);display:none">(আবশ্যক)</span></label>
@@ -185,6 +192,25 @@ buildNav('pricelist');
 let products = JSON.parse(localStorage.getItem('bf_products')||'[]');
 let priceHist = JSON.parse(localStorage.getItem('bf_price_history')||'[]');
 const BASELINE_DATE = '2026-06-01';   // your real start date
+
+/* which side this page is currently showing/editing: 'purchase' | 'sales' */
+let currentSide = localStorage.getItem('bf_pl_side') || 'purchase';
+
+/* history rows for the current side (old rows default to 'purchase') */
+function sideHist(){ return priceHist.filter(h => (h.side||'purchase') === currentSide); }
+
+/* a product's price/offer for the current side (live inputs, never a stored effective) */
+function prodPrice(p){
+  if(currentSide==='sales'){
+    const has = (p.salesHasOffer===true||p.salesHasOffer==='true');
+    return {
+      price: (p.salesPrice!==undefined&&p.salesPrice!=='') ? parseFloat(p.salesPrice)||0 : parseFloat(p.price)||0,
+      offerSize: has ? (parseFloat(p.salesOfferSize)||0) : 0,
+      freeQty:   has ? (parseFloat(p.salesFreeQty)||0)   : 0
+    };
+  }
+  return { price:parseFloat(p.price)||0, offerSize:parseFloat(p.offerSize)||0, freeQty:parseFloat(p.freeQty)||0 };
+}
 
 /* format a date (YYYY-MM-DD OR JS Date string like 'Wed Jul 01 2026 …')
    → DD-MM-YYYY. Uses local components to avoid timezone day-shift. */
@@ -223,7 +249,7 @@ function toISODate(d){
 }
 /* single latest effective date across ALL products (snapshots share one date) */
 function latestEffDateAll(){
-  const dates=priceHist.filter(h=>h.superseded!=='yes' && h.effectiveDate).map(h=>h.effectiveDate);
+  const dates=sideHist().filter(h=>h.superseded!=='yes' && h.effectiveDate).map(h=>h.effectiveDate);
   if(!dates.length) return '';
   return dates.sort((a,b)=>dateMs(b)-dateMs(a))[0];
 }
@@ -244,7 +270,7 @@ function offerLabel(offerSize,freeQty){
 
 /* the latest effective date for a product from history */
 function lastEffDate(productId){
-  const rows=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate);
+  const rows=sideHist().filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate);
   if(!rows.length) return '';
   rows.sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate)); // newest first
   return rows[0].effectiveDate;
@@ -252,14 +278,14 @@ function lastEffDate(productId){
 
 /* all distinct effective dates in history (newest first) */
 function allDates(){
-  const s=new Set(priceHist.filter(h=>h.effectiveDate && h.type!=='correction').map(h=>h.effectiveDate));
+  const s=new Set(sideHist().filter(h=>h.effectiveDate && h.type!=='correction').map(h=>h.effectiveDate));
   return [...s].sort((a,b)=>dateMs(b)-dateMs(a));
 }
 
 /* product price/offer as of a given date (latest row on/before that date) */
 function priceAsOf(productId, date){
   const dms=dateMs(date);
-  const rows=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes'
+  const rows=sideHist().filter(h=>h.productId===productId && h.superseded!=='yes'
               && h.effectiveDate && dateMs(h.effectiveDate)<=dms);
   if(!rows.length) return null;
   rows.sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate));
@@ -273,9 +299,9 @@ function priceAsOf(productId, date){
 function changedOn(productId, date){
   const none={any:false,price:false,offer:false};
   const dms=dateMs(date);
-  const onDate=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)===dms);
+  const onDate=sideHist().filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)===dms);
   if(!onDate.length) return none;             // product had no row on this date → unchanged
-  const prior=priceHist.filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)<dms)
+  const prior=sideHist().filter(h=>h.productId===productId && h.superseded!=='yes' && h.effectiveDate && dateMs(h.effectiveDate)<dms)
                        .sort((a,b)=>dateMs(b.effectiveDate)-dateMs(a.effectiveDate))[0];
   const cur=onDate[0];
   if(!prior) return {any:true,price:true,offer:true};   // first appearance = all new
@@ -300,8 +326,9 @@ function renderTable(){
     return;
   }
   tb.innerHTML=products.map(p=>{
-    // choose the price/offer to show: current, or as-of the selected date
-    let price=p.price, offerSize=p.offerSize, freeQty=p.freeQty;
+    // choose the price/offer to show: current side, or as-of the selected date
+    const cur=prodPrice(p);
+    let price=cur.price, offerSize=cur.offerSize, freeQty=cur.freeQty;
     if(viewDate){
       const past=priceAsOf(p.id,viewDate);
       if(past){ price=past.price; offerSize=past.offerSize; freeQty=past.freeQty; }
@@ -367,20 +394,20 @@ function toggleDate(d){
 /* ── baseline init (one-time) ── */
 function maybeShowBaseline(){
   // show baseline button only if history has no rows at all
-  document.getElementById('btn-baseline').style.display = priceHist.length ? 'none' : '';
+  document.getElementById('btn-baseline').style.display = sideHist().length ? 'none' : '';
 }
 async function createBaseline(){
   if(!products.length){ toast('পণ্য নেই','error'); return; }
   if(!confirm(`১ জুন ২০২৬ তারিখে সব পণ্যের বর্তমান মূল্য ও অফার দিয়ে বেসলাইন স্ন্যাপশট তৈরি হবে?`)) return;
   const revisionId='REV'+Date.now();
-  const rows=products.map(p=>({productId:p.id,code:p.code,name:p.name,
-    price:p.price,offerSize:p.offerSize||0,freeQty:p.freeQty||0,hasOffer:!!p.hasOffer}));
-  const payload={revisionId,effectiveDate:BASELINE_DATE,type:'baseline',note:'প্রাথমিক বেসলাইন',rows};
+  const rows=products.map(p=>{const pr=prodPrice(p);return {productId:p.id,code:p.code,name:p.name,
+    price:pr.price,offerSize:pr.offerSize||0,freeQty:pr.freeQty||0,hasOffer:(pr.offerSize>0)};});
+  const payload={revisionId,effectiveDate:BASELINE_DATE,type:'baseline',side:currentSide,note:'প্রাথমিক বেসলাইন',rows};
   // local
   rows.forEach(r=>priceHist.push({revisionId,effectiveDate:BASELINE_DATE,type:'baseline',
     productId:r.productId,code:r.code,name:r.name,price:String(r.price),
     offerSize:String(r.offerSize),freeQty:String(r.freeQty),hasOffer:String(r.hasOffer),
-    note:'প্রাথমিক বেসলাইন',superseded:'',createdAt:new Date().toISOString()}));
+    note:'প্রাথমিক বেসলাইন',superseded:'',createdAt:new Date().toISOString(),side:currentSide}));
   localStorage.setItem('bf_price_history',JSON.stringify(priceHist));
   // backend
   if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error'); } }
@@ -393,9 +420,10 @@ function openEdit(pid){
   editing=products.find(p=>p.id===pid); if(!editing) return;
   chosenType=null;
   document.getElementById('pl-modal-prod').textContent=`[${editing.code}] ${editing.name}`;
-  document.getElementById('pl-price').value=editing.price||'';
-  document.getElementById('pl-offersize').value=editing.offerSize||'';
-  document.getElementById('pl-freeqty').value=editing.freeQty||'';
+  const ep=prodPrice(editing);
+  document.getElementById('pl-price').value=ep.price||'';
+  document.getElementById('pl-offersize').value=ep.offerSize||'';
+  document.getElementById('pl-freeqty').value=ep.freeQty||'';
   document.getElementById('pl-note').value='';
   document.getElementById('pl-type-correction').classList.remove('sel');
   document.getElementById('pl-type-new').classList.remove('sel');
@@ -407,6 +435,20 @@ function openEdit(pid){
   updateEffPreview();
   document.getElementById('pl-note-req').style.display='none';
   document.getElementById('pl-modal').classList.add('open');
+  // sales-side lock indicator (async, non-blocking)
+  const lockEl=document.getElementById('pl-lock-note');
+  if(lockEl){
+    lockEl.style.display='none'; lockEl.textContent='';
+    if(currentSide==='sales' && BF.sheetUrl){
+      API.fetch('salesPriceLockStatus',{productId:editing.id}).then(st=>{
+        if(st && st.locked){
+          const isSuper=(BF.session&&BF.session.role==='super');
+          lockEl.textContent='🔒 পুরনো দরের '+st.remainingOld+' পিস স্টক এখনো আছে — '+(isSuper?'Super User জোর করে পরিবর্তন করতে পারবেন।':'বিক্রয় মূল্য পরিবর্তন করা যাবে না।');
+          lockEl.style.display='';
+        }
+      }).catch(()=>{});
+    }
+  }
 }
 function closeEdit(){ document.getElementById('pl-modal').classList.remove('open'); editing=null; }
 function updateEffPreview(){
@@ -437,27 +479,51 @@ async function saveEdit(){
   if(price<=0){ toast('সঠিক মূল্য দিন','error'); return; }
   if(chosenType==='correction' && !note){ toast('সংশোধনের কারণ লিখুন','error'); return; }
 
-  // 1) write back to products (current truth)
+  // ── Rule C: sales-price lock (only for the SALES side, online) ──
+  if(currentSide==='sales' && BF.sheetUrl){
+    try{
+      const st=await API.fetch('salesPriceLockStatus',{productId:editing.id});
+      if(st && st.locked){
+        const isSuper = (BF.session && BF.session.role==='super');
+        if(!isSuper){
+          toast(`বিক্রয় মূল্য পরিবর্তন করা যাবে না — পুরনো দরের ${st.remainingOld} পিস স্টক এখনো আছে। পুরনো স্টক শেষ হলে স্বয়ংক্রিয়ভাবে আপডেট হবে।`,'error');
+          return;
+        }
+        // super admin override
+        if(!confirm(`পুরনো দরের ${st.remainingOld} পিস স্টক এখনো আছে। Super User হিসেবে আপনি কি জোর করে বিক্রয় মূল্য পরিবর্তন করতে চান?`)){
+          return;
+        }
+      }
+    }catch(e){ /* if check fails, allow (offline safety) */ }
+  }
+
+  // 1) write back to products (current truth) — to the CURRENT SIDE's fields
   const idx=products.findIndex(p=>p.id===editing.id);
   if(idx>-1){
-    products[idx]={...products[idx],price,offerSize,freeQty,hasOffer,
-      effectivePrice:parseFloat(effOf(price,offerSize,freeQty).toFixed(2)),
-      updated:new Date().toISOString()};
+    if(currentSide==='sales'){
+      products[idx]={...products[idx],
+        salesPrice:price, salesOfferSize:offerSize, salesFreeQty:freeQty, salesHasOffer:hasOffer,
+        updated:new Date().toISOString()};
+    } else {
+      products[idx]={...products[idx],price,offerSize,freeQty,hasOffer,
+        effectivePrice:parseFloat(effOf(price,offerSize,freeQty).toFixed(2)),
+        updated:new Date().toISOString()};
+    }
     localStorage.setItem('bf_products',JSON.stringify(products));
-    if(BF.sheetUrl){ try{ await API.post({action:'saveProduct',...products[idx],hasOffer:String(hasOffer)}); }catch(e){} }
+    if(BF.sheetUrl){ try{ await API.post({action:'saveProduct',...products[idx],hasOffer:String(products[idx].hasOffer),salesHasOffer:String(products[idx].salesHasOffer)}); }catch(e){} }
   }
 
   // 2) write history
   if(chosenType==='correction'){
     const effDate=toISODate(lastEffDate(editing.id)||BASELINE_DATE);
-    // mark prior local row superseded
+    // mark prior local row superseded (same side only)
     for(let i=priceHist.length-1;i>=0;i--){
-      if(priceHist[i].productId===editing.id && priceHist[i].superseded!=='yes'){ priceHist[i].superseded='yes'; break; }
+      if(priceHist[i].productId===editing.id && priceHist[i].superseded!=='yes' && (priceHist[i].side||'purchase')===currentSide){ priceHist[i].superseded='yes'; break; }
     }
     const rec={revisionId:'C'+Date.now(),effectiveDate:effDate,type:'correction',
       productId:editing.id,code:editing.code,name:editing.name,price:String(price),
       offerSize:String(offerSize),freeQty:String(freeQty),hasOffer:String(hasOffer),
-      note,superseded:'',createdAt:new Date().toISOString()};
+      note,superseded:'',createdAt:new Date().toISOString(),side:currentSide};
     priceHist.push(rec);
     if(BF.sheetUrl){ try{ await API.post({action:'savePriceCorrection',data:rec}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ','error'); } }
     toast('সংশোধন লগ হয়েছে ✓','success');
@@ -466,13 +532,17 @@ async function saveEdit(){
     if(!effDate){ toast('কার্যকর তারিখ দিন','error'); return; }
     // full snapshot of ALL products on this date (changed product uses new values)
     const revisionId='REV'+Date.now();
-    const rows=products.map(p=>({productId:p.id,code:p.code,name:p.name,
-      price:p.price,offerSize:p.offerSize||0,freeQty:p.freeQty||0,hasOffer:!!p.hasOffer}));
-    const payload={revisionId,effectiveDate:effDate,type:'new-change',note:note||'নতুন দর',rows};
+    const rows=products.map(p=>{
+      // the product being edited uses the new form values; others use current-side values
+      if(p.id===editing.id) return {productId:p.id,code:p.code,name:p.name,price,offerSize,freeQty,hasOffer};
+      const pr=prodPrice(p);
+      return {productId:p.id,code:p.code,name:p.name,price:pr.price,offerSize:pr.offerSize||0,freeQty:pr.freeQty||0,hasOffer:(pr.offerSize>0)};
+    });
+    const payload={revisionId,effectiveDate:effDate,type:'new-change',side:currentSide,note:note||'নতুন দর',rows};
     rows.forEach(r=>priceHist.push({revisionId,effectiveDate:effDate,type:'new-change',
       productId:r.productId,code:r.code,name:r.name,price:String(r.price),
       offerSize:String(r.offerSize),freeQty:String(r.freeQty),hasOffer:String(r.hasOffer),
-      note:note||'নতুন দর',superseded:'',createdAt:new Date().toISOString()}));
+      note:note||'নতুন দর',superseded:'',createdAt:new Date().toISOString(),side:currentSide}));
     if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('Sheet সিঙ্ক ব্যর্থ','error'); } }
     toast('নতুন পরিবর্তন স্ন্যাপশট তৈরি হয়েছে ✓','success');
   }
@@ -502,7 +572,8 @@ function buildPrint(){
   const body=products.map(p=>{
     const cSize=parseFloat(p.cartonSize)||0;
     // primary column values: current product, OR as-of the selected view date
-    let pr=p.price, os=p.offerSize, fq=p.freeQty, exists=true;
+    const _cur=prodPrice(p);
+    let pr=_cur.price, os=_cur.offerSize, fq=_cur.freeQty, exists=true;
     if(usePrimarySnapshot){
       const past=priceAsOf(p.id,viewDate);
       if(past){ pr=past.price; os=past.offerSize; fq=past.freeQty; } else { exists=false; }
@@ -537,6 +608,25 @@ function buildPrint(){
 document.getElementById('btn-print').addEventListener('click',()=>{ buildPrint(); window.print(); });
 document.getElementById('btn-baseline').addEventListener('click',createBaseline);
 document.getElementById('pl-view-date').addEventListener('change',renderTable);
+
+/* ── Purchase / Sales side toggle ── */
+function applySideUI(){
+  document.getElementById('pl-side-purchase').classList.toggle('active',currentSide==='purchase');
+  document.getElementById('pl-side-sales').classList.toggle('active',currentSide==='sales');
+}
+function switchSide(side){
+  if(side===currentSide) return;
+  currentSide=side;
+  localStorage.setItem('bf_pl_side',side);
+  applySideUI();
+  // reset any selected view/compare dates to avoid cross-side confusion
+  const vd=document.getElementById('pl-view-date'); if(vd) vd.value='';
+  selectedDates=[];
+  maybeShowBaseline(); renderViewDateOptions(); renderTable(); renderDateChips();
+}
+document.getElementById('pl-side-purchase').addEventListener('click',()=>switchSide('purchase'));
+document.getElementById('pl-side-sales').addEventListener('click',()=>switchSide('sales'));
+applySideUI();
 
 /* ── load history from backend, then render ── */
 async function loadHistory(){
