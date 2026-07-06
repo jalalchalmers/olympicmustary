@@ -708,16 +708,28 @@ function recalcRow(row){
       const baseMsg=`⚠️ ক্রয় ও বিক্রয় কার্যকর মূল্য ভিন্ন (ক্রয় ৳${pEff.toFixed(2)} / বিক্রয় ৳${sEff.toFixed(2)}) — পুরনো স্টক শেষ হলে বিক্রয় মূল্য আপডেট করুন`;
       noteEl.textContent=baseMsg;
       noteEl.style.display='';
-      // fetch remaining old-price stock and append the carton count
+      // fetch remaining old-price stock and append the carton count / blend preview
       const pid=opt.value, csz=parseFloat(opt.dataset.csize)||0;
+      const enteredPieces=totalPieces;   // qty+free pieces for this line
       if(BF.sheetUrl){
         API.fetch('salesPriceLockStatus',{productId:pid}).then(st=>{
           // only update if this row still shows the same product
           const curOpt=row.querySelector('.oi-product'); if(!curOpt||curOpt.value!==pid) return;
           if(st && st.locked && st.remainingOld>0){
-            const pcs=st.remainingOld;
-            const qtyTxt = csz>0 ? `${Math.floor(pcs/csz)} কার্টন + ${pcs%csz} পিস` : `${pcs} পিস`;
-            noteEl.textContent=baseMsg+` — পুরনো দরের অবশিষ্ট স্টক: ${qtyTxt}`;
+            const oldPcs=st.remainingOld;
+            const qtyTxt = csz>0 ? `${Math.floor(oldPcs/csz)} কার্টন + ${oldPcs%csz} পিস` : `${oldPcs} পিস`;
+            if(enteredPieces>oldPcs){
+              // BLEND: quantity exceeds old stock → show old×oldP + new×newP breakdown
+              const newPcs=enteredPieces-oldPcs;
+              const blendAmt=oldPcs*sEff + newPcs*pEff;
+              const qc = p => csz>0 ? `${Math.floor(p/csz)}${p%csz?('+'+(p%csz)+'pcs'):' ctn'}` : `${p}pcs`;
+              noteEl.textContent=`🔀 মিশ্র মূল্য: ${qc(oldPcs)}×৳${sEff.toFixed(2)} + ${qc(newPcs)}×৳${pEff.toFixed(2)} = ৳${blendAmt.toFixed(2)} (পুরনো+নতুন দর)`;
+              // reflect the blended amount live in this row's total
+              row.querySelector('.oi-total').value=blendAmt.toFixed(2);
+              recalc();
+            } else {
+              noteEl.textContent=baseMsg+` — পুরনো দরের অবশিষ্ট স্টক: ${qtyTxt}`;
+            }
           }
         }).catch(()=>{});
       }
@@ -889,7 +901,7 @@ async function saveOrder(){
         spinBtn(btn,false);
         const first=(res.shortages||[])[0];
         const extra=(res.shortages||[]).length>1?` (+${res.shortages.length-1} আরও)`:'';
-        const msg=first?`পর্যাপ্ত স্টক নেই — ${first.name}: আছে ${first.have}, প্রয়োজন ${first.need}${extra}`:'পর্যাপ্ত স্টক নেই — বিক্রয় সেভ হয়নি';
+        const msg=first?`পর্যাপ্ত স্টক নেই — ${first.name}: আছে ${first.have}, প্রয়োজন ${first.need}${extra} — আগে ক্রয় অর্ডার তৈরি করুন`:'পর্যাপ্ত স্টক নেই — আগে ক্রয় অর্ডার তৈরি করুন';
         toast(msg,'error');
         return;
       }
