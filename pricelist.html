@@ -202,9 +202,19 @@ function sideHist(){ return priceHist.filter(h => (h.side||'purchase') === curre
 /* a product's price/offer for the current side (live inputs, never a stored effective) */
 function prodPrice(p){
   if(currentSide==='sales'){
+    const salesSet = (p.salesPrice!==undefined && p.salesPrice!=='' && p.salesPrice!==null);
+    if(!salesSet){
+      // no sales price set → fall back to the PURCHASE price AND its offer
+      const phas = (p.hasOffer===true||p.hasOffer==='true');
+      return {
+        price: parseFloat(p.price)||0,
+        offerSize: phas ? (parseFloat(p.offerSize)||0) : 0,
+        freeQty:   phas ? (parseFloat(p.freeQty)||0)   : 0
+      };
+    }
     const has = (p.salesHasOffer===true||p.salesHasOffer==='true');
     return {
-      price: (p.salesPrice!==undefined&&p.salesPrice!=='') ? parseFloat(p.salesPrice)||0 : parseFloat(p.price)||0,
+      price: parseFloat(p.salesPrice)||0,
       offerSize: has ? (parseFloat(p.salesOfferSize)||0) : 0,
       freeQty:   has ? (parseFloat(p.salesFreeQty)||0)   : 0
     };
