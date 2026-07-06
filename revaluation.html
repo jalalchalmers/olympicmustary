@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — পুনর্মূল্যায়ন রিপোর্ট</title>
+  <style>
+    table.rv{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+    table.rv th,table.rv td{padding:9px 11px;border-bottom:1px solid var(--border);white-space:nowrap}
+    table.rv thead th{background:var(--bg);font-weight:700;color:var(--ink2);text-align:right}
+    table.rv thead th:nth-child(1),table.rv thead th:nth-child(2){text-align:left}
+    table.rv td:nth-child(1),table.rv td:nth-child(2){text-align:left}
+    table.rv td{text-align:right}
+    .rv-gain{color:var(--success);font-weight:700}
+    .rv-loss{color:var(--danger);font-weight:700}
+    .rv-zero{color:var(--ink3)}
+    tr.rv-foot td{border-top:2px solid var(--ink3);font-weight:700;background:var(--bg);font-size:14px}
+    .rv-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+    .rv-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px}
+    .rv-card .lbl{font-size:12px;color:var(--ink3);margin-bottom:6px}
+    .rv-card .val{font-size:20px;font-weight:800}
+    @media print{
+      .bf-nav,.bf-topbar,.no-print{display:none!important}
+      .bf-main{margin-left:0}.bf-body{padding:0}
+      table.rv{font-size:10px}
+      table.rv th,table.rv td{border:1px solid #94a3b8;padding:3px 6px}
+      .rv-cards{grid-template-columns:repeat(4,1fr)}
+    }
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">পুনর্মূল্যায়ন রিপোর্ট</span>
+      </div>
+      <div class="bf-topbar-right">
+        <button class="btn btn-outline btn-sm" id="btn-refresh">🔄 রিফ্রেশ</button>
+        <button class="btn btn-outline btn-sm" id="btn-print">🖨️ প্রিন্ট</button>
+        <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <div class="rv-cards no-print" id="rv-cards">
+        <div class="rv-card"><div class="lbl">স্টকের ক্রয়মূল্য (FIFO)</div><div class="val" id="rv-cost" style="color:var(--accent)">৳—</div></div>
+        <div class="rv-card"><div class="lbl">বর্তমান বিক্রয়মূল্যে</div><div class="val" id="rv-sale" style="color:var(--ink2)">৳—</div></div>
+        <div class="rv-card"><div class="lbl">পুনর্মূল্যায়ন (লাভ/ক্ষতি)</div><div class="val" id="rv-reval">৳—</div></div>
+        <div class="rv-card"><div class="lbl">পণ্য সংখ্যা</div><div class="val" id="rv-count">—</div></div>
+      </div>
+
+      <div class="print-title" style="display:none">পুনর্মূল্যায়ন রিপোর্ট</div>
+
+      <div class="card" style="padding:0;overflow:auto">
+        <table class="rv" id="rv-table">
+          <thead>
+            <tr>
+              <th>কোড</th><th>পণ্য</th>
+              <th>স্টক (পিস)</th>
+              <th>ক্রয় দর</th><th>ক্রয়মূল্য</th>
+              <th>বিক্রয় দর</th><th>বিক্রয়মূল্য</th>
+              <th>পুনর্মূল্যায়ন</th>
+            </tr>
+          </thead>
+          <tbody id="rv-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="no-print" style="font-size:12px;color:var(--ink3);margin-top:12px">
+        পুনর্মূল্যায়ন = বর্তমান বিক্রয়মূল্যে স্টকের মূল্য − FIFO ক্রয়মূল্যে স্টকের মূল্য।
+        ধনাত্মক হলে মূল্যবৃদ্ধি (লাভ), ঋণাত্মক হলে মূল্যহ্রাস (ক্ষতি)।
+      </p>
+
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('revaluation');
+
+let revData = null;
+
+function fmtC(n){ return fmt.currency(n); }
+
+function render(){
+  const body=document.getElementById('rv-body');
+  if(!revData || !revData.rows || !revData.rows.length){
+    body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">স্টকে কোনো পণ্য নেই।</td></tr>';
+    document.getElementById('rv-cost').textContent='৳0';
+    document.getElementById('rv-sale').textContent='৳0';
+    document.getElementById('rv-reval').textContent='৳0';
+    document.getElementById('rv-count').textContent='0';
+    return;
+  }
+  body.innerHTML = revData.rows.map(r=>{
+    const cls = r.reval>0.009?'rv-gain':(r.reval<-0.009?'rv-loss':'rv-zero');
+    const sign = r.reval>0.009?'+':'';
+    return `<tr>
+      <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${r.code||''}</code></td>
+      <td>${r.name||''}</td>
+      <td>${r.pieces.toLocaleString()}</td>
+      <td>${fmtC(r.costRate)}</td>
+      <td>${fmtC(r.costVal)}</td>
+      <td>${fmtC(r.saleRate)}</td>
+      <td>${fmtC(r.saleVal)}</td>
+      <td class="${cls}">${sign}${fmtC(r.reval)}</td>
+    </tr>`;
+  }).join('')
+  + `<tr class="rv-foot">
+       <td colspan="4">মোট</td>
+       <td>${fmtC(revData.totalCost)}</td>
+       <td></td>
+       <td>${fmtC(revData.totalSale)}</td>
+       <td class="${revData.totalReval>0.009?'rv-gain':(revData.totalReval<-0.009?'rv-loss':'rv-zero')}">${revData.totalReval>0.009?'+':''}${fmtC(revData.totalReval)}</td>
+     </tr>`;
+
+  document.getElementById('rv-cost').textContent=fmtC(revData.totalCost);
+  document.getElementById('rv-sale').textContent=fmtC(revData.totalSale);
+  const rv=document.getElementById('rv-reval');
+  rv.textContent=(revData.totalReval>0.009?'+':'')+fmtC(revData.totalReval);
+  rv.style.color = revData.totalReval>0.009?'var(--success)':(revData.totalReval<-0.009?'var(--danger)':'var(--ink3)');
+  document.getElementById('rv-count').textContent=revData.rows.length;
+}
+
+async function load(){
+  if(!BF.sheetUrl){ document.getElementById('rv-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">Sheet সংযোগ নেই।</td></tr>'; return; }
+  document.getElementById('rv-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>';
+  try{
+    const r=await API.fetch('getRevaluation');
+    if(r && r.rows){ revData=r; render(); }
+    else { document.getElementById('rv-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:30px">ডেটা লোড ব্যর্থ।</td></tr>'; }
+  }catch(e){ document.getElementById('rv-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:30px">ডেটা লোড ব্যর্থ।</td></tr>'; }
+}
+
+function exportCsv(){
+  if(!revData||!revData.rows.length){ toast('কোনো ডেটা নেই','error'); return; }
+  const h=['কোড','পণ্য','স্টক(পিস)','ক্রয় দর','ক্রয়মূল্য','বিক্রয় দর','বিক্রয়মূল্য','পুনর্মূল্যায়ন'];
+  const rows=revData.rows.map(r=>[r.code,r.name,r.pieces,r.costRate.toFixed(2),r.costVal.toFixed(2),r.saleRate.toFixed(2),r.saleVal.toFixed(2),r.reval.toFixed(2)].map(v=>`"${v}"`).join(','));
+  rows.push([`"মোট","","","","${revData.totalCost.toFixed(2)}","","${revData.totalSale.toFixed(2)}","${revData.totalReval.toFixed(2)}"`].join(''));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
+  a.download='revaluation_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
+document.getElementById('btn-refresh').addEventListener('click',load);
+document.getElementById('btn-print').addEventListener('click',()=>window.print());
+document.getElementById('btn-export').addEventListener('click',exportCsv);
+load();
+</script>
+</body>
+</html>
