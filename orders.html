@@ -1025,7 +1025,19 @@ function deleteOrder(id){
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_orders')==='off')){
     toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
   }
-  if(!window.confirm(`"${id}" মুছে দেবেন?`))return;orders=orders.filter(o=>o.orderId!==id);localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();updateListStats();toast('অর্ডার মুছে ফেলা হয়েছে','success');if(BF.sheetUrl)API.post({action:'deleteOrder',orderId:id}).catch(()=>{});}
+  if(!window.confirm(`"${id}" মুছে দেবেন?`))return;
+  orders=orders.filter(o=>o.orderId!==id);localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();updateListStats();toast('অর্ডার মুছে ফেলা হয়েছে','success');
+  if(BF.sheetUrl){
+    API.fetch('deleteOrder',{orderId:id}).then(res=>{
+      // self-healing reconcile may flag products whose old stock returned
+      if(res && Array.isArray(res.salesReview) && res.salesReview.length){
+        const names=res.salesReview.map(x=>x.name||x.code||x.productId).slice(0,3).join(', ');
+        const extra=res.salesReview.length>3?` (+${res.salesReview.length-3})`:'';
+        setTimeout(()=>toast(`⚠️ পুরনো স্টক ফিরে এসেছে — বিক্রয় মূল্য যাচাই করুন: ${names}${extra}`,'error'),800);
+      }
+    }).catch(()=>{});
+  }
+}
 
 function exportOrders(){
   const list=getFilteredOrders();if(!list.length){toast('কোনো ডেটা নেই','error');return;}
