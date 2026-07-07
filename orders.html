@@ -353,6 +353,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('orders');
+(function(){const d=localStorage.getItem('bf_depo_text');const el=document.getElementById('pi-depo');if(d&&el)el.textContent=d;})();
 
 let currentType='sales';
 let orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
