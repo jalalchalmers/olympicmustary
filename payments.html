@@ -183,7 +183,7 @@
           <div class="vp-title"><div class="lbl" id="vp-type">MONEY RECEIPT</div><div class="num" id="vp-no"></div></div>
         </div>
         <hr class="vp-blackline"/>
-        <div class="vp-depo">Super Depo: Mustary Enterprise, Chakaria, Coxsbazar, 01857274119</div>
+        <div class="vp-depo" id="vp-depo">Super Depo: Mustary Enterprise, Chakaria, Coxsbazar, 01857274119</div>
         <div class="vp-party">
           <div><div class="vp-lbl">পার্টি</div><div class="nm" id="vp-party"></div><div id="vp-party-sub" style="font-size:11px;color:#555"></div></div>
           <div style="text-align:right;font-size:12px;font-weight:600" id="vp-date"></div>
@@ -202,6 +202,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('payments');
+(function(){const d=localStorage.getItem('bf_depo_text');const el=document.getElementById('vp-depo');if(d&&el)el.textContent=d;})();
 
 let vouchers=JSON.parse(localStorage.getItem('bf_payments')||'[]');
 let parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
@@ -433,7 +434,7 @@ function updateStats(){
 
 function editV(id){showForm(id);}
 function printV(id){const v=vouchers.find(x=>x.id===id);if(!v)return;showForm(id);setTimeout(()=>{buildVoucherPrint();window.print();},500);}
-function delV(id){if(!window.confirm('এই ভাউচার মুছে দেবেন?'))return;vouchers=vouchers.filter(v=>v.id!==id);localStorage.setItem('bf_payments',JSON.stringify(vouchers));renderList();updateStats();toast('মুছে ফেলা হয়েছে','success');if(BF.sheetUrl)API.post({action:'deletePayment',id}).catch(()=>{});}
+function delV(id){if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;}if(!window.confirm('এই ভাউচার মুছে দেবেন?'))return;vouchers=vouchers.filter(v=>v.id!==id);localStorage.setItem('bf_payments',JSON.stringify(vouchers));renderList();updateStats();toast('মুছে ফেলা হয়েছে','success');if(BF.sheetUrl)API.post({action:'deletePayment',id}).catch(()=>{});}
 
 function exportCSV(){
   if(!vouchers.length){toast('কোনো ডেটা নেই','error');return;}
