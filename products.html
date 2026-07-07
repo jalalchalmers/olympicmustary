@@ -720,8 +720,15 @@ async function saveProductWithHistory(){
   // If nothing price/offer-related changed on an edit, just save normally (no prompt).
   if(!changed){ await saveProduct(); return; }
 
-  // Not-for-sale items have no real price to track — skip the history prompt.
+  // Not-for-sale items have no real price to track — skip prompt and price-permission.
   if(notForSale){ await saveProduct(); return; }
+
+  // Price control (perm_pricelist) also covers product-page price changes.
+  // Only blocks when the price/offer actually changed (non-price edits allowed).
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_perm_pricelist')==='off')){
+    toast('অ্যাডমিনের মূল্য পরিবর্তনের অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');
+    return;
+  }
 
   // Prompt for date / correction-vs-new
   const res = await phPrompt({
