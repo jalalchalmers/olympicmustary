@@ -1019,11 +1019,21 @@ function updateListStats(){
   document.getElementById('s-due').textContent=fmt.currency(totalBilled-totalPaid);
 }
 function viewOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);document.getElementById('btn-save-order').style.display='none';document.getElementById('btn-save-order-2').style.display='none';}
-function editOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);}
+function editOrder(id){
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_edit_orders')==='off')){
+    toast('অ্যাডমিনের সম্পাদনা অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+  }
+  const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);
+}
 function printOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);setTimeout(()=>{buildPrintInvoice();window.print();},600);}
 function deleteOrder(id){
-  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_orders')==='off')){
-    toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+  if(BF.session&&BF.session.role==='admin'){
+    const o=orders.find(x=>x.orderId===id);
+    const isSale=(o&&o.orderType==='sales');
+    const key=isSale?'bf_del_sales':'bf_del_purchases';
+    if(localStorage.getItem(key)==='off'){
+      toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+    }
   }
   if(!window.confirm(`"${id}" মুছে দেবেন?`))return;
   orders=orders.filter(o=>o.orderId!==id);localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();updateListStats();toast('অর্ডার মুছে ফেলা হয়েছে','success');
