@@ -260,6 +260,9 @@ async function saveParty() {
 
 /* ── DELETE ── */
 function deleteParty(id) {
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_parties')==='off')){
+    toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+  }
   const p = parties.find(x => x.id === id);
   if (!p) return;
   bfConfirm(`"${p.name}" মুছে দেবেন?`, async () => {
