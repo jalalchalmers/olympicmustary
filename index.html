@@ -121,6 +121,7 @@ function syncData(logEl) {
           if (data.biz_name)   localStorage.setItem('bf_biz_name', data.biz_name);
           if (data.biz_phone)  localStorage.setItem('bf_biz_phone', data.biz_phone);
           if (data.biz_address)localStorage.setItem('bf_biz_address', data.biz_address);
+          if (data.depo_text)  localStorage.setItem('bf_depo_text',   data.depo_text);
           // admin permissions (default 'on')
           localStorage.setItem('bf_del_sales',     data.del_sales     || 'on');
           localStorage.setItem('bf_del_purchases', data.del_purchases || 'on');
