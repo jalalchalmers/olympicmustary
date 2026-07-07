@@ -14,24 +14,26 @@
     tr.row-price-diff{background:#fffbeb}
     tr.row-price-diff td{border-bottom-color:#fde68a}
     @media print{
-      /* hide the sales-eff column in print UNLESS body says there is a difference */
-      body:not(.print-show-sales-eff) .col-sales-eff{display:none}
+      /* sales-eff column always shows in print now */
+      .col-sales-eff{display:table-cell!important}
       tr.row-price-diff{background:#fffbeb !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       /* hide chrome */
       .bf-nav,.bf-topbar,.bf-menu-btn,.td-actions,#btn-print,#btn-export,#btn-sync,.no-print,.stats-grid{display:none!important}
       .bf-main{margin-left:0!important}
       .bf-body{padding:0!important}
-      /* Excel-style grid: every cell bordered, tight, header shaded */
-      #products-table, table{width:100%!important;border-collapse:collapse!important;font-size:10px!important}
+      /* Excel-style grid: compact, every cell bordered, header shaded */
+      #products-table, table{width:100%!important;border-collapse:collapse!important;font-size:8.5px!important;line-height:1.15!important}
       #products-table th,#products-table td,table th,table td{
-        border:1px solid #64748b!important;padding:3px 6px!important;white-space:nowrap;color:#000!important}
+        border:1px solid #64748b!important;padding:1px 4px!important;white-space:nowrap;color:#000!important}
       #products-table thead th,table thead th{
         background:#e2e8f0!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       /* hide the actions column entirely in print */
       #products-table th:last-child,#products-table td:last-child{display:none!important}
+      /* hide the sub-line carton hint in print to keep rows single-line/compact */
+      #products-table td span[style*="font-size:10px"]{display:none!important}
       .badge{border:none!important;background:none!important;padding:0!important;font-weight:600}
-      @page{size:landscape;margin:10mm}
-      .print-title{display:block!important;font-size:15px;font-weight:800;text-align:center;margin-bottom:8px}
+      @page{size:landscape;margin:8mm}
+      .print-title{display:block!important;font-size:14px;font-weight:800;text-align:center;margin-bottom:6px}
     }
     .print-title{display:none}
   </style>
