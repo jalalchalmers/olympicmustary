@@ -17,7 +17,23 @@
       /* hide the sales-eff column in print UNLESS body says there is a difference */
       body:not(.print-show-sales-eff) .col-sales-eff{display:none}
       tr.row-price-diff{background:#fffbeb !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      /* hide chrome */
+      .bf-nav,.bf-topbar,.bf-menu-btn,.td-actions,#btn-print,#btn-export,#btn-sync,.no-print,.stats-grid{display:none!important}
+      .bf-main{margin-left:0!important}
+      .bf-body{padding:0!important}
+      /* Excel-style grid: every cell bordered, tight, header shaded */
+      #products-table, table{width:100%!important;border-collapse:collapse!important;font-size:10px!important}
+      #products-table th,#products-table td,table th,table td{
+        border:1px solid #64748b!important;padding:3px 6px!important;white-space:nowrap;color:#000!important}
+      #products-table thead th,table thead th{
+        background:#e2e8f0!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      /* hide the actions column entirely in print */
+      #products-table th:last-child,#products-table td:last-child{display:none!important}
+      .badge{border:none!important;background:none!important;padding:0!important;font-weight:600}
+      @page{size:landscape;margin:10mm}
+      .print-title{display:block!important;font-size:15px;font-weight:800;text-align:center;margin-bottom:8px}
     }
+    .print-title{display:none}
   </style>
 </head>
 <body>
@@ -38,6 +54,8 @@
 
     <div class="bf-body">
 
+      <div class="print-title">পণ্য তালিকা</div>
+
       <!-- STATS -->
       <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
         <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">মোট পণ্য</div><div class="stat-value" id="s-total">0</div></div>
@@ -47,7 +65,7 @@
       </div>
 
       <!-- FILTERS -->
-      <div class="card" style="padding:14px 20px">
+      <div class="card no-print" style="padding:14px 20px">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
           <div class="search-bar" style="flex:1;min-width:200px">
             <input type="text" id="search-input" placeholder="নাম বা কোড দিয়ে খুঁজুন…"/>
@@ -68,6 +86,7 @@
             <option value="nonsale">বিক্রয়ের জন্য নয়</option>
           </select>
           <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
+          <button class="btn btn-outline btn-sm" id="btn-print">🖨️ প্রিন্ট</button>
           <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
         </div>
       </div>
@@ -75,7 +94,7 @@
       <!-- TABLE -->
       <div class="card" style="padding:0;overflow:hidden">
         <div class="table-wrap">
-          <table>
+          <table id="products-table">
             <thead>
               <tr>
                 <th>#</th>
@@ -528,6 +547,7 @@ function exportProducts() {
 document.getElementById('btn-new-product').addEventListener('click',   () => openProductModal());
 document.getElementById('btn-sync').addEventListener('click',          syncFromSheet);
 document.getElementById('btn-export').addEventListener('click',        exportProducts);
+document.getElementById('btn-print').addEventListener('click', ()=>window.print());
 document.getElementById('search-input').addEventListener('input',      applyFilters);
 document.getElementById('filter-status').addEventListener('change',    applyFilters);
 document.getElementById('filter-offer').addEventListener('change',     applyFilters);
