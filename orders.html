@@ -883,7 +883,7 @@ function collectFormData(){
   if(document.getElementById('pay-cash').checked)payModes.push('নগদ');
   if(document.getElementById('pay-bank').checked)payModes.push('ব্যাংক');
   if(document.getElementById('pay-mobile').checked)payModes.push('মোবাইল ব্যাংকিং');
-  return{id:editOrderId?(orders.find(o=>o.orderId===editOrderId)?.id||('ORD'+Date.now())):('ORD'+Date.now()),orderId:document.getElementById('f-order-id').value,orderType:currentType,date:document.getElementById('f-date').value,cartonMode:cartonMode?'yes':'no',partyId,partyName:party.name||'',partyPhone:party.phone||'',partyAddress:party.address||'',items:JSON.stringify(items),subtotal,discount,grandTotal:grand,prevDue,totalDue,cash,bankDeposit:bank,mobile,salary,ta,da,damage,othersDeduction:others,totalDeductions:totalDeduc,totalPaid,balance,paymentMode:payModes.join(', '),notes:document.getElementById('f-notes').value.trim(),status:balance<=0.009?'paid':totalPaid>0?'partial':'due',savedAt:new Date().toISOString()};
+  return{id:editOrderId?(orders.find(o=>o.orderId===editOrderId)?.id||('ORD'+Date.now())):('ORD'+Date.now()),orderId:document.getElementById('f-order-id').value,orderType:currentType,date:document.getElementById('f-date').value,cartonMode:cartonMode?'yes':'no',partyId,partyName:party.name||'',partyPhone:party.phone||'',partyAddress:party.address||'',items:JSON.stringify(items),subtotal,discount,grandTotal:grand,prevDue,totalDue,cash,bankDeposit:bank,mobile,salary,ta,da,damage,othersDeduction:others,totalDeductions:totalDeduc,totalPaid,balance,paymentMode:payModes.join(', '),notes:document.getElementById('f-notes').value.trim(),status:balance<=0.009?'paid':totalPaid>0?'partial':'due',savedAt:new Date().toISOString(),actor:(BF.session&&BF.session.role)||''};
 }
 
 async function saveOrder(){
@@ -1039,7 +1039,7 @@ function deleteOrder(id){
   if(!window.confirm(`"${id}" মুছে দেবেন?`))return;
   orders=orders.filter(o=>o.orderId!==id);localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();updateListStats();toast('অর্ডার মুছে ফেলা হয়েছে','success');
   if(BF.sheetUrl){
-    API.fetch('deleteOrder',{orderId:id}).then(res=>{
+    API.fetch('deleteOrder',{orderId:id,actor:(BF.session&&BF.session.role)||''}).then(res=>{
       // self-healing reconcile may flag products whose old stock returned
       if(res && Array.isArray(res.salesReview) && res.salesReview.length){
         const names=res.salesReview.map(x=>x.name||x.code||x.productId).slice(0,3).join(', ');
