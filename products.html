@@ -29,8 +29,8 @@
         background:#e2e8f0!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       /* hide the actions column entirely in print */
       #products-table th:last-child,#products-table td:last-child{display:none!important}
-      /* hide the sub-line carton hint in print to keep rows single-line/compact */
-      #products-table td span[style*="font-size:10px"]{display:none!important}
+      /* keep carton sub-values, just render them compact on their own line */
+      #products-table td span[style*="font-size:10px"]{font-size:7.5px!important;color:#475569!important}
       .badge{border:none!important;background:none!important;padding:0!important;font-weight:600}
       @page{size:landscape;margin:8mm}
       .print-title{display:block!important;font-size:14px;font-weight:800;text-align:center;margin-bottom:6px}
