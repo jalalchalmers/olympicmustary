@@ -480,6 +480,9 @@ function setType(t){
 
 async function saveEdit(){
   if(!editing) return;
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_perm_pricelist')==='off')){
+    toast('অ্যাডমিনের মূল্য পরিবর্তনের অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+  }
   if(!chosenType){ toast('সংশোধন না নতুন পরিবর্তন — বেছে নিন','error'); return; }
   const price=parseFloat(document.getElementById('pl-price').value)||0;
   const offerSize=parseFloat(document.getElementById('pl-offersize').value)||0;
