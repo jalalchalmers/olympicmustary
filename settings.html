@@ -121,6 +121,12 @@
                 autocomplete="new-password"/>
               <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
             </div>
+            <div class="field">
+              <label>নতুন Viewer পাসওয়ার্ড</label>
+              <input type="password" id="s-pw-viewer" placeholder="নতুন পাসওয়ার্ড"
+                autocomplete="new-password"/>
+              <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
+            </div>
             <div style="grid-column:1/-1">
               <button class="btn btn-primary" id="btn-save-pw">পাসওয়ার্ড আপডেট করুন</button>
             </div>
@@ -321,12 +327,14 @@ function initSettings() {
   document.getElementById('btn-save-pw').addEventListener('click', async () => {
     const sup = document.getElementById('s-pw-super').value.trim();
     const adm = document.getElementById('s-pw-admin').value.trim();
-    if (!sup && !adm) { toast('কমপক্ষে একটি পাসওয়ার্ড লিখুন', 'error'); return; }
+    const vwr = document.getElementById('s-pw-viewer').value.trim();
+    if (!sup && !adm && !vwr) { toast('কমপক্ষে একটি পাসওয়ার্ড লিখুন', 'error'); return; }
     const btn = document.getElementById('btn-save-pw');
     spinBtn(btn, true);
     const payload = { action:'saveConfig', key:'passwords' };
     if (sup) { payload.pw_super = sup; localStorage.setItem('bf_pw_super', sup); BF.roles.super = sup; }
     if (adm) { payload.pw_admin = adm; localStorage.setItem('bf_pw_admin', adm); BF.roles.admin = adm; }
+    if (vwr) { payload.pw_viewer = vwr; localStorage.setItem('bf_pw_viewer', vwr); if(BF.roles) BF.roles.viewer = vwr; }
     try {
       await API.post(payload);
       toast('পাসওয়ার্ড আপডেট হয়েছে ✓', 'success');
@@ -335,6 +343,7 @@ function initSettings() {
     }
     document.getElementById('s-pw-super').value = '';
     document.getElementById('s-pw-admin').value = '';
+    document.getElementById('s-pw-viewer').value = '';
     spinBtn(btn, false);
   });
 
