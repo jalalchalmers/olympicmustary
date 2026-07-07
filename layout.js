@@ -168,11 +168,13 @@ function buildNav(activePage) {
     { id:'orders',    icon:'📋', label:'ক্রয় / বিক্রয়', href:'orders.html' },
     { id:'payments',  icon:'🧾', label:'পেমেন্ট / সমন্বয়', href:'payments.html' },
     { id:'expenses',  icon:'💰', label:'নগদ প্রবাহ',        href:'expenses.html' },
+    { id:'voucher',   icon:'🧮', label:'লেনদেন এন্ট্রি',    href:'voucher.html' },
     { section: 'রিপোর্ট' },
     { id:'stock',     icon:'🏭', label:'স্টক শিট',        href:'stock.html' },
     { id:'stockstmt', icon:'📊', label:'স্টক স্টেটমেন্ট',  href:'stockstatement.html' },
     { id:'revaluation', icon:'⚖️', label:'পুনর্মূল্যায়ন',  href:'revaluation.html' },
     { id:'ledger',    icon:'📒', label:'পার্টি লেজার',    href:'ledger.html' },
+    { id:'statements',icon:'📑', label:'স্টেটমেন্ট',      href:'statements.html' },
   ];
 
   // Settings — Super User only
