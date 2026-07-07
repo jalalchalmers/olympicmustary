@@ -87,6 +87,11 @@
               <textarea id="s-biz-address" placeholder="ব্যবসার পূর্ণ ঠিকানা"
                 style="min-height:56px"></textarea>
             </div>
+            <div class="field" style="grid-column:1/-1">
+              <label>প্রিন্ট/PDF ফুটার লাইন (ডিপো তথ্য)</label>
+              <input type="text" id="s-depo-text" placeholder="Super Depo: নাম, ঠিকানা, ফোন"/>
+              <p style="font-size:11px;color:var(--ink3);margin-top:3px">অর্ডার, পেমেন্ট ও স্টক রিপোর্টের প্রিন্টে দেখানো হবে</p>
+            </div>
             <div style="grid-column:1/-1">
               <button class="btn btn-primary" id="btn-save-biz">ব্যবসার তথ্য সেভ করুন</button>
             </div>
@@ -229,6 +234,7 @@ function initSettings() {
   document.getElementById('s-biz-name').value    = localStorage.getItem('bf_biz_name')    || '';
   document.getElementById('s-biz-phone').value   = localStorage.getItem('bf_biz_phone')   || '';
   document.getElementById('s-biz-address').value = localStorage.getItem('bf_biz_address') || '';
+  const depoEl=document.getElementById('s-depo-text'); if(depoEl) depoEl.value = localStorage.getItem('bf_depo_text') || 'Super Depo: Mustary Enterprise, Chakaria, Coxsbazar, 01857274119';
 
   // Admin permissions (default ON if not set)
   const permMap = [
@@ -309,13 +315,15 @@ function initSettings() {
     const name    = document.getElementById('s-biz-name').value.trim();
     const phone   = document.getElementById('s-biz-phone').value.trim();
     const address = document.getElementById('s-biz-address').value.trim();
+    const depo    = document.getElementById('s-depo-text').value.trim();
     localStorage.setItem('bf_biz_name',    name);
     localStorage.setItem('bf_biz_phone',   phone);
     localStorage.setItem('bf_biz_address', address);
+    localStorage.setItem('bf_depo_text',   depo);
     const btn = document.getElementById('btn-save-biz');
     spinBtn(btn, true);
     try {
-      await API.post({ action:'saveConfig', key:'biz', biz_name:name, biz_phone:phone, biz_address:address });
+      await API.post({ action:'saveConfig', key:'biz', biz_name:name, biz_phone:phone, biz_address:address, depo_text:depo });
       toast('ব্যবসার তথ্য সেভ হয়েছে ✓', 'success');
     } catch(e) {
       toast('লোকালি সেভ হয়েছে — Sheet সিঙ্ক ব্যর্থ', 'error');
