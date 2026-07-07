@@ -121,15 +121,59 @@
                 autocomplete="new-password"/>
               <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
             </div>
-            <div class="field">
-              <label>নতুন Viewer পাসওয়ার্ড (শুধু দেখার অনুমতি)</label>
-              <input type="password" id="s-pw-viewer" placeholder="নতুন পাসওয়ার্ড"
-                autocomplete="new-password"/>
-              <p style="font-size:11px;color:var(--ink3);margin-top:3px">খালি রাখলে পরিবর্তন হবে না</p>
-            </div>
             <div style="grid-column:1/-1">
               <button class="btn btn-primary" id="btn-save-pw">পাসওয়ার্ড আপডেট করুন</button>
             </div>
+          </div>
+        </div>
+
+        <!-- ── ADMIN PERMISSIONS ── -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">অ্যাডমিন অনুমতি — ডিলিট</div>
+              <div class="card-sub">অ্যাডমিন কোন পেজে ডিলিট করতে পারবে তা নিয়ন্ত্রণ করুন (Super User only)</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;max-width:480px">
+            <div style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px">ডিলিট অনুমতি</div>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>🧾 ইনভয়েস (বিক্রয়) ডিলিট</span>
+              <input type="checkbox" id="perm-del-sales" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>📦 ক্রয় অর্ডার (PO) ডিলিট</span>
+              <input type="checkbox" id="perm-del-purchases" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>👤 পণ্য ডিলিট</span>
+              <input type="checkbox" id="perm-del-products" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>👥 পার্টি ডিলিট</span>
+              <input type="checkbox" id="perm-del-parties" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>🧾 পেমেন্ট / সমন্বয় ডিলিট</span>
+              <input type="checkbox" id="perm-del-payments" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>💰 নগদ প্রবাহ ডিলিট</span>
+              <input type="checkbox" id="perm-del-cashflow" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+
+            <div style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-top:8px;border-top:1px solid var(--border);padding-top:14px">সম্পাদনা ও মূল্য নিয়ন্ত্রণ</div>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>✏️ অর্ডার (ইনভয়েস/PO) সম্পাদনা</span>
+              <input type="checkbox" id="perm-edit-orders" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>🏷️ মূল্য তালিকা পরিবর্তন</span>
+              <input type="checkbox" id="perm-pricelist" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
+
+            <p style="font-size:12px;color:var(--ink3)">চেক করা থাকলে অ্যাডমিন এই কাজ করতে পারবে। আনচেক করলে পারবে না (Super User সবসময় পারবে)।</p>
+            <button class="btn btn-primary" id="btn-save-perms" style="align-self:flex-start">অনুমতি সংরক্ষণ করুন</button>
           </div>
         </div>
 
@@ -179,6 +223,36 @@ function initSettings() {
   document.getElementById('s-biz-name').value    = localStorage.getItem('bf_biz_name')    || '';
   document.getElementById('s-biz-phone').value   = localStorage.getItem('bf_biz_phone')   || '';
   document.getElementById('s-biz-address').value = localStorage.getItem('bf_biz_address') || '';
+
+  // Admin permissions (default ON if not set)
+  const permMap = [
+    ['perm-del-sales','bf_del_sales','del_sales'],
+    ['perm-del-purchases','bf_del_purchases','del_purchases'],
+    ['perm-del-products','bf_del_products','del_products'],
+    ['perm-del-parties','bf_del_parties','del_parties'],
+    ['perm-del-payments','bf_del_payments','del_payments'],
+    ['perm-del-cashflow','bf_del_cashflow','del_cashflow'],
+    ['perm-edit-orders','bf_edit_orders','edit_orders'],
+    ['perm-pricelist','bf_perm_pricelist','perm_pricelist'],
+  ];
+  permMap.forEach(([elId,lsKey])=>{
+    const el=document.getElementById(elId);
+    if(el) el.checked = (localStorage.getItem(lsKey) ?? 'on') !== 'off';
+  });
+  // refresh from sheet config in background
+  if(BF.sheetUrl){
+    API.fetch('getConfig').then(cfg=>{
+      if(cfg&&typeof cfg==='object'){
+        permMap.forEach(([elId,lsKey,cfgKey])=>{
+          if(cfg[cfgKey]!==undefined){
+            localStorage.setItem(lsKey,cfg[cfgKey]);
+            const el=document.getElementById(elId);
+            if(el) el.checked = cfg[cfgKey]!=='off';
+          }
+        });
+      }
+    }).catch(()=>{});
+  }
 
   // Sheet status indicator
   setSheetStatus(!!BF.sheetUrl);
@@ -247,15 +321,12 @@ function initSettings() {
   document.getElementById('btn-save-pw').addEventListener('click', async () => {
     const sup = document.getElementById('s-pw-super').value.trim();
     const adm = document.getElementById('s-pw-admin').value.trim();
-    var vwCheck = document.getElementById('s-pw-viewer').value.trim();
-    if (!sup && !adm && !vwCheck) { toast('কমপক্ষে একটি পাসওয়ার্ড লিখুন', 'error'); return; }
+    if (!sup && !adm) { toast('কমপক্ষে একটি পাসওয়ার্ড লিখুন', 'error'); return; }
     const btn = document.getElementById('btn-save-pw');
     spinBtn(btn, true);
     const payload = { action:'saveConfig', key:'passwords' };
-    var vw = document.getElementById('s-pw-viewer').value.trim();
-    if (sup) { payload.pw_super  = sup; localStorage.setItem('bf_pw_super',  sup); BF.roles.super  = sup; }
-    if (adm) { payload.pw_admin  = adm; localStorage.setItem('bf_pw_admin',  adm); BF.roles.admin  = adm; }
-    if (vw)  { payload.pw_viewer = vw;  localStorage.setItem('bf_pw_viewer', vw);  BF.roles.viewer = vw; }
+    if (sup) { payload.pw_super = sup; localStorage.setItem('bf_pw_super', sup); BF.roles.super = sup; }
+    if (adm) { payload.pw_admin = adm; localStorage.setItem('bf_pw_admin', adm); BF.roles.admin = adm; }
     try {
       await API.post(payload);
       toast('পাসওয়ার্ড আপডেট হয়েছে ✓', 'success');
@@ -264,7 +335,35 @@ function initSettings() {
     }
     document.getElementById('s-pw-super').value = '';
     document.getElementById('s-pw-admin').value = '';
-    document.getElementById('s-pw-viewer').value = '';
+    spinBtn(btn, false);
+  });
+
+  // ── Save admin permissions ──
+  document.getElementById('btn-save-perms').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-save-perms');
+    spinBtn(btn, true);
+    const map = [
+      ['perm-del-sales','bf_del_sales','del_sales'],
+      ['perm-del-purchases','bf_del_purchases','del_purchases'],
+      ['perm-del-products','bf_del_products','del_products'],
+      ['perm-del-parties','bf_del_parties','del_parties'],
+      ['perm-del-payments','bf_del_payments','del_payments'],
+      ['perm-del-cashflow','bf_del_cashflow','del_cashflow'],
+      ['perm-edit-orders','bf_edit_orders','edit_orders'],
+      ['perm-pricelist','bf_perm_pricelist','perm_pricelist'],
+    ];
+    const payload = { action:'saveConfig', key:'permissions' };
+    map.forEach(([elId,lsKey,cfgKey])=>{
+      const v = document.getElementById(elId).checked ? 'on' : 'off';
+      localStorage.setItem(lsKey, v);
+      payload[cfgKey] = v;
+    });
+    try {
+      await API.post(payload);
+      toast('অনুমতি সংরক্ষিত হয়েছে ✓', 'success');
+    } catch(e) {
+      toast('লোকালি সংরক্ষিত — Sheet সিঙ্ক ব্যর্থ', 'error');
+    }
     spinBtn(btn, false);
   });
 
