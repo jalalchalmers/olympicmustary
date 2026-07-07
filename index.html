@@ -6,72 +6,33 @@
   <title>BizFlow — Login</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
   <style>
-    :root { --ink:#0f172a; --ink2:#475569; --accent:#4f46e5; --accent2:#7c3aed; --border:#e2e8f0; --bg:#f8fafc; }
-    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-    body {
-      font-family:'Inter',sans-serif; background:var(--bg); min-height:100vh;
-      display:flex; align-items:center; justify-content:center;
-      padding:16px; position:relative; overflow:hidden;
-    }
-    body::before {
-      content:''; position:absolute; top:-120px; right:-120px; width:480px; height:480px;
-      background:radial-gradient(circle,rgba(79,70,229,.12) 0%,transparent 70%); pointer-events:none;
-    }
-    body::after {
-      content:''; position:absolute; bottom:-80px; left:-80px; width:360px; height:360px;
-      background:radial-gradient(circle,rgba(124,58,237,.1) 0%,transparent 70%); pointer-events:none;
-    }
-    .wrap {
-      width:100%; max-width:420px; background:#fff; border-radius:24px;
-      box-shadow:0 4px 40px rgba(79,70,229,.12),0 1px 3px rgba(0,0,0,.06);
-      padding:44px 40px 40px; position:relative; z-index:1;
-    }
-    .logo-row { display:flex; align-items:center; gap:12px; margin-bottom:32px; }
-    .logo-icon {
-      width:44px; height:44px; border-radius:12px;
-      background:linear-gradient(135deg,var(--accent),var(--accent2));
-      display:flex; align-items:center; justify-content:center; font-size:20px;
-    }
-    .logo-text { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; color:var(--ink); }
-    .logo-text span { color:var(--accent); }
-    h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:700; margin-bottom:6px; }
-    .sub { font-size:14px; color:var(--ink2); margin-bottom:28px; }
-    .field { margin-bottom:18px; }
-    .field label { display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:6px; text-transform:uppercase; letter-spacing:.6px; }
-    .field input {
-      width:100%; border:1.5px solid var(--border); border-radius:10px;
-      padding:12px 14px; font-family:inherit; font-size:15px; color:var(--ink);
-      background:var(--bg); outline:none; transition:border-color .2s,box-shadow .2s;
-    }
-    .field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,70,229,.1); background:#fff; }
-    .btn-login {
-      width:100%; padding:13px; border-radius:10px; border:none;
-      background:linear-gradient(135deg,var(--accent),var(--accent2));
-      color:#fff; font-family:inherit; font-size:15px; font-weight:700;
-      cursor:pointer; transition:opacity .2s,transform .1s; margin-top:4px;
-    }
-    .btn-login:hover  { opacity:.92; }
-    .btn-login:active { transform:scale(.98); }
-    .btn-login:disabled { opacity:.65; cursor:not-allowed; transform:none; }
-    .err {
-      background:#fef2f2; border:1px solid #fecaca; color:#dc2626;
-      border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:none;
-    }
-    .sync-log {
-      margin-top:16px; background:var(--bg); border-radius:8px;
-      padding:10px 14px; font-size:12px; color:var(--ink2);
-      min-height:36px; display:none; line-height:1.6;
-    }
-    .sync-log.visible { display:block; }
-    .sync-row { display:flex; align-items:center; gap:6px; }
-    .sync-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; }
-    .sync-dot.done { background:var(--accent2); }
-    .hint { font-size:12px; color:var(--ink2); text-align:center; margin-top:20px; line-height:1.7; }
-    .hint strong { color:var(--accent); }
-    .version { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); font-size:11px; color:#94a3b8; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-    .spin { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-right:6px; }
-    .tick { color:#059669; font-weight:700; }
+    :root{--ink:#0f172a;--ink2:#475569;--accent:#4f46e5;--accent2:#7c3aed;--border:#e2e8f0;--bg:#f8fafc}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;position:relative;overflow:hidden}
+    body::before{content:'';position:absolute;top:-120px;right:-120px;width:480px;height:480px;background:radial-gradient(circle,rgba(79,70,229,.12) 0%,transparent 70%);pointer-events:none}
+    body::after{content:'';position:absolute;bottom:-80px;left:-80px;width:360px;height:360px;background:radial-gradient(circle,rgba(124,58,237,.1) 0%,transparent 70%);pointer-events:none}
+    .wrap{width:100%;max-width:420px;background:#fff;border-radius:24px;box-shadow:0 4px 40px rgba(79,70,229,.12),0 1px 3px rgba(0,0,0,.06);padding:44px 40px 40px;position:relative;z-index:1}
+    .logo-row{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+    .logo-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:20px}
+    .logo-text{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--ink)}
+    .logo-text span{color:var(--accent)}
+    h1{font-family:'Syne',sans-serif;font-size:26px;font-weight:700;margin-bottom:6px}
+    .sub{font-size:14px;color:var(--ink2);margin-bottom:28px}
+    .field{margin-bottom:18px}
+    .field label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px}
+    .field input{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:15px;color:var(--ink);background:var(--bg);outline:none;transition:border-color .2s,box-shadow .2s}
+    .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,70,229,.1);background:#fff}
+    .btn-login{width:100%;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s,transform .1s;margin-top:4px}
+    .btn-login:hover{opacity:.92}
+    .btn-login:active{transform:scale(.98)}
+    .btn-login:disabled{opacity:.65;cursor:not-allowed;transform:none}
+    .err{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;display:none}
+    .sync-log{margin-top:16px;background:var(--bg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);min-height:20px;display:none;line-height:1.8}
+    .hint{font-size:12px;color:var(--ink2);text-align:center;margin-top:20px;line-height:1.7}
+    .hint strong{color:var(--accent)}
+    .version{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:11px;color:#94a3b8;white-space:nowrap}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px}
   </style>
 </head>
 <body>
@@ -83,7 +44,7 @@
   <h1>স্বাগতম</h1>
   <p class="sub">Business Management System</p>
 
-  <div class="err" id="err">পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।</div>
+  <div class="err" id="err"></div>
 
   <div class="field">
     <label>পাসওয়ার্ড</label>
@@ -94,112 +55,169 @@
   <div class="sync-log" id="sync-log"></div>
 
   <div class="hint">
-    Contact admin for the info <!-- Default Super → <strong>super123</strong> &nbsp;|&nbsp; Admin → <strong>admin123</strong><br/>
+    Query @ 01911243431 <!-- Default Super → <strong>super123</strong> &nbsp;|&nbsp; Admin → <strong>admin123</strong><br/>
     Settings থেকে পাসওয়ার্ড পরিবর্তন করুন -->
   </div>
 </div>
 <div class="version">BizFlow v1.2 · Google Sheets powered</div>
 
-<script src="shared.js"></script>
 <script>
-  // Already logged in → go to dashboard
-  if (BF.session) window.location.href = 'dashboard.html';
+/* ════ CONFIG ════ */
+// Hardcoded Web App URL so any new browser connects automatically
+var DEFAULT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbx2LTFfkp6yEl_q88xn2CaVqS2EVmPTvYmEjFXHsWvZUzFnuPZ8HzksKlxRNRO6IwwJ/exec';
+if (!localStorage.getItem('bf_sheet_url')) {
+  localStorage.setItem('bf_sheet_url', DEFAULT_SHEET_URL);
+}
+function sheetUrl(){ return localStorage.getItem('bf_sheet_url') || DEFAULT_SHEET_URL; }
 
-  const redirect = new URLSearchParams(window.location.search).get('redirect') || 'dashboard.html';
-  const btn      = document.getElementById('btn');
-  const errEl    = document.getElementById('err');
-  const syncLog  = document.getElementById('sync-log');
+/* ════ Already logged in? go to dashboard (guard against loop) ════ */
+(function(){
+  try {
+    var s = JSON.parse(sessionStorage.getItem('bf_session') || 'null');
+    if (s && s.role) { window.location.replace('dashboard.html'); }
+  } catch(e) {}
+})();
 
-  btn.addEventListener('click', doLogin);
-  document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+/* ════ JSONP fetch (CORS-free) ════ */
+function jsonpFetch(action, extra) {
+  return new Promise(function(resolve, reject){
+    var url = sheetUrl();
+    if (!url) { reject(new Error('No URL')); return; }
+    var cb = '_bfcb_' + Date.now() + Math.floor(Math.random()*9999);
+    var timer = setTimeout(function(){ cleanup(); reject(new Error('Timeout')); }, 12000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; var el=document.getElementById(cb); if(el) el.remove(); }
+    window[cb] = function(d){ cleanup(); resolve(d); };
+    var u = new URL(url);
+    u.searchParams.set('action', action);
+    u.searchParams.set('callback', cb);
+    if (extra) { for (var k in extra) u.searchParams.set(k, extra[k]); }
+    var s = document.createElement('script');
+    s.id = cb; s.src = u.toString();
+    s.onerror = function(){ cleanup(); reject(new Error('load fail')); };
+    document.head.appendChild(s);
+  });
+}
 
-  function logStep(msg, done = false) {
-    syncLog.classList.add('visible');
-    const row = document.createElement('div');
-    row.className = 'sync-row';
-    row.innerHTML = `<span class="sync-dot ${done ? 'done' : ''}"></span><span>${msg}</span>`;
-    syncLog.appendChild(row);
-  }
-
-  async function doLogin() {
-    const pw = document.getElementById('pw').value.trim();
-    errEl.style.display = 'none';
-    syncLog.innerHTML   = '';
-    syncLog.classList.remove('visible');
-
-    if (!pw) { errEl.textContent = 'পাসওয়ার্ড লিখুন।'; errEl.style.display = 'block'; return; }
-
-    btn.innerHTML = '<span class="spin"></span> যাচাই হচ্ছে…';
-    btn.disabled  = true;
-
-    // Step 1: Pull latest passwords from Sheet so super's changes are always live
-    if (BF.sheetUrl) {
-      try {
-        const config = await API.fetch('getConfig');
-        if (config && !config.error) {
-          if (config.pw_super) { localStorage.setItem('bf_pw_super', config.pw_super); BF.roles.super = config.pw_super; }
-          if (config.pw_admin) { localStorage.setItem('bf_pw_admin', config.pw_admin); BF.roles.admin = config.pw_admin; }
-          if (config.pw_viewer) { localStorage.setItem('bf_pw_viewer', config.pw_viewer); BF.roles.viewer = config.pw_viewer; }
-        }
-      } catch(e) {
-        // Sheet unreachable — use cached passwords (still works offline)
-        console.warn('Config fetch failed, using cached passwords');
-      }
-    }
-
-    // Step 2: Validate password
-    const role = Auth.login(pw);
-    if (!role) {
-      errEl.style.display = 'block';
-      btn.innerHTML = 'প্রবেশ করুন →';
-      btn.disabled  = false;
-      document.getElementById('pw').value = '';
-      document.getElementById('pw').focus();
-      return;
-    }
-
-    // Step 3: Sync all data from Sheet
-    if (BF.sheetUrl) {
-      btn.innerHTML = '<span class="spin"></span> ডেটা লোড হচ্ছে…';
-      const steps = [
-        { action: 'getConfig',   label: 'কনফিগ',       store: null },
-        { action: 'getParties',  label: 'পার্টি লিস্ট', store: 'bf_parties' },
-        { action: 'getProducts', label: 'পণ্য তালিকা',  store: 'bf_products' },
-        { action: 'getOrders',   label: 'অর্ডার',        store: 'bf_orders' },
-        { action: 'getPayments', label: 'পেমেন্ট',       store: 'bf_payments' },
-      ];
-
-      for (const step of steps) {
-        try {
-          logStep(step.label + ' লোড হচ্ছে…');
-          const data = await API.fetch(step.action);
-
-          if (step.action === 'getConfig' && data && !data.error) {
-            if (data.biz_name)    localStorage.setItem('bf_biz_name',    data.biz_name);
-            if (data.biz_phone)   localStorage.setItem('bf_biz_phone',   data.biz_phone);
-            if (data.biz_address) localStorage.setItem('bf_biz_address', data.biz_address);
-          } else if (step.store && Array.isArray(data)) {
-            if (step.action === 'getProducts') {
-              localStorage.setItem(step.store, JSON.stringify(
-                data.map(p => ({ ...p, hasOffer: p.hasOffer === 'true' || p.hasOffer === true }))
-              ));
-            } else {
-              localStorage.setItem(step.store, JSON.stringify(data));
-            }
+/* ════ Sync data after login ════ */
+function syncData(logEl) {
+  var steps = [
+    { action:'getConfig',   label:'কনফিগ',       store:null },
+    { action:'getParties',  label:'পার্টি',        store:'bf_parties' },
+    { action:'getProducts', label:'পণ্য',          store:'bf_products' },
+    { action:'getOrders',   label:'অর্ডার',         store:'bf_orders' },
+    { action:'getPayments', label:'পেমেন্ট',        store:'bf_payments' }
+  ];
+  var chain = Promise.resolve();
+  steps.forEach(function(step){
+    chain = chain.then(function(){
+      logEl.style.display='block';
+      logEl.innerHTML += '⟳ ' + step.label + ' লোড হচ্ছে…<br>';
+      return jsonpFetch(step.action).then(function(data){
+        if (step.action==='getConfig' && data && !data.error) {
+          if (data.pw_super)   { localStorage.setItem('bf_pw_super', data.pw_super); }
+          if (data.pw_admin)   { localStorage.setItem('bf_pw_admin', data.pw_admin); }
+          if (data.pw_viewer)  { localStorage.setItem('bf_pw_viewer', data.pw_viewer); }
+          if (data.biz_name)   localStorage.setItem('bf_biz_name', data.biz_name);
+          if (data.biz_phone)  localStorage.setItem('bf_biz_phone', data.biz_phone);
+          if (data.biz_address)localStorage.setItem('bf_biz_address', data.biz_address);
+          // admin permissions (default 'on')
+          localStorage.setItem('bf_del_sales',     data.del_sales     || 'on');
+          localStorage.setItem('bf_del_purchases', data.del_purchases || 'on');
+          localStorage.setItem('bf_del_products',  data.del_products  || 'on');
+          localStorage.setItem('bf_del_parties',   data.del_parties   || 'on');
+          localStorage.setItem('bf_del_payments',  data.del_payments  || 'on');
+          localStorage.setItem('bf_del_cashflow',  data.del_cashflow  || 'on');
+          localStorage.setItem('bf_edit_orders',   data.edit_orders   || 'on');
+          localStorage.setItem('bf_perm_pricelist',data.perm_pricelist|| 'on');
+        } else if (step.store && Array.isArray(data)) {
+          if (step.action==='getProducts') {
+            localStorage.setItem(step.store, JSON.stringify(
+              data.map(function(p){ p.hasOffer = (p.hasOffer==='true'||p.hasOffer===true); return p; })
+            ));
+          } else {
+            localStorage.setItem(step.store, JSON.stringify(data));
           }
-          // Update last log entry to show done
-          const rows = syncLog.querySelectorAll('.sync-row');
-          if (rows.length) rows[rows.length - 1].querySelector('.sync-dot').classList.add('done');
-        } catch(e) {
-          const rows = syncLog.querySelectorAll('.sync-row');
-          if (rows.length) rows[rows.length - 1].lastElementChild.textContent += ' ⚠ ব্যর্থ';
         }
-      }
-      localStorage.setItem('bf_last_sync', new Date().toISOString());
-    }
+        logEl.innerHTML = logEl.innerHTML.replace('⟳ '+step.label+' লোড হচ্ছে…<br>', '✓ '+step.label+' লোড হয়েছে<br>');
+      }).catch(function(){
+        logEl.innerHTML = logEl.innerHTML.replace('⟳ '+step.label+' লোড হচ্ছে…<br>', '⚠ '+step.label+' ব্যর্থ<br>');
+      });
+    });
+  });
+  return chain.then(function(){ localStorage.setItem('bf_last_sync', new Date().toISOString()); });
+}
 
-    window.location.href = redirect;
+/* ════ LOGIN ════ */
+var btn   = document.getElementById('btn');
+var errEl = document.getElementById('err');
+var pwEl  = document.getElementById('pw');
+var logEl = document.getElementById('sync-log');
+
+function doLogin() {
+  var pw = pwEl.value.trim();
+  errEl.style.display = 'none';
+  logEl.style.display = 'none';
+  logEl.innerHTML = '';
+
+  if (!pw) { errEl.textContent='পাসওয়ার্ড লিখুন।'; errEl.style.display='block'; return; }
+
+  btn.innerHTML = '<span class="spin"></span> যাচাই হচ্ছে…';
+  btn.disabled = true;
+
+  // Pull latest passwords from Sheet first
+  jsonpFetch('getConfig').then(function(config){
+    if (config && !config.error) {
+      if (config.pw_super)  localStorage.setItem('bf_pw_super', config.pw_super);
+      if (config.pw_admin)  localStorage.setItem('bf_pw_admin', config.pw_admin);
+      if (config.pw_viewer) localStorage.setItem('bf_pw_viewer', config.pw_viewer);
+      localStorage.setItem('bf_del_sales',     config.del_sales     || 'on');
+      localStorage.setItem('bf_del_purchases', config.del_purchases || 'on');
+      localStorage.setItem('bf_del_products',  config.del_products  || 'on');
+      localStorage.setItem('bf_del_parties',   config.del_parties   || 'on');
+      localStorage.setItem('bf_del_payments',  config.del_payments  || 'on');
+      localStorage.setItem('bf_del_cashflow',  config.del_cashflow  || 'on');
+      localStorage.setItem('bf_edit_orders',   config.edit_orders   || 'on');
+      localStorage.setItem('bf_perm_pricelist',config.perm_pricelist|| 'on');
+    }
+  }).catch(function(){}).then(function(){
+    finishLogin(pw);
+  });
+}
+
+function finishLogin(pw) {
+  var superPw  = localStorage.getItem('bf_pw_super')  || 'super123';
+  var adminPw  = localStorage.getItem('bf_pw_admin')  || 'admin123';
+  var viewerPw = localStorage.getItem('bf_pw_viewer') || 'view123';
+
+  var role = null;
+  if (pw === superPw)       role = 'super';
+  else if (pw === adminPw)  role = 'admin';
+  else if (pw === viewerPw) role = 'viewer';
+
+  if (!role) {
+    errEl.textContent = 'পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।';
+    errEl.style.display = 'block';
+    btn.innerHTML = 'প্রবেশ করুন →';
+    btn.disabled = false;
+    pwEl.value = ''; pwEl.focus();
+    return;
   }
+
+  sessionStorage.setItem('bf_session', JSON.stringify({ role: role, loginTime: Date.now() }));
+
+  btn.innerHTML = '<span class="spin"></span> ডেটা লোড হচ্ছে…';
+  syncData(logEl).then(function(){
+    var redirect = new URLSearchParams(window.location.search).get('redirect');
+    var target = 'dashboard.html';
+    if (redirect && /^[a-z0-9_-]+$/i.test(redirect)) {
+      target = redirect.indexOf('.html') > -1 ? redirect : (redirect + '.html');
+    }
+    window.location.replace(target);
+  });
+}
+
+btn.addEventListener('click', doLogin);
+pwEl.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.keyCode===13) doLogin(); });
 </script>
 </body>
 </html>
