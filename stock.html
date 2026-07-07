@@ -177,6 +177,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('stock');
+(function(){const d=localStorage.getItem('bf_depo_text');const el=document.getElementById('sp-depo');if(d&&el)el.textContent=d;})();
 
 let stockData=[];
 let productSupplierMap={}; // productId → Set of supplier names (from purchase orders)
