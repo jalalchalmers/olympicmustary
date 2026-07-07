@@ -31,7 +31,7 @@
       /* Olympic table styling */
       .sp-table{width:100%;border-collapse:collapse;margin-bottom:10px}
       .sp-table th{background:#f0f0f0;border:1px solid #000;padding:4px 6px;font-size:11px;text-align:left;font-weight:bold}
-      .sp-table td{border:1px solid #000;padding:4px 6px;font-size:11px}
+      .sp-table td{border:1px solid #000;padding:4px 6px;font-size:11px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .sp-table .c{text-align:center}
       .sp-table .r{text-align:right}
       .sp-summary{display:flex;gap:24px;margin-top:8px;font-size:12px;font-weight:700;border-top:2px solid #000;padding-top:8px}
@@ -154,6 +154,7 @@
               <th class="r" style="width:70px">বর্তমান</th>
               <th class="r" style="width:70px">ফ্রি ব্যাল.</th>
               <th class="r" style="width:80px">প্রকৃত স্টক</th>
+              <th class="r" style="width:90px">ক্রয়মূল্য/কার্টন</th>
             </tr>
           </thead>
           <tbody id="sp-items"></tbody>
@@ -182,12 +183,14 @@ let productSupplierMap={}; // productId → Set of supplier names (from purchase
 let fifoStockValue=null;   // FIFO cost value from backend (null until fetched)
 
 /* fetch the FIFO (acquisition-cost) stock value from the layer engine */
+let fifoByProduct={};      // productId → {pieces,value} FIFO cost per product
 async function loadFifoValue(){
   if(!BF.sheetUrl) return;
   try{
     const r=await API.fetch('getStockValue');
     if(r && typeof r.totalValue==='number'){
       fifoStockValue=r.totalValue;
+      fifoByProduct=r.byProduct||{};
       const el=document.getElementById('s-value-fifo');
       if(el) el.textContent=fmt.currency(fifoStockValue);
     }
@@ -382,7 +385,15 @@ function buildPrintReport(){
     tval+=phys*effOfPdf(r.price,r.offerSize,r.freeQty);
     if(cs>0){physCtn+=Math.trunc(phys/cs);physPcs+=phys%cs;}else physPcs+=phys;
     const tr=document.createElement('tr');
-    tr.innerHTML='<td class="c">'+(i+1)+'</td><td>'+r.productName+'</td><td class="c">'+(r.productCode||'')+'</td><td class="r">'+pcsDisp(r.stockIn,cs)+'</td><td class="r">'+pcsDisp(r.stockOut,cs)+'</td><td class="r">'+pcsDisp(bal,cs)+'</td><td class="r">'+pcsDisp(fb,cs)+'</td><td class="r">'+pcsDisp(phys,cs)+'</td>';
+    // FIFO cost per carton vs current price per carton — highlight if they differ
+    const fp=fifoByProduct[r.productId];
+    const costPiece=(fp&&fp.pieces>0)?(fp.value/fp.pieces):0;
+    const costCarton=cs>0?costPiece*cs:costPiece;
+    const curPiece=effOfPdf(r.price,r.offerSize,r.freeQty);
+    const curCarton=cs>0?curPiece*cs:curPiece;
+    const differs=costPiece>0 && Math.abs(costCarton-curCarton)>0.009;
+    const costCell=costPiece>0?fmt.currency(costCarton):'—';
+    tr.innerHTML='<td class="c">'+(i+1)+'</td><td>'+r.productName+'</td><td class="c">'+(r.productCode||'')+'</td><td class="r">'+pcsDisp(r.stockIn,cs)+'</td><td class="r">'+pcsDisp(r.stockOut,cs)+'</td><td class="r">'+pcsDisp(bal,cs)+'</td><td class="r">'+pcsDisp(fb,cs)+'</td><td class="r">'+pcsDisp(phys,cs)+'</td><td class="r"'+(differs?' style="background:#fde68a;font-weight:700"':'')+'>'+costCell+'</td>';
     tbody.appendChild(tr);
   });
   const physDisp=(physCtn?physCtn+' ctn':'')+(physCtn&&physPcs?' + ':'')+(physPcs||!physCtn?physPcs+' pcs':'');
