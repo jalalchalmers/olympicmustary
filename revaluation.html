@@ -22,9 +22,15 @@
     @media print{
       .bf-nav,.bf-topbar,.no-print{display:none!important}
       .bf-main{margin-left:0}.bf-body{padding:0}
-      table.rv{font-size:10px}
-      table.rv th,table.rv td{border:1px solid #94a3b8;padding:3px 6px}
+      /* Excel-style grid for both tables */
+      table.rv{font-size:9px;border-collapse:collapse!important;width:100%}
+      table.rv th,table.rv td{border:1px solid #475569!important;padding:2px 5px!important;color:#000!important}
+      table.rv thead th{background:#e2e8f0!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      tr.rv-foot td{background:#f1f5f9!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .rv-cards{grid-template-columns:repeat(4,1fr)}
+      @page{size:landscape;margin:8mm}
+      /* print-old-only: hide the main revaluation section, show only old-stock */
+      body.print-old-only #rv-main-section{display:none!important}
     }
   </style>
 </head>
@@ -47,6 +53,7 @@
 
     <div class="bf-body">
 
+      <div id="rv-main-section">
       <div class="rv-cards no-print" id="rv-cards">
         <div class="rv-card"><div class="lbl">স্টকের ক্রয়মূল্য (FIFO)</div><div class="val" id="rv-cost" style="color:var(--accent)">৳—</div></div>
         <div class="rv-card"><div class="lbl">বর্তমান বিক্রয়মূল্যে</div><div class="val" id="rv-sale" style="color:var(--ink2)">৳—</div></div>
@@ -77,9 +84,13 @@
         পুনর্মূল্যায়ন = বর্তমান বিক্রয়মূল্যে স্টকের মূল্য − FIFO ক্রয়মূল্যে স্টকের মূল্য।
         ধনাত্মক হলে মূল্যবৃদ্ধি (লাভ), ঋণাত্মক হলে মূল্যহ্রাস (ক্ষতি)।
       </p>
+      </div>
 
       <div style="margin-top:28px;border-top:2px solid var(--border);padding-top:20px">
-        <h3 style="font-size:16px;font-weight:800;margin:0 0 4px">🔒 পুরনো দরের স্টক</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <h3 style="font-size:16px;font-weight:800;margin:0 0 4px">🔒 পুরনো দরের স্টক</h3>
+          <button class="btn btn-outline btn-sm no-print" id="btn-print-old" onclick="printOldStock()">🖨️ প্রিন্ট (পুরনো দরের স্টক)</button>
+        </div>
         <p style="font-size:12px;color:var(--ink3);margin:0 0 14px">
           যেসব পণ্যের স্টকের ক্রয় দর বর্তমান ক্রয় দর থেকে ভিন্ন — অর্থাৎ পুরনো দরের স্টক এখনো আছে, যা বিক্রয় মূল্য লক রাখছে।
         </p>
@@ -90,11 +101,12 @@
                 <th>কোড</th><th>পণ্য</th>
                 <th>পুরনো স্টক (কার্টন+পিস)</th>
                 <th>পুরনো দর</th><th>বর্তমান দর</th>
-                <th>পুরনো স্টকের মূল্য</th>
+                <th>পুরনো দরে স্টকের মূল্য</th>
+                <th>বর্তমান দরে স্টকের মূল্য</th>
               </tr>
             </thead>
             <tbody id="os-body">
-              <tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
+              <tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
             </tbody>
           </table>
         </div>
@@ -171,7 +183,7 @@ async function loadOldStock(){
   try{
     const r=await API.fetch('getOldStockReport');
     if(!r || !r.rows || !r.rows.length){
-      body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--success);padding:26px">✓ কোনো পুরনো দরের স্টক নেই — সব স্টক বর্তমান দরে।</td></tr>';
+      body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--success);padding:26px">✓ কোনো পুরনো দরের স্টক নেই — সব স্টক বর্তমান দরে।</td></tr>';
       return;
     }
     body.innerHTML = r.rows.map(x=>`<tr>
@@ -181,14 +193,23 @@ async function loadOldStock(){
         <td>${fmtC(x.oldRate)}</td>
         <td>${fmtC(x.currentRate)}</td>
         <td>${fmtC(x.oldValue)}</td>
+        <td>${fmtC(x.currentValue)}</td>
       </tr>`).join('')
     + `<tr class="rv-foot">
          <td colspan="2">মোট</td>
          <td>${r.totalOldPieces.toLocaleString()} পিস</td>
          <td></td><td></td>
          <td>${fmtC(r.totalOldValue)}</td>
+         <td>${fmtC(r.totalCurrentValue||0)}</td>
        </tr>`;
-  }catch(e){ body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:26px">ডেটা লোড ব্যর্থ।</td></tr>'; }
+  }catch(e){ body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:26px">ডেটা লোড ব্যর্থ।</td></tr>'; }
+}
+
+/* print ONLY the old-stock table, Excel-style */
+function printOldStock(){
+  document.body.classList.add('print-old-only');
+  window.print();
+  setTimeout(()=>document.body.classList.remove('print-old-only'),500);
 }
 
 function exportCsv(){
