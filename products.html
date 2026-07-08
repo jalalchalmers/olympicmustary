@@ -772,6 +772,11 @@ async function saveProductWithHistory(){
     if(BF.sheetUrl){ try{ await API.post({action:'savePriceRevision',data:payload}); }catch(e){ toast('মূল্য ইতিহাস সিঙ্ক ব্যর্থ','error'); } }
     toast(isNew?'নতুন পণ্য ও স্ন্যাপশট সেভ হয়েছে ✓':'নতুন পরিবর্তন স্ন্যাপশট সেভ হয়েছে ✓','success');
   }
+
+  // Zero-stock products get their SALES price auto-synced server-side (inside
+  // the saveProduct request). Pull the updated rows back so the UI shows it
+  // without a manual reload.
+  if(BF.sheetUrl){ setTimeout(()=>{ syncFromSheet(); }, 2500); }
 }
 
 </script>
