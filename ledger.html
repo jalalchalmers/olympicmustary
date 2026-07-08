@@ -218,7 +218,8 @@ function populatePartySelect() {
 /* ── BUILD LEDGER FROM LOCAL ORDERS ── */
 function buildLedgerForParty(partyId) {
   const partyOrders = orders.filter(o => o.partyId === partyId);
-  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]').filter(v => v.partyId === partyId);
+  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]')
+    .filter(v => v.partyId === partyId || v.counterpartyId === partyId);
 
   // Build a unified event list, then sort by actual date (oldest first)
   const events = [];
@@ -305,7 +306,17 @@ function buildLedgerForParty(partyId) {
       const detail = methods.length?' ('+methods.join(', ')+')':'';
 
       let label, isDebit;
-      if (v.vtype==='receipt'){ label='রিসিট'; isDebit=false; }
+      if (v.vtype==='dual'){
+        const CAT={direct:'সরাসরি পেমেন্ট',commission:'কমিশন',claim:'দাবি',adjust:'সমন্বয়'};
+        const cat=CAT[v.category]||'সরাসরি/কমিশন';
+        // this party is either the customer (partyId) or the supplier (counterpartyId);
+        // both sides are a CREDIT — customer's due ↓, supplier's payable ↓
+        label = (v.partyId===partyId)
+          ? cat+' (সরবরাহকারী: '+(v.counterpartyName||'')+')'
+          : cat+' (গ্রাহক: '+(v.partyName||'')+')';
+        isDebit=false;
+      }
+      else if (v.vtype==='receipt'){ label='রিসিট'; isDebit=false; }
       else if (v.vtype==='payment'){ label='পেমেন্ট'; isDebit=false; }
       else { label='সমন্বয়'; isDebit=(v.direction==='debit'); }
 
@@ -343,11 +354,14 @@ function renderAllPartiesSummary() {
     const partyOrders = orders.filter(o => o.partyId === p.id);
     const totalInvoiced = partyOrders.reduce((s,o) => s+parseFloat(o.grandTotal||0), 0);
     const paidInOrders  = partyOrders.reduce((s,o) => s+parseFloat(o.totalPaid||0),  0);
-    // standalone vouchers for this party
-    const pv = allPayments.filter(v => v.partyId === p.id);
+    // standalone vouchers for this party — dual vouchers credit BOTH sides
     let voucherCredit = 0;
-    pv.forEach(v => {
+    allPayments.forEach(v => {
       const amt = parseFloat(v.amount||0);
+      const isParty = v.partyId === p.id, isCounter = v.counterpartyId === p.id;
+      if (!isParty && !isCounter) return;
+      if (v.vtype==='dual') { voucherCredit += amt; return; }
+      if (!isParty) return;
       if (v.vtype==='receipt' || v.vtype==='payment') voucherCredit += amt;
       else if (v.vtype==='adjust') voucherCredit += (v.direction==='debit' ? -amt : amt);
     });
