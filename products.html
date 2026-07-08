@@ -89,6 +89,7 @@
             <option value="nonsale">বিক্রয়ের জন্য নয়</option>
           </select>
           <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
+          <button class="btn btn-outline btn-sm" id="btn-push-prices" style="display:none;border-color:#d97706;color:#b45309">⤋ বিক্রয়মূল্যে পাঠান</button>
           <button class="btn btn-outline btn-sm" id="btn-print">🖨️ প্রিন্ট</button>
           <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
         </div>
@@ -563,6 +564,29 @@ function exportProducts() {
 /* ── EVENTS ── */
 document.getElementById('btn-new-product').addEventListener('click',   () => openProductModal());
 document.getElementById('btn-sync').addEventListener('click',          syncFromSheet);
+
+/* ── FORCE PUSH: purchase price+offer → sales price+offer, ALL products ──
+   Super always; Admin only when perm_pushprice is 'on'; never viewers. */
+(function(){
+  const btn=document.getElementById('btn-push-prices');
+  const role=BF.session&&BF.session.role;
+  const allowed = role==='super' || (role==='admin' && localStorage.getItem('bf_perm_pushprice')==='on');
+  if(!allowed) return;
+  btn.style.display='';
+  btn.addEventListener('click',()=>{
+    bfConfirm('সব পণ্যের ক্রয়মূল্য ও অফার বিক্রয়মূল্যে কপি হবে — স্টক থাকুক বা না থাকুক (ফোর্স)। পুরনো দরের স্টকের মূল্য-লকও বাতিল হবে। নিশ্চিত?',async()=>{
+      spinBtn(btn,true);
+      try{
+        const r=await API.fetch('forcePushSalesPrices');
+        if(r&&r.status==='pushed'){
+          toast(`✓ ${r.total}টি পণ্যে পুশ হয়েছে (${r.changed}টির মূল্য বদলেছে)`,'success');
+          await syncFromSheet();
+        }else toast('পুশ ব্যর্থ: '+((r&&r.error)||''),'error');
+      }catch(e){toast('পুশ ব্যর্থ: '+e.message,'error');}
+      spinBtn(btn,false);
+    },'ফোর্স পুশ — ক্রয় → বিক্রয়');
+  });
+})();
 document.getElementById('btn-export').addEventListener('click',        exportProducts);
 document.getElementById('btn-print').addEventListener('click', ()=>window.print());
 document.getElementById('search-input').addEventListener('input',      applyFilters);
