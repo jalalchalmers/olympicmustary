@@ -192,6 +192,10 @@
           <option value="inactive">নিষ্ক্রিয়</option>
         </select>
       </div>
+      <div class="field">
+        <label>সরবরাহকারী</label>
+        <select id="pr-supplier"><option value="">— নির্বাচন করুন —</option></select>
+      </div>
       <div class="field" style="grid-column:1/-1">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0">
           <input type="checkbox" id="pr-not-for-sale" style="width:16px;height:16px;accent-color:#d97706"/>
@@ -350,6 +354,12 @@ function openProductModal(id = null) {
   document.getElementById('pr-price').value        = p?.price       || '';
   document.getElementById('pr-status').value  = p?.status     || 'active';
   document.getElementById('pr-notes').value   = p?.notes      || '';
+  // supplier dropdown from parties (suppliers + both)
+  const supSel = document.getElementById('pr-supplier');
+  const bfParties = JSON.parse(localStorage.getItem('bf_parties')||'[]');
+  const sups = bfParties.filter(x => x.type==='supplier' || x.type==='both');
+  supSel.innerHTML = '<option value="">— নির্বাচন করুন —</option>'
+    + sups.map(s => `<option value="${s.id}" ${p?.supplierId===s.id?'selected':''}>${s.name}</option>`).join('');
   document.getElementById('pr-not-for-sale').checked = (p?.notForSale==='yes'||p?.notForSale===true);
 
   const hasOffer = p?.hasOffer===true || p?.hasOffer==='true';
@@ -475,6 +485,7 @@ async function saveProduct() {
     effectivePrice: (typeof effectivePrice === 'number' ? effectivePrice : parseFloat(effectivePrice)),
     notForSale:    notForSale ? 'yes' : '',
     status:        document.getElementById('pr-status').value,
+    supplierId:    document.getElementById('pr-supplier').value || '',
     notes:         document.getElementById('pr-notes').value.trim(),
     updated:       new Date().toISOString(),
   };
