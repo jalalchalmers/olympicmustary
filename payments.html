@@ -10,9 +10,11 @@
     .vtype-tab.active-receipt{background:#059669;color:#fff}
     .vtype-tab.active-payment{background:#3b82f6;color:#fff}
     .vtype-tab.active-adjust{background:#9333ea;color:#fff}
+    .vtype-tab.active-dual{background:#d97706;color:#fff}
     .badge-receipt{background:#dcfce7;color:#15803d}
     .badge-payment{background:#dbeafe;color:#1e40af}
     .badge-adjust{background:#f3e8ff;color:#7c2d92}
+    .badge-dual{background:#fef3c7;color:#92400e}
     .sum-input{width:130px;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-family:inherit;font-size:13px;text-align:right;outline:none;background:#fff}
     .sum-input:focus{border-color:var(--accent)}
     .deduction-section{background:rgba(147,51,234,.06);border:1px solid rgba(147,51,234,.2);border-radius:10px;padding:14px;margin:8px 0}
@@ -81,6 +83,7 @@
                 <option value="receipt">রিসিট (গ্রহণ)</option>
                 <option value="payment">পেমেন্ট (প্রদান)</option>
                 <option value="adjust">সমন্বয়</option>
+                <option value="dual">সরাসরি / কমিশন</option>
               </select>
               <input type="date" id="list-from" style="border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;outline:none"/>
               <input type="date" id="list-to" style="border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;outline:none"/>
@@ -117,6 +120,7 @@
                 <button class="vtype-tab active-receipt" id="tab-receipt" onclick="setVType('receipt')">📥 রিসিট (গ্রহণ)</button>
                 <button class="vtype-tab" id="tab-payment" onclick="setVType('payment')">📤 পেমেন্ট (প্রদান)</button>
                 <button class="vtype-tab" id="tab-adjust" onclick="setVType('adjust')">⚖️ সমন্বয়</button>
+                <button class="vtype-tab" id="tab-dual" onclick="setVType('dual')">🔀 সরাসরি / কমিশন</button>
               </div>
               <div style="font-size:11px;color:var(--ink3);margin-top:6px" id="vtype-hint">গ্রাহকের কাছ থেকে টাকা গ্রহণ (বাকি কমবে)</div>
             </div>
@@ -127,8 +131,30 @@
               <div class="field"><label id="f-party-label">পার্টি *</label><select id="f-party"><option value="">— নির্বাচন করুন —</option></select></div>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-              <span style="font-size:13px;color:var(--ink2)">পার্টির বর্তমান বাকি</span>
+              <span style="font-size:13px;color:var(--ink2)" id="cur-due-label">পার্টির বর্তমান বাকি</span>
               <span class="balance-pill balance-zero" id="cur-due">৳0.00</span>
+            </div>
+          </div>
+
+          <!-- DUAL VOUCHER (customer ⇄ supplier triangle) -->
+          <div class="card" id="dual-card" style="display:none">
+            <div class="card-title" style="margin-bottom:6px">🔀 গ্রাহক ⇄ সরবরাহকারী লেনদেন</div>
+            <p style="font-size:12px;color:var(--ink3);margin:0 0 14px">
+              গ্রাহক সরাসরি সরবরাহকারীকে টাকা দিলে, অথবা সরবরাহকারী মুস্তারীর মাধ্যমে গ্রাহককে
+              কমিশন/দাবি দিলে — একটি ভাউচারেই দুই পক্ষের হিসাব হবে:
+              গ্রাহকের বাকি কমবে এবং সরবরাহকারীকে দেয় সমপরিমাণ কমবে।
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+              <div class="field"><label>সরবরাহকারী *</label><select id="f-counterparty"><option value="">— নির্বাচন করুন —</option></select></div>
+              <div class="field"><label>ক্যাটাগরি *</label>
+                <select id="f-category">
+                  <option value="direct">সরাসরি পেমেন্ট (গ্রাহক → সরবরাহকারী)</option>
+                  <option value="commission">কমিশন (সরবরাহকারী → গ্রাহক)</option>
+                  <option value="claim">দাবি / ক্লেইম (সরবরাহকারী → গ্রাহক)</option>
+                  <option value="adjust">অন্যান্য সমন্বয়</option>
+                </select>
+              </div>
+              <div class="field"><label>পরিমাণ (৳) *</label><input type="number" id="f-dual-amount" value="0" min="0" step="0.01"/></div>
             </div>
           </div>
 
@@ -210,21 +236,26 @@ let orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
 let vType='receipt';
 let editId=null;
 
-const TYPE_LABEL={receipt:'রিসিট (গ্রহণ)',payment:'পেমেন্ট (প্রদান)',adjust:'সমন্বয়'};
-const TYPE_PREFIX={receipt:'RV',payment:'PV',adjust:'AV'};
-const TYPE_BADGE={receipt:'badge-receipt',payment:'badge-payment',adjust:'badge-adjust'};
+const TYPE_LABEL={receipt:'রিসিট (গ্রহণ)',payment:'পেমেন্ট (প্রদান)',adjust:'সমন্বয়',dual:'সরাসরি/কমিশন'};
+const TYPE_PREFIX={receipt:'RV',payment:'PV',adjust:'AV',dual:'DV'};
+const TYPE_BADGE={receipt:'badge-receipt',payment:'badge-payment',adjust:'badge-adjust',dual:'badge-dual'};
+const CAT_LABEL={direct:'সরাসরি পেমেন্ট',commission:'কমিশন',claim:'দাবি',adjust:'সমন্বয়'};
 
 function setVType(t){
   vType=t;
   document.getElementById('tab-receipt').className='vtype-tab'+(t==='receipt'?' active-receipt':'');
   document.getElementById('tab-payment').className='vtype-tab'+(t==='payment'?' active-payment':'');
   document.getElementById('tab-adjust').className='vtype-tab'+(t==='adjust'?' active-adjust':'');
-  const hint={receipt:'গ্রাহকের কাছ থেকে টাকা গ্রহণ (বাকি কমবে)',payment:'সরবরাহকারীকে টাকা প্রদান',adjust:'ডিসকাউন্ট, বকেয়া মওকুফ, ওপেনিং সংশোধন'};
+  document.getElementById('tab-dual').className='vtype-tab'+(t==='dual'?' active-dual':'');
+  const hint={receipt:'গ্রাহকের কাছ থেকে টাকা গ্রহণ (বাকি কমবে)',payment:'সরবরাহকারীকে টাকা প্রদান',adjust:'ডিসকাউন্ট, বকেয়া মওকুফ, ওপেনিং সংশোধন',dual:'গ্রাহক ⇄ সরবরাহকারী লেনদেন — দুই পক্ষের হিসাবে একসাথে যাবে'};
   document.getElementById('vtype-hint').textContent=hint[t];
-  // show/hide adjustment direction + methods
+  // show/hide adjustment direction + methods + dual card
   document.getElementById('adjust-dir-wrap').style.display = t==='adjust'?'block':'none';
+  document.getElementById('methods-card').style.display = t==='dual'?'none':'';
+  document.getElementById('dual-card').style.display    = t==='dual'?'':'none';
   refreshVNo();
-  document.getElementById('f-party-label').textContent = t==='payment'?'সরবরাহকারী *':'পার্টি *';
+  document.getElementById('f-party-label').textContent = t==='payment'?'সরবরাহকারী *':(t==='dual'?'গ্রাহক *':'পার্টি *');
+  document.getElementById('cur-due-label').textContent = t==='dual'?'গ্রাহকের বর্তমান বাকি':'পার্টির বর্তমান বাকি';
   populatePartyDropdown();
   recalc();
 }
@@ -272,12 +303,16 @@ function showForm(id=null){
   else{document.getElementById('f-date').value=fmt.dateInput();setVType('receipt');}
 }
 
-function populatePartyDropdown(selectedId=''){
+function populatePartyDropdown(selectedId='',selectedCounterId=''){
   const sel=document.getElementById('f-party');
   let rel=parties;
   if(vType==='payment')rel=parties.filter(p=>p.type==='supplier'||p.type==='both');
-  else if(vType==='receipt')rel=parties.filter(p=>p.type==='customer'||p.type==='both');
+  else if(vType==='receipt'||vType==='dual')rel=parties.filter(p=>p.type==='customer'||p.type==='both');
   sel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+rel.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''}>${p.name}${p.area?' — '+p.area:''}</option>`).join('');
+  // counterparty (dual): suppliers only
+  const csel=document.getElementById('f-counterparty');
+  const sup=parties.filter(p=>p.type==='supplier'||p.type==='both');
+  csel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+sup.map(p=>`<option value="${p.id}" ${p.id===selectedCounterId?'selected':''}>${p.name}${p.area?' — '+p.area:''}</option>`).join('');
   if(selectedId)onPartyChange();
 }
 
@@ -287,11 +322,15 @@ function partyDue(partyId){
   const po=orders.filter(o=>o.partyId===partyId);
   const billed=po.reduce((s,o)=>s+parseFloat(o.grandTotal||0),0);
   const paidOrders=po.reduce((s,o)=>s+parseFloat(o.totalPaid||0),0);
-  // standalone vouchers
-  const pv=vouchers.filter(v=>v.partyId===partyId && v.id!==editId);
+  // standalone vouchers — dual vouchers reduce due on BOTH sides
   let vAdj=0;
-  pv.forEach(v=>{
+  vouchers.forEach(v=>{
+    if(v.id===editId) return;
     const amt=parseFloat(v.amount||0);
+    const isParty=v.partyId===partyId, isCounter=v.counterpartyId===partyId;
+    if(!isParty && !isCounter) return;
+    if(v.vtype==='dual'){ vAdj+=amt; return; }         // customer credit / supplier credit
+    if(!isParty) return;
     if(v.vtype==='receipt')vAdj+=amt;          // received → reduces due
     else if(v.vtype==='payment')vAdj+=amt;     // we paid supplier → reduces what we owe (their due to us logic mirrored)
     else if(v.vtype==='adjust')vAdj+=(v.direction==='debit'?-amt:amt); // credit reduces due, debit increases
@@ -311,7 +350,9 @@ function onPartyChange(){
 function recalc(){
   const fv=id=>parseFloat(document.getElementById(id).value)||0;
   let total;
-  if(vType==='adjust'){
+  if(vType==='dual'){
+    total=fv('f-dual-amount');
+  }else if(vType==='adjust'){
     total=fv('f-salary')+fv('f-ta')+fv('f-da')+fv('f-damage')+fv('f-other');
   }else{
     total=fv('f-cash')+fv('f-bank')+fv('f-mobile')+fv('f-salary')+fv('f-ta')+fv('f-da')+fv('f-damage')+fv('f-other');
@@ -321,8 +362,10 @@ function recalc(){
 }
 
 function resetForm(){
-  ['f-cash','f-bank','f-mobile','f-salary','f-ta','f-da','f-damage','f-other'].forEach(id=>document.getElementById(id).value='0');
+  ['f-cash','f-bank','f-mobile','f-salary','f-ta','f-da','f-damage','f-other','f-dual-amount'].forEach(id=>document.getElementById(id).value='0');
   document.getElementById('f-note').value='';
+  document.getElementById('f-category').value='direct';
+  document.getElementById('f-counterparty').value='';
   document.getElementById('cur-due').textContent='৳0.00';
   document.querySelector('input[name="adir"][value="credit"]').checked=true;
 }
@@ -331,6 +374,8 @@ function collectData(){
   const fv=id=>parseFloat(document.getElementById(id).value)||0;
   const pid=document.getElementById('f-party').value;
   const party=parties.find(p=>p.id===pid)||{};
+  const cpid=vType==='dual'?document.getElementById('f-counterparty').value:'';
+  const cparty=cpid?(parties.find(p=>p.id===cpid)||{}):{};
   const total=recalc();
   const direction=vType==='adjust'?(document.querySelector('input[name="adir"]:checked').value):'credit';
   return{
@@ -339,9 +384,11 @@ function collectData(){
     vtype:vType,
     date:document.getElementById('f-date').value,
     partyId:pid,partyName:party.name||'',partyPhone:party.phone||'',
-    cash:fv('f-cash'),bank:fv('f-bank'),mobile:fv('f-mobile'),
-    salary:fv('f-salary'),ta:fv('f-ta'),da:fv('f-da'),damage:fv('f-damage'),other:fv('f-other'),
+    cash:vType==='dual'?0:fv('f-cash'),bank:vType==='dual'?0:fv('f-bank'),mobile:vType==='dual'?0:fv('f-mobile'),
+    salary:vType==='dual'?0:fv('f-salary'),ta:vType==='dual'?0:fv('f-ta'),da:vType==='dual'?0:fv('f-da'),damage:vType==='dual'?0:fv('f-damage'),other:vType==='dual'?0:fv('f-other'),
     amount:total,direction,
+    counterpartyId:cpid,counterpartyName:cparty.name||'',
+    category:vType==='dual'?document.getElementById('f-category').value:'',
     note:document.getElementById('f-note').value.trim(),
     savedAt:new Date().toISOString()
   };
@@ -349,7 +396,9 @@ function collectData(){
 
 async function save(){
   const d=collectData();
-  if(!d.partyId){toast('পার্টি নির্বাচন করুন','error');return;}
+  if(!d.partyId){toast(vType==='dual'?'গ্রাহক নির্বাচন করুন':'পার্টি নির্বাচন করুন','error');return;}
+  if(vType==='dual'&&!d.counterpartyId){toast('সরবরাহকারী নির্বাচন করুন','error');return;}
+  if(vType==='dual'&&d.partyId===d.counterpartyId){toast('গ্রাহক ও সরবরাহকারী একই হতে পারবে না','error');return;}
   if(!d.date){toast('তারিখ দিন','error');return;}
   if(d.amount<=0){toast('পরিমাণ লিখুন','error');return;}
   const btn=document.getElementById('btn-save');spinBtn(btn,true);
@@ -375,8 +424,10 @@ function populateForm(v){
   document.getElementById('f-damage').value=v.damage||0;
   document.getElementById('f-other').value=v.other||0;
   document.getElementById('f-note').value=v.note||'';
+  document.getElementById('f-dual-amount').value=(v.vtype==='dual'?(v.amount||0):0);
+  document.getElementById('f-category').value=v.category||'direct';
   if(v.direction)document.querySelector('input[name="adir"][value="'+v.direction+'"]').checked=true;
-  populatePartyDropdown(v.partyId);
+  populatePartyDropdown(v.partyId,v.counterpartyId||'');
   recalc();
 }
 
@@ -384,14 +435,22 @@ function buildVoucherPrint(){
   const d=collectData();
   const party=parties.find(p=>p.id===d.partyId)||{};
   document.getElementById('vp-brand').textContent=localStorage.getItem('bf_biz_name')||'BizFlow';
-  const typeTitle={receipt:'MONEY RECEIPT',payment:'PAYMENT VOUCHER',adjust:'ADJUSTMENT VOUCHER'};
+  const typeTitle={receipt:'MONEY RECEIPT',payment:'PAYMENT VOUCHER',adjust:'ADJUSTMENT VOUCHER',dual:'DIRECT / COMMISSION VOUCHER'};
   document.getElementById('vp-type').textContent=typeTitle[d.vtype];
   document.getElementById('vp-no').textContent='ভাউচার নং: '+d.vno;
-  document.getElementById('vp-party').textContent=d.partyName;
-  document.getElementById('vp-party-sub').textContent=[party.address,party.area,d.partyPhone].filter(Boolean).join(' | ');
+  document.getElementById('vp-party').textContent=d.vtype==='dual'?(d.partyName+' ⇄ '+(d.counterpartyName||'')):d.partyName;
+  document.getElementById('vp-party-sub').textContent=d.vtype==='dual'
+    ? ('গ্রাহক: '+d.partyName+' | সরবরাহকারী: '+(d.counterpartyName||''))
+    : [party.address,party.area,d.partyPhone].filter(Boolean).join(' | ');
   document.getElementById('vp-date').textContent='তারিখ: '+(d.date?new Date(d.date).toLocaleDateString('en-CA'):'');
   // rows: only non-zero methods
   const rows=[];
+  if(d.vtype==='dual'){
+    rows.push(['ক্যাটাগরি',CAT_LABEL[d.category]||'—']);
+    rows.push(['গ্রাহক (বাকি কমবে)',d.partyName]);
+    rows.push(['সরবরাহকারী (দেয় কমবে)',d.counterpartyName||'']);
+    rows.push(['পরিমাণ',d.amount]);
+  }else{
   if(d.cash)rows.push(['নগদ (Cash)',d.cash]);
   if(d.bank)rows.push(['ব্যাংক (Bank)',d.bank]);
   if(d.mobile)rows.push(['মোবাইল ব্যাংকিং',d.mobile]);
@@ -401,8 +460,9 @@ function buildVoucherPrint(){
   if(d.damage)rows.push(['ক্ষতি (Damage)',d.damage]);
   if(d.other)rows.push(['অন্যান্য (Other)',d.other]);
   if(d.vtype==='adjust')rows.push(['সমন্বয়ের ধরন',d.direction==='debit'?'বাকি বৃদ্ধি (Debit)':'বাকি হ্রাস (Credit)']);
+  }
   document.getElementById('vp-rows').innerHTML=rows.map(r=>`<tr><td class="lbl">${r[0]}</td><td style="text-align:right">${typeof r[1]==='number'?fmt.currency(r[1]):r[1]}</td></tr>`).join('');
-  const tl={receipt:'মোট গৃহীত',payment:'মোট প্রদত্ত',adjust:'মোট সমন্বয়'};
+  const tl={receipt:'মোট গৃহীত',payment:'মোট প্রদত্ত',adjust:'মোট সমন্বয়',dual:'মোট পরিমাণ'};
   document.getElementById('vp-total-label').textContent=tl[d.vtype];
   document.getElementById('vp-total').textContent=fmt.currency(d.amount);
   if(d.note){document.getElementById('vp-note').textContent=d.note;document.getElementById('vp-note-wrap').style.display='block';}
@@ -415,17 +475,21 @@ function renderList(){
   const t=document.getElementById('list-type').value;
   const from=document.getElementById('list-from').value;
   const to=document.getElementById('list-to').value;
-  const list=vouchers.filter(v=>(!q||(v.vno||'').toLowerCase().includes(q)||(v.partyName||'').toLowerCase().includes(q))&&(!t||v.vtype===t)&&(!from||v.date>=from)&&(!to||v.date<=to));
+  const list=vouchers.filter(v=>(!q||(v.vno||'').toLowerCase().includes(q)||(v.partyName||'').toLowerCase().includes(q)||(v.counterpartyName||'').toLowerCase().includes(q))&&(!t||v.vtype===t)&&(!from||v.date>=from)&&(!to||v.date<=to));
   if(!list.length){tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="empty-icon">🧾</div><p>কোনো ভাউচার নেই।</p></div></td></tr>';return;}
   tbody.innerHTML=list.map(v=>{
     const methods=[];if(v.cash)methods.push('নগদ');if(v.bank)methods.push('ব্যাংক');if(v.mobile)methods.push('মোবাইল');
     const adj=[];if(v.salary)adj.push('Salary');if(v.ta)adj.push('TA');if(v.da)adj.push('DA');if(v.damage)adj.push('Damage');if(v.other)adj.push('Other');
-    const m=[...methods,...adj].join(', ')||'—';
+    const m=v.vtype==='dual'?(CAT_LABEL[v.category]||'—'):([...methods,...adj].join(', ')||'—');
+    const partyCell=v.vtype==='dual'
+      ? `<strong>${v.partyName}</strong> <span style="color:var(--ink3)">⇄</span> <strong>${v.counterpartyName||''}</strong>`
+      : `<strong>${v.partyName}</strong>`;
+    const badgeExtra=v.vtype==='adjust'?(' · '+(v.direction==='debit'?'Debit':'Credit')):(v.vtype==='dual'?(' · '+(CAT_LABEL[v.category]||'')):'');
     return `<tr>
       <td><strong style="color:var(--accent)">${v.vno}</strong></td>
       <td style="font-size:12px">${v.date}</td>
-      <td><strong>${v.partyName}</strong></td>
-      <td><span class="badge ${TYPE_BADGE[v.vtype]}">${TYPE_LABEL[v.vtype]}${v.vtype==='adjust'?(' · '+(v.direction==='debit'?'Debit':'Credit')):''}</span></td>
+      <td>${partyCell}</td>
+      <td><span class="badge ${TYPE_BADGE[v.vtype]}">${TYPE_LABEL[v.vtype]}${badgeExtra}</span></td>
       <td style="font-size:12px">${m}</td>
       <td style="text-align:right;font-weight:700">${fmt.currency(v.amount)}</td>
       <td><div class="td-actions">
@@ -442,7 +506,7 @@ function updateStats(){
   const sum=t=>vouchers.filter(v=>v.vtype===t).reduce((s,v)=>s+parseFloat(v.amount||0),0);
   document.getElementById('s-receipt').textContent=fmt.currency(sum('receipt'));
   document.getElementById('s-payment').textContent=fmt.currency(sum('payment'));
-  document.getElementById('s-adjust').textContent=fmt.currency(sum('adjust'));
+  document.getElementById('s-adjust').textContent=fmt.currency(sum('adjust')+sum('dual'));
 }
 
 function editV(id){showForm(id);}
@@ -473,7 +537,7 @@ document.getElementById('btn-save-2').addEventListener('click',save);
 document.getElementById('btn-print').addEventListener('click',()=>{buildVoucherPrint();window.print();});
 document.getElementById('btn-export').addEventListener('click',exportCSV);
 document.getElementById('f-party').addEventListener('change',onPartyChange);
-['f-cash','f-bank','f-mobile','f-salary','f-ta','f-da','f-damage','f-other'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
+['f-cash','f-bank','f-mobile','f-salary','f-ta','f-da','f-damage','f-other','f-dual-amount'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
 ['list-search','list-type','list-from','list-to'].forEach(id=>{document.getElementById(id).addEventListener('input',renderList);document.getElementById(id).addEventListener('change',renderList);});
 
 renderList();updateStats();
