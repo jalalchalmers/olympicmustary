@@ -80,6 +80,10 @@
             </select>
           </div>
           <button class="btn btn-outline btn-sm" id="btn-clear">সব দেখুন</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink2);cursor:pointer;padding:8px 0">
+            <input type="checkbox" id="f-show-auto" checked style="width:16px;height:16px;accent-color:var(--accent)"/>
+            🔗 অটো এন্ট্রি (অর্ডার/ভাউচার)
+          </label>
           <span style="margin-left:auto;font-size:13px;color:var(--ink2)">
             আয়: <strong id="flt-income" style="color:var(--success)">৳0</strong> ·
             ব্যয়: <strong id="flt-expense" style="color:var(--danger)">৳0</strong> ·
@@ -169,6 +173,42 @@ flows.forEach(f=>{ if(!f.type) f.type='expense'; });
 
 function saveLocal(){ localStorage.setItem('bf_expenses',JSON.stringify(flows)); }
 
+/* ── DERIVED CASH FLOW ──
+   Real cash/bank/mobile movements pulled automatically from orders and
+   vouchers (nothing is copied into the Expenses sheet — computed live):
+   - sales order cash/bank/mobile received  → আয়
+   - purchase order cash/bank/mobile paid   → ব্যয়
+   - receipt voucher cash/bank/mobile       → আয়
+   - payment voucher cash/bank/mobile       → ব্যয়
+   Adjust & dual vouchers move NO cash → excluded. Deduction fields
+   (salary/TA/DA/damage/other) are settlements, not cash → excluded. */
+function derivedFlows(){
+  const out=[];
+  const ords=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+  ords.forEach(o=>{
+    const isSale=o.orderType==='sales';
+    [['cash','নগদ'],['bankDeposit','ব্যাংক'],['mobile','মোবাইল']].forEach(([f,lbl])=>{
+      const v=parseFloat(o[f]||0);if(v<=0)return;
+      out.push({id:'D-'+o.orderId+'-'+f,date:o.date||'',type:isSale?'income':'expense',
+        category:isSale?'বিক্রয় আদায়':'ক্রয় পরিশোধ',amount:v,
+        note:(isSale?'ইনভয়েস ':'PO ')+(o.orderId||'')+' — '+(o.partyName||'')+' ('+lbl+')',auto:true});
+    });
+  });
+  const vs=JSON.parse(localStorage.getItem('bf_payments')||'[]');
+  vs.forEach(v=>{
+    if(v.vtype!=='receipt'&&v.vtype!=='payment')return;
+    [['cash','নগদ'],['bank','ব্যাংক'],['mobile','মোবাইল']].forEach(([f,lbl])=>{
+      const a=parseFloat(v[f]||0);if(a<=0)return;
+      out.push({id:'D-'+v.id+'-'+f,date:v.date||'',type:v.vtype==='receipt'?'income':'expense',
+        category:v.vtype==='receipt'?'রিসিট আদায়':'সরবরাহকারী পেমেন্ট',amount:a,
+        note:(v.vno||'')+' — '+(v.partyName||'')+' ('+lbl+')',auto:true});
+    });
+  });
+  return out;
+}
+function showAuto(){ const el=document.getElementById('f-show-auto'); return !el||el.checked; }
+function combined(){ return showAuto()?flows.concat(derivedFlows()):flows.slice(); }
+
 /* categories separated by type */
 function categories(type){
   return [...new Set(flows.filter(f=>f.type===type).map(f=>f.category).filter(Boolean))].sort();
@@ -178,7 +218,7 @@ function categories(type){
 function ym(d){ return (d||'').slice(0,7); }
 function thisMonth(){ return new Date().toISOString().slice(0,7); }
 function lastMonth(){ const d=new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); }
-function sumMonth(m,type){ return flows.filter(f=>ym(f.date)===m&&f.type===type).reduce((s,f)=>s+(parseFloat(f.amount)||0),0); }
+function sumMonth(m,type){ return combined().filter(f=>ym(f.date)===m&&f.type===type).reduce((s,f)=>s+(parseFloat(f.amount)||0),0); }
 
 function signedNet(v){ return (v>=0?'+':'−')+fmt.currency(Math.abs(v)); }
 
@@ -204,7 +244,7 @@ function getFiltered(){
   const to=document.getElementById('f-to').value;
   const flow=document.getElementById('f-flow').value;
   const cat=document.getElementById('f-category').value;
-  return flows.filter(f=>{
+  return combined().filter(f=>{
     if(from && (f.date||'')<from) return false;
     if(to && (f.date||'')>to) return false;
     if(flow && f.type!==flow) return false;
@@ -214,7 +254,7 @@ function getFiltered(){
 }
 
 function refreshCategoryFilter(){
-  const all=[...new Set(flows.map(f=>f.category).filter(Boolean))].sort();
+  const all=[...new Set(combined().map(f=>f.category).filter(Boolean))].sort();
   const fc=document.getElementById('f-category');
   const cur=fc.value;
   fc.innerHTML='<option value="">সব ক্যাটাগরি</option>'+all.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -230,16 +270,19 @@ function render(){
   } else {
     tb.innerHTML=list.map(f=>{
       const inc=f.type==='income';
+      const actions=f.auto
+        ? '<span style="font-size:11px;color:var(--ink3)" title="অর্ডার/ভাউচার থেকে স্বয়ংক্রিয় — সেখান থেকেই সম্পাদনা করুন">🔗 অটো</span>'
+        : `<div class="td-actions">
+          <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${f.id}')" title="সম্পাদনা">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="del('${f.id}')" title="মুছুন">🗑️</button>
+        </div>`;
       return `<tr>
         <td style="font-size:12px">${f.date||''}</td>
         <td><span class="cf-type-badge ${inc?'inc':'exp'}">${inc?'আয়':'ব্যয়'}</span></td>
         <td><span class="cf-cat ${inc?'inc':'exp'}">${f.category||'—'}</span></td>
         <td style="text-align:right;font-weight:600;color:${inc?'var(--success)':'var(--danger)'}">${inc?'+':'−'}${fmt.currency(f.amount)}</td>
         <td style="font-size:12px;color:var(--ink2)">${f.note||''}</td>
-        <td><div class="td-actions">
-          <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${f.id}')" title="সম্পাদনা">✏️</button>
-          <button class="btn btn-danger btn-sm btn-icon" onclick="del('${f.id}')" title="মুছুন">🗑️</button>
-        </div></td>
+        <td>${actions}</td>
       </tr>`;
     }).join('');
   }
@@ -339,6 +382,7 @@ document.getElementById('f-from').addEventListener('change',render);
 document.getElementById('f-to').addEventListener('change',render);
 document.getElementById('f-flow').addEventListener('change',render);
 document.getElementById('f-category').addEventListener('change',render);
+document.getElementById('f-show-auto').addEventListener('change',render);
 document.getElementById('btn-clear').addEventListener('click',()=>{
   document.getElementById('f-from').value='';
   document.getElementById('f-to').value='';
