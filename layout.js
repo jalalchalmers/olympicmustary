@@ -168,6 +168,7 @@ function buildNav(activePage) {
     { id:'orders',    icon:'📋', label:'ক্রয় / বিক্রয়', href:'orders.html' },
     { id:'payments',  icon:'🧾', label:'পেমেন্ট / সমন্বয়', href:'payments.html' },
     { id:'expenses',  icon:'💰', label:'নগদ প্রবাহ',        href:'expenses.html' },
+    { id:'commissions', icon:'🤝', label:'কমিশন',          href:'commissions.html' },
     { section: 'রিপোর্ট' },
     { id:'stock',     icon:'🏭', label:'স্টক শিট',        href:'stock.html' },
     { id:'stockstmt', icon:'📊', label:'স্টক স্টেটমেন্ট',  href:'stockstatement.html' },
