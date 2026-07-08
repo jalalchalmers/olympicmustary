@@ -104,12 +104,16 @@
             </select>
           </div>
           <div class="vf-field">
-            <label>পার্টি ১ (From/To/Via যেকোনো)</label>
-            <select id="r-party"><option value="">সব</option></select>
+            <label>From</label>
+            <select id="r-from-f"><option value="">সব</option></select>
           </div>
           <div class="vf-field">
-            <label>পার্টি ২ (From/To/Via যেকোনো)</label>
-            <select id="r-party2"><option value="">সব</option></select>
+            <label>To</label>
+            <select id="r-to-f"><option value="">সব</option></select>
+          </div>
+          <div class="vf-field">
+            <label>Via</label>
+            <select id="r-via-f"><option value="">সব</option></select>
           </div>
           <div class="vf-field"><label>শুরুর তারিখ</label><input type="date" id="r-from"/></div>
           <div class="vf-field"><label>শেষ তারিখ</label><input type="date" id="r-to"/></div>
@@ -176,8 +180,9 @@ function fillParties(){
   document.getElementById('f-from').innerHTML=partyOptions(false);
   document.getElementById('f-to').innerHTML=partyOptions(false);
   document.getElementById('f-via').innerHTML=partyOptions(true);
-  document.getElementById('r-party').innerHTML='<option value="">সব</option>'+partyOptions(false);
-  document.getElementById('r-party2').innerHTML='<option value="">সব</option>'+partyOptions(false);
+  document.getElementById('r-from-f').innerHTML='<option value="">সব</option>'+partyOptions(false);
+  document.getElementById('r-to-f').innerHTML='<option value="">সব</option>'+partyOptions(false);
+  document.getElementById('r-via-f').innerHTML='<option value="">সব</option>'+partyOptions(false);
 }
 function fillDescOptions(){
   const all=[...new Set([...(DEFAULT_DESC[currentCat]||[]),...savedDescs()])];
@@ -242,8 +247,9 @@ function delEntry(id){
 function currentFilter(){
   return {
     cat:document.getElementById('r-cat').value,
-    party:document.getElementById('r-party').value,
-    party2:document.getElementById('r-party2').value,
+    fromF:document.getElementById('r-from-f').value,
+    toF:document.getElementById('r-to-f').value,
+    viaF:document.getElementById('r-via-f').value,
     from:document.getElementById('r-from').value,
     to:document.getElementById('r-to').value,
   };
@@ -252,8 +258,9 @@ function filtered(){
   const f=currentFilter();
   return loadEntries().filter(e=>{
     if(f.cat && e.category!==f.cat) return false;
-    if(f.party && e.from!==f.party && e.to!==f.party && e.via!==f.party) return false;
-    if(f.party2 && e.from!==f.party2 && e.to!==f.party2 && e.via!==f.party2) return false;
+    if(f.fromF && e.from!==f.fromF) return false;
+    if(f.toF && e.to!==f.toF) return false;
+    if(f.viaF && e.via!==f.viaF) return false;
     if(f.from && (e.date||'')<f.from) return false;
     if(f.to && (e.date||'')>f.to) return false;
     return true;
@@ -298,7 +305,7 @@ document.getElementById('f-save').addEventListener('click',save);
 document.getElementById('f-reset').addEventListener('click',reset);
 document.getElementById('r-run').addEventListener('click',renderReport);
 document.getElementById('r-clear').addEventListener('click',function(){
-  document.getElementById('r-cat').value='';document.getElementById('r-party').value='';document.getElementById('r-party2').value='';
+  document.getElementById('r-cat').value='';document.getElementById('r-from-f').value='';document.getElementById('r-to-f').value='';document.getElementById('r-via-f').value='';
   document.getElementById('r-from').value='';document.getElementById('r-to').value='';renderReport();
 });
 document.getElementById('r-csv').addEventListener('click',exportCSV);
