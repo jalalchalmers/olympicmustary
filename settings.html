@@ -182,6 +182,10 @@
               <span>🏷️ মূল্য তালিকা পরিবর্তন</span>
               <input type="checkbox" id="perm-pricelist" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
             </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;font-weight:600;color:var(--ink)">
+              <span>⤋ ক্রয়মূল্য → বিক্রয়মূল্যে ফোর্স পুশ</span>
+              <input type="checkbox" id="perm-pushprice" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"/>
+            </label>
 
             <p style="font-size:12px;color:var(--ink3)">চেক করা থাকলে অ্যাডমিন এই কাজ করতে পারবে। আনচেক করলে পারবে না (Super User সবসময় পারবে)।</p>
             <button class="btn btn-primary" id="btn-save-perms" style="align-self:flex-start">অনুমতি সংরক্ষণ করুন</button>
@@ -246,10 +250,11 @@ function initSettings() {
     ['perm-del-cashflow','bf_del_cashflow','del_cashflow'],
     ['perm-edit-orders','bf_edit_orders','edit_orders'],
     ['perm-pricelist','bf_perm_pricelist','perm_pricelist'],
+    ['perm-pushprice','bf_perm_pushprice','perm_pushprice','off'],
   ];
-  permMap.forEach(([elId,lsKey])=>{
+  permMap.forEach(([elId,lsKey,cfgKey,def])=>{
     const el=document.getElementById(elId);
-    if(el) el.checked = (localStorage.getItem(lsKey) ?? 'on') !== 'off';
+    if(el) el.checked = (localStorage.getItem(lsKey) ?? (def||'on')) !== 'off';
   });
   // refresh from sheet config in background
   if(BF.sheetUrl){
@@ -368,6 +373,7 @@ function initSettings() {
       ['perm-del-cashflow','bf_del_cashflow','del_cashflow'],
       ['perm-edit-orders','bf_edit_orders','edit_orders'],
       ['perm-pricelist','bf_perm_pricelist','perm_pricelist'],
+      ['perm-pushprice','bf_perm_pushprice','perm_pushprice'],
     ];
     const payload = { action:'saveConfig', key:'permissions' };
     map.forEach(([elId,lsKey,cfgKey])=>{
