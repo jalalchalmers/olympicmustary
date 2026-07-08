@@ -464,9 +464,12 @@ function voucherAdjForParty(partyId, excludeId){
   const vs=JSON.parse(localStorage.getItem('bf_payments')||'[]');
   let adj=0;
   vs.forEach(v=>{
-    if(v.partyId!==partyId) return;
     if(excludeId && v.id===excludeId) return;
     const amt=parseFloat(v.amount||0);
+    const isParty=v.partyId===partyId, isCounter=v.counterpartyId===partyId;
+    if(!isParty && !isCounter) return;
+    if(v.vtype==='dual'){ adj+=amt; return; }   // triangle voucher credits both sides
+    if(!isParty) return;
     if(v.vtype==='receipt'||v.vtype==='payment') adj+=amt;
     else if(v.vtype==='adjust') adj+=(v.direction==='debit'?-amt:amt);
   });
