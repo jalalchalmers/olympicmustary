@@ -223,7 +223,7 @@ function setVType(t){
   document.getElementById('vtype-hint').textContent=hint[t];
   // show/hide adjustment direction + methods
   document.getElementById('adjust-dir-wrap').style.display = t==='adjust'?'block':'none';
-  document.getElementById('f-vno').value=genVNo();
+  refreshVNo();
   document.getElementById('f-party-label').textContent = t==='payment'?'সরবরাহকারী *':'পার্টি *';
   populatePartyDropdown();
   recalc();
@@ -234,6 +234,19 @@ function genVNo(){
   const same=vouchers.filter(v=>v.vtype===vType);
   const last=same.reduce((m,v)=>{const n=parseInt((v.vno||'').replace(/\D/g,''))||0;return n>m?n:m;},0);
   return prefix+'-'+String(last+1).padStart(4,'0');
+}
+
+/* Voucher no: show local guess instantly, then confirm from the Sheet
+   (device-safe — two devices can't end up with the same number; the
+   server also re-checks at save time as a final guard). */
+async function refreshVNo(){
+  document.getElementById('f-vno').value=genVNo();
+  if(!BF.sheetUrl || editId) return;
+  const myType=vType;
+  try{
+    const r=await API.fetch('getNextVoucherNo',{vtype:myType});
+    if(r && r.vno && vType===myType && !editId) document.getElementById('f-vno').value=r.vno;
+  }catch(e){}
 }
 
 function showList(){
@@ -434,7 +447,16 @@ function updateStats(){
 
 function editV(id){showForm(id);}
 function printV(id){const v=vouchers.find(x=>x.id===id);if(!v)return;showForm(id);setTimeout(()=>{buildVoucherPrint();window.print();},500);}
-function delV(id){if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;}if(!window.confirm('এই ভাউচার মুছে দেবেন?'))return;vouchers=vouchers.filter(v=>v.id!==id);localStorage.setItem('bf_payments',JSON.stringify(vouchers));renderList();updateStats();toast('মুছে ফেলা হয়েছে','success');if(BF.sheetUrl)API.post({action:'deletePayment',id}).catch(()=>{});}
+function delV(id){
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;}
+  const v=vouchers.find(x=>x.id===id); if(!v) return;
+  bfConfirm(`ভাউচার ${v.vno} (${v.partyName} — ${fmt.currency(v.amount)}) মুছে দেবেন?`, ()=>{
+    vouchers=vouchers.filter(x=>x.id!==id);
+    localStorage.setItem('bf_payments',JSON.stringify(vouchers));
+    renderList();updateStats();toast('মুছে ফেলা হয়েছে','success');
+    if(BF.sheetUrl)API.post({action:'deletePayment',id}).catch(()=>{});
+  });
+}
 
 function exportCSV(){
   if(!vouchers.length){toast('কোনো ডেটা নেই','error');return;}
