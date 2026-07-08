@@ -19,7 +19,15 @@
     .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
     .preview{background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:12px 14px;
       font-size:13px;color:var(--ink2);margin-top:6px;line-height:1.6}
+    .tx-table{width:100%;border-collapse:collapse}
+    .tx-table th,.tx-table td{padding:7px 10px;border-bottom:1px solid var(--border);font-size:13px;text-align:left}
+    .tx-table th{background:var(--bg);font-weight:700;font-size:12px}
+    .tx-table td.r,.tx-table th.r{text-align:right}
+    .cat-pill{font-size:10px;padding:1px 8px;border-radius:20px;font-weight:600;background:#eef2ff;color:#4f46e5}
+    .report-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
+    .report-bar .vf-field{margin-bottom:0}
     @media (max-width:640px){.row2,.row3{grid-template-columns:1fr}}
+    @media print{.bf-nav,.bf-topbar,.no-print{display:none!important}.bf-main{margin-left:0}}
   </style>
 </head>
 <body>
@@ -35,9 +43,9 @@
     </div>
 
     <div class="bf-body">
-      <div class="card" style="padding:22px;max-width:720px">
 
-        <!-- CATEGORY SELECTOR -->
+      <!-- ENTRY FORM -->
+      <div class="card" style="padding:22px;max-width:720px">
         <div class="cat-tabs" id="cat-tabs">
           <div class="cat-tab active" data-cat="money">💵 টাকা প্রবাহ</div>
           <div class="cat-tab" data-cat="products">📦 পণ্য</div>
@@ -46,16 +54,9 @@
           <div class="cat-tab" data-cat="adjustment">🔧 সমন্বয়</div>
         </div>
 
-        <!-- FORM: Date > Description > Amount > From > To > Via > Note -->
         <div class="row2">
-          <div class="vf-field">
-            <label>তারিখ *</label>
-            <input type="date" id="f-date"/>
-          </div>
-          <div class="vf-field">
-            <label>পরিমাণ (৳) *</label>
-            <input type="number" id="f-amount" step="0.01" placeholder="0.00"/>
-          </div>
+          <div class="vf-field"><label>তারিখ *</label><input type="date" id="f-date"/></div>
+          <div class="vf-field"><label>পরিমাণ (৳) *</label><input type="number" id="f-amount" step="0.01" placeholder="0.00"/></div>
         </div>
 
         <div class="vf-field">
@@ -65,34 +66,70 @@
         </div>
 
         <div class="row3">
-          <div class="vf-field">
-            <label>থেকে (From) *</label>
-            <select id="f-from"></select>
-          </div>
-          <div class="vf-field">
-            <label>প্রতি (To) *</label>
-            <select id="f-to"></select>
-          </div>
-          <div class="vf-field">
-            <label>মাধ্যমে (Via)</label>
-            <select id="f-via"><option value="">— নেই —</option></select>
-          </div>
+          <div class="vf-field"><label>থেকে (From) *</label><select id="f-from"></select></div>
+          <div class="vf-field"><label>প্রতি (To) *</label><select id="f-to"></select></div>
+          <div class="vf-field"><label>মাধ্যমে (Via)</label><select id="f-via"><option value="">— নেই —</option></select></div>
         </div>
 
-        <div class="vf-field">
-          <label>নোট</label>
-          <input type="text" id="f-note" placeholder="অতিরিক্ত তথ্য (ঐচ্ছিক)"/>
-        </div>
+        <div class="vf-field"><label>নোট</label><input type="text" id="f-note" placeholder="অতিরিক্ত তথ্য (ঐচ্ছিক)"/></div>
 
-        <!-- LIVE PREVIEW (design phase) -->
         <div class="preview" id="f-preview">এন্ট্রির পূর্বরূপ এখানে দেখা যাবে…</div>
 
         <div style="display:flex;gap:10px;margin-top:16px">
           <button class="btn btn-outline" id="f-reset" style="flex:1">রিসেট</button>
           <button class="btn btn-primary" id="f-save" style="flex:2">সেভ করুন</button>
         </div>
-
       </div>
+
+      <!-- REPORT / SAVED TRANSACTIONS -->
+      <div class="card" style="padding:20px;margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <strong style="font-size:15px">সংরক্ষিত লেনদেন (রিপোর্ট)</strong>
+          <div class="no-print" style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" id="r-print">🖨️ প্রিন্ট</button>
+            <button class="btn btn-outline btn-sm" id="r-csv">⬇ CSV</button>
+          </div>
+        </div>
+
+        <div class="report-bar no-print">
+          <div class="vf-field">
+            <label>ক্যাটাগরি</label>
+            <select id="r-cat">
+              <option value="">সব</option>
+              <option value="money">টাকা প্রবাহ</option>
+              <option value="products">পণ্য</option>
+              <option value="claims">ক্লেইম/কমিশন</option>
+              <option value="opening">প্রারম্ভিক</option>
+              <option value="adjustment">সমন্বয়</option>
+            </select>
+          </div>
+          <div class="vf-field">
+            <label>পার্টি (From/To/Via যেকোনো)</label>
+            <select id="r-party"><option value="">সব</option></select>
+          </div>
+          <div class="vf-field"><label>শুরুর তারিখ</label><input type="date" id="r-from"/></div>
+          <div class="vf-field"><label>শেষ তারিখ</label><input type="date" id="r-to"/></div>
+          <button class="btn btn-primary btn-sm" id="r-run">ফিল্টার</button>
+          <button class="btn btn-outline btn-sm" id="r-clear">ক্লিয়ার</button>
+        </div>
+
+        <div style="overflow:auto">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th>তারিখ</th><th>ক্যাটাগরি</th><th>বিবরণ</th>
+                <th>From</th><th>To</th><th>Via</th>
+                <th class="r">পরিমাণ</th><th class="no-print"></th>
+              </tr>
+            </thead>
+            <tbody id="tx-body">
+              <tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:24px">কোনো লেনদেন নেই।</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="tx-total" style="text-align:right;font-weight:700;margin-top:10px;font-size:14px"></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -104,129 +141,165 @@ buildNav('voucher');
 
 let parties = JSON.parse(localStorage.getItem('bf_parties')||'[]');
 let currentCat = 'money';
+const LS_KEY = 'bf_voucher_entries';
 
-/* default descriptions per category (editable + appear in datalist) */
+/* ── store (localStorage, design phase) ── */
+function loadEntries(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'[]'); }catch(e){ return []; } }
+function saveEntries(arr){ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
+
 const DEFAULT_DESC = {
-  money:      ['পেমেন্ট', 'আদায়', 'অগ্রিম', 'ব্যাংক জমা', 'নগদ প্রদান'],
-  products:   ['পণ্য গ্রহণ', 'পণ্য প্রদান', 'গ্রাহকের জন্য বরাদ্দ', 'ফেরত'],
-  claims:     ['কমিশন', 'ইনসেন্টিভ', 'ড্যামেজ ক্লেইম', 'ছাড়'],
-  opening:    ['প্রারম্ভিক ব্যালেন্স'],
-  adjustment: ['সমন্বয়', 'সংশোধন'],
+  money:['পেমেন্ট','আদায়','অগ্রিম','ব্যাংক জমা','নগদ প্রদান'],
+  products:['পণ্য গ্রহণ','পণ্য প্রদান','গ্রাহকের জন্য বরাদ্দ','ফেরত'],
+  claims:['কমিশন','ইনসেন্টিভ','ড্যামেজ ক্লেইম','ছাড়'],
+  opening:['প্রারম্ভিক ব্যালেন্স'],
+  adjustment:['সমন্বয়','সংশোধন'],
 };
+const CAT_LABEL={money:'টাকা প্রবাহ',products:'পণ্য',claims:'ক্লেইম/কমিশন',opening:'প্রারম্ভিক',adjustment:'সমন্বয়'};
 
-/* saved descriptions (persist locally so past entries appear as suggestions) */
 function savedDescs(){ try{ return JSON.parse(localStorage.getItem('bf_desc_history')||'[]'); }catch(e){ return []; } }
-function addSavedDesc(d){
-  if(!d) return;
-  let arr = savedDescs();
-  if(!arr.includes(d)){ arr.unshift(d); arr = arr.slice(0,50); localStorage.setItem('bf_desc_history',JSON.stringify(arr)); }
-}
+function addSavedDesc(d){ if(!d)return; let a=savedDescs(); if(!a.includes(d)){a.unshift(d);a=a.slice(0,50);localStorage.setItem('bf_desc_history',JSON.stringify(a));} }
 
-/* combined party list for From/To/Via: Distributor + suppliers + customers */
 function partyOptions(includeNone){
-  let opts = includeNone ? '<option value="">— নেই —</option>' : '';
-  opts += '<option value="distributor">🏢 ডিস্ট্রিবিউটর (Mustary)</option>';
-  const sup = parties.filter(p=>p.type==='supplier'||p.type==='both');
-  const cust= parties.filter(p=>p.type==='customer'||p.type==='both');
-  if(sup.length){
-    opts += '<optgroup label="সরবরাহকারী">'+sup.map(p=>'<option value="'+p.name+'">'+p.name+'</option>').join('')+'</optgroup>';
-  }
-  if(cust.length){
-    opts += '<optgroup label="গ্রাহক">'+cust.map(p=>'<option value="'+p.name+'">'+p.name+'</option>').join('')+'</optgroup>';
-  }
-  return opts;
+  let o = includeNone?'<option value="">— নেই —</option>':'';
+  o += '<option value="distributor">🏢 ডিস্ট্রিবিউটর (Mustary)</option>';
+  const sup=parties.filter(p=>p.type==='supplier'||p.type==='both');
+  const cust=parties.filter(p=>p.type==='customer'||p.type==='both');
+  if(sup.length) o+='<optgroup label="সরবরাহকারী">'+sup.map(p=>'<option value="'+p.name+'">'+p.name+'</option>').join('')+'</optgroup>';
+  if(cust.length) o+='<optgroup label="গ্রাহক">'+cust.map(p=>'<option value="'+p.name+'">'+p.name+'</option>').join('')+'</optgroup>';
+  return o;
 }
-
 function fillParties(){
-  document.getElementById('f-from').innerHTML = partyOptions(false);
-  document.getElementById('f-to').innerHTML   = partyOptions(false);
-  document.getElementById('f-via').innerHTML  = partyOptions(true);
+  document.getElementById('f-from').innerHTML=partyOptions(false);
+  document.getElementById('f-to').innerHTML=partyOptions(false);
+  document.getElementById('f-via').innerHTML=partyOptions(true);
+  document.getElementById('r-party').innerHTML='<option value="">সব</option>'+partyOptions(false);
 }
-
 function fillDescOptions(){
-  const defs = DEFAULT_DESC[currentCat]||[];
-  const saved = savedDescs();
-  const all = [...new Set([...defs, ...saved])];
-  document.getElementById('desc-options').innerHTML = all.map(d=>'<option value="'+d+'">').join('');
+  const all=[...new Set([...(DEFAULT_DESC[currentCat]||[]),...savedDescs()])];
+  document.getElementById('desc-options').innerHTML=all.map(d=>'<option value="'+d+'">').join('');
 }
-
 function setCategory(cat){
-  currentCat = cat;
-  document.querySelectorAll('.cat-tab').forEach(t=>t.classList.toggle('active', t.dataset.cat===cat));
-  fillDescOptions();
-  updatePreview();
+  currentCat=cat;
+  document.querySelectorAll('.cat-tab').forEach(t=>t.classList.toggle('active',t.dataset.cat===cat));
+  fillDescOptions(); updatePreview();
 }
-
 function updatePreview(){
-  const date = document.getElementById('f-date').value || '—';
-  const amt  = document.getElementById('f-amount').value || '0';
-  const desc = document.getElementById('f-desc').value || '(বিবরণ নেই)';
-  const from = document.getElementById('f-from').value || '?';
-  const to   = document.getElementById('f-to').value || '?';
-  const via  = document.getElementById('f-via').value;
-  const catLabel = {money:'টাকা প্রবাহ',products:'পণ্য',claims:'ক্লেইম/কমিশন',opening:'প্রারম্ভিক',adjustment:'সমন্বয়'}[currentCat];
-  document.getElementById('f-preview').innerHTML =
-    '<strong>['+catLabel+']</strong> '+date+' — '+desc+'<br>'+
-    '৳'+Number(amt).toLocaleString()+' : <strong>'+from+'</strong> → <strong>'+to+'</strong>'+
-    (via?' (via '+via+')':'');
+  const date=document.getElementById('f-date').value||'—';
+  const amt=document.getElementById('f-amount').value||'0';
+  const desc=document.getElementById('f-desc').value||'(বিবরণ নেই)';
+  const from=document.getElementById('f-from').value||'?';
+  const to=document.getElementById('f-to').value||'?';
+  const via=document.getElementById('f-via').value;
+  document.getElementById('f-preview').innerHTML=
+    '<strong>['+CAT_LABEL[currentCat]+']</strong> '+date+' — '+desc+'<br>'+
+    '৳'+Number(amt).toLocaleString()+' : <strong>'+from+'</strong> → <strong>'+to+'</strong>'+(via?' (via '+via+')':'');
 }
-
 function collect(){
   return {
-    category: currentCat,
-    date: document.getElementById('f-date').value,
-    description: document.getElementById('f-desc').value.trim(),
-    amount: parseFloat(document.getElementById('f-amount').value)||0,
-    from: document.getElementById('f-from').value,
-    to:   document.getElementById('f-to').value,
-    via:  document.getElementById('f-via').value,
-    note: document.getElementById('f-note').value.trim(),
+    id:'V'+Date.now(),
+    category:currentCat,
+    date:document.getElementById('f-date').value,
+    description:document.getElementById('f-desc').value.trim(),
+    amount:parseFloat(document.getElementById('f-amount').value)||0,
+    from:document.getElementById('f-from').value,
+    to:document.getElementById('f-to').value,
+    via:document.getElementById('f-via').value,
+    note:document.getElementById('f-note').value.trim(),
+    savedAt:new Date().toISOString(),
   };
 }
-
 function save(){
-  const d = collect();
-  if(!d.date){ toast('তারিখ দিন','error'); return; }
-  if(!d.amount){ toast('পরিমাণ দিন','error'); return; }
-  if(!d.description){ toast('বিবরণ দিন','error'); return; }
-  if(!d.from || !d.to){ toast('From ও To বেছে নিন','error'); return; }
-  if(d.from===d.to){ toast('From ও To একই হতে পারে না','error'); return; }
-
-  addSavedDesc(d.description);
-  fillDescOptions();
-
-  // DESIGN PHASE: no sheet write yet — show the assembled entry for confirmation.
-  toast('ডিজাইন মোড — এন্ট্রি প্রস্তুত (এখনো Sheet-এ সেভ হয়নি)','info');
-  console.log('Voucher entry (design):', d);
-  document.getElementById('f-preview').innerHTML =
-    '<strong>✓ প্রস্তুত এন্ট্রি (ডিজাইন):</strong><br><pre style="white-space:pre-wrap;margin:6px 0 0;font-size:12px">'
-    + JSON.stringify(d,null,2) + '</pre>';
+  const d=collect();
+  if(!d.date){toast('তারিখ দিন','error');return;}
+  if(!d.amount){toast('পরিমাণ দিন','error');return;}
+  if(!d.description){toast('বিবরণ দিন','error');return;}
+  if(!d.from||!d.to){toast('From ও To বেছে নিন','error');return;}
+  if(d.from===d.to){toast('From ও To একই হতে পারে না','error');return;}
+  const arr=loadEntries(); arr.unshift(d); saveEntries(arr);
+  addSavedDesc(d.description); fillDescOptions();
+  toast('সেভ হয়েছে (লোকাল ডিজাইন স্টোর) ✓','success');
+  document.getElementById('f-preview').innerHTML=
+    '<strong>✓ সংরক্ষিত JSON:</strong><br><pre style="white-space:pre-wrap;margin:6px 0 0;font-size:12px">'+JSON.stringify(d,null,2)+'</pre>';
+  reset(); renderReport();
 }
-
 function reset(){
   document.getElementById('f-amount').value='';
   document.getElementById('f-desc').value='';
   document.getElementById('f-note').value='';
   document.getElementById('f-via').value='';
-  updatePreview();
+}
+function delEntry(id){
+  bfConfirm('এই এন্ট্রি মুছবেন?', ()=>{
+    saveEntries(loadEntries().filter(e=>e.id!==id));
+    toast('মুছে ফেলা হয়েছে','success'); renderReport();
+  });
+}
+function currentFilter(){
+  return {
+    cat:document.getElementById('r-cat').value,
+    party:document.getElementById('r-party').value,
+    from:document.getElementById('r-from').value,
+    to:document.getElementById('r-to').value,
+  };
+}
+function filtered(){
+  const f=currentFilter();
+  return loadEntries().filter(e=>{
+    if(f.cat && e.category!==f.cat) return false;
+    if(f.party && e.from!==f.party && e.to!==f.party && e.via!==f.party) return false;
+    if(f.from && (e.date||'')<f.from) return false;
+    if(f.to && (e.date||'')>f.to) return false;
+    return true;
+  });
+}
+function renderReport(){
+  const rows=filtered();
+  const body=document.getElementById('tx-body');
+  if(!rows.length){ body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink3);padding:24px">কোনো লেনদেন নেই।</td></tr>'; document.getElementById('tx-total').textContent=''; return; }
+  body.innerHTML=rows.map(e=>
+    '<tr>'+
+    '<td>'+(e.date||'')+'</td>'+
+    '<td><span class="cat-pill">'+(CAT_LABEL[e.category]||e.category)+'</span></td>'+
+    '<td>'+(e.description||'')+(e.note?'<br><span style="font-size:11px;color:var(--ink3)">'+e.note+'</span>':'')+'</td>'+
+    '<td>'+(e.from||'')+'</td>'+
+    '<td>'+(e.to||'')+'</td>'+
+    '<td style="color:var(--ink3)">'+(e.via||'—')+'</td>'+
+    '<td class="r">'+fmt.currency(e.amount)+'</td>'+
+    '<td class="no-print"><button class="btn btn-danger btn-sm btn-icon" onclick="delEntry(\''+e.id+'\')">🗑️</button></td>'+
+    '</tr>'
+  ).join('');
+  const total=rows.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  document.getElementById('tx-total').textContent='মোট: ৳ '+total.toLocaleString()+'  ('+rows.length+'টি এন্ট্রি)';
+}
+function exportCSV(){
+  const rows=filtered();
+  if(!rows.length){ toast('কোনো ডেটা নেই','error'); return; }
+  const csv='তারিখ,ক্যাটাগরি,বিবরণ,From,To,Via,পরিমাণ,নোট\n'+
+    rows.map(e=>['"'+(e.date||'')+'"','"'+(CAT_LABEL[e.category]||'')+'"','"'+(e.description||'')+'"','"'+(e.from||'')+'"','"'+(e.to||'')+'"','"'+(e.via||'')+'"',e.amount,'"'+(e.note||'')+'"'].join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+csv);
+  a.download='transactions_'+fmt.dateInput()+'.csv'; a.click();
 }
 
 /* events */
-document.getElementById('cat-tabs').addEventListener('click', function(e){
-  const tab=e.target.closest('.cat-tab'); if(tab) setCategory(tab.dataset.cat);
-});
+document.getElementById('cat-tabs').addEventListener('click',function(e){const t=e.target.closest('.cat-tab');if(t)setCategory(t.dataset.cat);});
 ['f-date','f-amount','f-desc','f-from','f-to','f-via'].forEach(function(id){
-  document.getElementById(id).addEventListener('input', updatePreview);
-  document.getElementById(id).addEventListener('change', updatePreview);
+  document.getElementById(id).addEventListener('input',updatePreview);
+  document.getElementById(id).addEventListener('change',updatePreview);
 });
-document.getElementById('f-save').addEventListener('click', save);
-document.getElementById('f-reset').addEventListener('click', reset);
+document.getElementById('f-save').addEventListener('click',save);
+document.getElementById('f-reset').addEventListener('click',reset);
+document.getElementById('r-run').addEventListener('click',renderReport);
+document.getElementById('r-clear').addEventListener('click',function(){
+  document.getElementById('r-cat').value='';document.getElementById('r-party').value='';
+  document.getElementById('r-from').value='';document.getElementById('r-to').value='';renderReport();
+});
+document.getElementById('r-csv').addEventListener('click',exportCSV);
+document.getElementById('r-print').addEventListener('click',function(){window.print();});
 
 /* init */
-document.getElementById('f-date').value = fmt.dateInput();
-fillParties();
-fillDescOptions();
-updatePreview();
+document.getElementById('f-date').value=fmt.dateInput();
+fillParties(); fillDescOptions(); updatePreview(); renderReport();
 if(BF.sheetUrl){
   API.fetch('getParties').then(function(pts){ if(Array.isArray(pts)&&pts.length){ parties=pts; localStorage.setItem('bf_parties',JSON.stringify(pts)); fillParties(); } }).catch(function(){});
 }
