@@ -115,6 +115,11 @@
         <input type="number" id="p-balance" placeholder="0.00" value="0"/>
       </div>
       <div class="field" style="grid-column:1/-1">
+        <label>সরবরাহকারী নেটওয়ার্ক (ঐচ্ছিক)</label>
+        <select id="p-supplier"><option value="">— কোনো সরবরাহকারীর সাথে যুক্ত নয় —</option></select>
+        <p style="font-size:11px;color:var(--ink3);margin-top:3px">এই গ্রাহক কোন সরবরাহকারীর (যেমন Olympic) নেটওয়ার্কের — কমিশন ও সরাসরি লেনদেনের হিসাবের জন্য</p>
+      </div>
+      <div class="field" style="grid-column:1/-1">
         <label>নোট</label>
         <input type="text" id="p-notes" placeholder="অতিরিক্ত তথ্য (ঐচ্ছিক)"/>
       </div>
@@ -208,6 +213,11 @@ function openModal(id = null) {
   document.getElementById('p-area').value    = p?.area    || '';
   document.getElementById('p-balance').value = p?.balance || '0';
   document.getElementById('p-notes').value   = p?.notes   || '';
+  // supplier network dropdown (suppliers + both, excluding the party being edited)
+  const supSel = document.getElementById('p-supplier');
+  const sups = parties.filter(x => (x.type==='supplier'||x.type==='both') && x.id !== id);
+  supSel.innerHTML = '<option value="">— কোনো সরবরাহকারীর সাথে যুক্ত নয় —</option>'
+    + sups.map(s => `<option value="${s.id}" ${p?.linkedSupplierId===s.id?'selected':''}>${s.name}${s.area?' — '+s.area:''}</option>`).join('');
   document.getElementById('party-modal').classList.add('open');
   setTimeout(() => document.getElementById('p-name').focus(), 100);
 }
@@ -234,6 +244,7 @@ async function saveParty() {
     area:    document.getElementById('p-area').value.trim(),
     balance: parseFloat(document.getElementById('p-balance').value) || 0,
     notes:   document.getElementById('p-notes').value.trim(),
+    linkedSupplierId: document.getElementById('p-supplier').value || '',
     updated: new Date().toISOString(),
   };
 
