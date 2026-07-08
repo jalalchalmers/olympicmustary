@@ -31,6 +31,9 @@
 
     #order-items-container.mode-ctn .order-item-row,.items-hdr.mode-ctn{grid-template-columns:2.4fr .8fr .8fr .8fr 1fr 1fr 1fr 34px}
     #order-items-container.mode-mix .order-item-row,.items-hdr.mode-mix{grid-template-columns:2.2fr .7fr .65fr .65fr .65fr .65fr .9fr 1fr 1fr 32px}
+    /* purchase mode: one extra "কার জন্য" column */
+    #order-items-container.po-attr.mode-ctn .order-item-row,.items-hdr.po-attr.mode-ctn{grid-template-columns:2.2fr .75fr .75fr .75fr .95fr .95fr .95fr 1.15fr 34px}
+    #order-items-container.po-attr.mode-mix .order-item-row,.items-hdr.po-attr.mode-mix{grid-template-columns:2fr .65fr .6fr .6fr .6fr .6fr .85fr .95fr .95fr 1.1fr 32px}
     .items-hdr{display:grid;gap:6px;padding:0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ink3);margin-bottom:6px}
     .items-hdr span{display:flex;align-items:center}
     @media(max-width:820px){
@@ -268,6 +271,10 @@
           <div class="items-hdr" id="items-hdr"></div>
           <div id="order-items-container" class="mode-mix"></div>
           <button class="btn btn-outline btn-sm" id="btn-add-item" style="margin-top:8px">+ পণ্য যোগ করুন</button>
+          <div id="po-breakdown" class="no-print" style="display:none;margin-top:14px;background:var(--bg2);border:1px dashed var(--border2);border-radius:10px;padding:12px 14px">
+            <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px">🧩 গ্রাহক অনুযায়ী বণ্টন (এই PO-তে কার জন্য কত টাকার পণ্য)</div>
+            <div id="po-breakdown-body" style="font-size:13px"></div>
+          </div>
         </div>
 
         <!-- PAYMENT SUMMARY (full width) -->
@@ -394,11 +401,14 @@ let cartonMode=false;
 
 function renderItemsHeader(){
   const hdr=document.getElementById('items-hdr');
-  hdr.className='items-hdr '+(cartonMode?'mode-ctn':'mode-mix');
+  const poAttr=(currentType==='purchase');
+  hdr.className='items-hdr '+(cartonMode?'mode-ctn':'mode-mix')+(poAttr?' po-attr':'');
+  document.getElementById('order-items-container').classList.toggle('po-attr',poAttr);
+  const fp=poAttr?'<span>কার জন্য</span>':'';
   if(cartonMode){
-    hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">ফ্রি কার্টন</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span><span></span>`;
+    hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">ফ্রি কার্টন</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span>${fp}<span></span>`;
   }else{
-    hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">পিস</span><span style="justify-content:flex-end">ফ্রি কা.</span><span style="justify-content:flex-end">ফ্রি পিস</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span><span></span>`;
+    hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">পিস</span><span style="justify-content:flex-end">ফ্রি কা.</span><span style="justify-content:flex-end">ফ্রি পিস</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span>${fp}<span></span>`;
   }
 }
 
@@ -436,6 +446,7 @@ function showForm(orderId=null){
 }
 
 function initNewForm(){
+  applyCartonMode();
   document.getElementById('f-date').value=fmt.dateInput();
   document.getElementById('f-order-id').value=generateOrderId();
   document.getElementById('form-title').textContent=`নতুন ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার`;
@@ -502,7 +513,7 @@ function setPrevDue(amount){
 }
 function getPrevDue(){return parseFloat(document.getElementById('f-prev-due-sum').textContent.replace(/[^\d.-]/g,''))||0;}
 
-function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',productId='',savedPrice=''){
+function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',productId='',savedPrice='',forPartyId=''){
   itemCount++;
   const row=document.createElement('div');
   row.className='order-item-row';
@@ -539,6 +550,7 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
     <div class="oi-cell oi-cell-total"><span class="oi-lbl">মোট পরিমাণ</span><input type="text" class="oi-totalqty" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-price"><span class="oi-lbl">কার্টন মূল্য</span><input type="text" class="oi-price" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-amount"><span class="oi-lbl">পরিমাণ (৳)</span><input type="number" class="oi-total" readonly value="" style="text-align:right"/></div>
+    ${currentType==='purchase'?`<div class="oi-cell oi-cell-forparty no-print" style="min-width:130px"><span class="oi-lbl">কার জন্য</span><select class="oi-forparty"><option value="">মুস্তারী (নিজ)</option>${parties.filter(p=>p.type==='customer'||p.type==='both').map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>`:''}
     <button class="oi-del no-print" onclick="removeItem(this)" title="বাদ দিন">×</button>`;
   const ps=row.querySelector('.oi-product');
   if(productId){const p=products.find(x=>x.id===productId);if(p)row.querySelector('.oi-code').value=p.code||code||'';}
@@ -548,6 +560,8 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
   row.querySelector('.oi-freectn').addEventListener('input',()=>recalcRow(row));
   row.querySelector('.oi-freepcs').addEventListener('input',()=>recalcRow(row));
   row.querySelector('.oi-code').addEventListener('input',buildPrintInvoice);
+  const fpSel=row.querySelector('.oi-forparty');
+  if(fpSel){ if(forPartyId)fpSel.value=forPartyId; fpSel.addEventListener('change',updatePOBreakdown); }
   document.getElementById('order-items-container').appendChild(row);
   recalcRow(row);
 }
@@ -742,7 +756,30 @@ function recalcRow(row){
   recalc();
 }
 
+function updatePOBreakdown(){
+  const box=document.getElementById('po-breakdown');
+  if(!box)return;
+  if(currentType!=='purchase'){box.style.display='none';return;}
+  const groups={};let any=false;
+  document.querySelectorAll('.order-item-row').forEach(row=>{
+    const amt=parseFloat(row.querySelector('.oi-total')?.value)||0;
+    if(amt<=0)return;
+    const sel=row.querySelector('.oi-forparty');
+    const key=(sel&&sel.value)?sel.selectedOptions[0].textContent:'মুস্তারী (নিজ)';
+    if(sel&&sel.value)any=true;
+    groups[key]=(groups[key]||0)+amt;
+  });
+  if(!any){box.style.display='none';return;}
+  box.style.display='';
+  const total=Object.values(groups).reduce((s,v)=>s+v,0);
+  document.getElementById('po-breakdown-body').innerHTML=
+    Object.entries(groups).sort((a,b)=>b[1]-a[1])
+      .map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border)"><span>${k}</span><strong>${fmt.currency(v)}</strong></div>`).join('')
+    +`<div style="display:flex;justify-content:space-between;padding:5px 0 0;font-weight:700"><span>মোট</span><span>${fmt.currency(total)}</span></div>`;
+}
+
 function recalc(){
+  updatePOBreakdown();
   let subtotal=0;document.querySelectorAll('.oi-total').forEach(el=>subtotal+=parseFloat(el.value)||0);
   const discount=parseFloat(document.getElementById('f-discount').value)||0;
   const grand=Math.max(0,subtotal-discount);
@@ -868,7 +905,7 @@ function collectFormData(){
     const ps=row.querySelector('.oi-product');
     const qtyPieces=parseFloat(row.dataset.qtyPieces)||0;
     if(qtyPieces<=0)return;
-    items.push({productId:ps.value,productName:ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'',code:row.querySelector('.oi-code').value,qtyCtn:parseFloat(row.querySelector('.oi-qtyctn').value)||0,qtyPcs:parseFloat(row.querySelector('.oi-qtypcs').value)||0,freeCtn:parseFloat(row.querySelector('.oi-freectn').value)||0,freePcs:parseFloat(row.querySelector('.oi-freepcs').value)||0,qtyPieces,freePieces:parseFloat(row.dataset.freePieces)||0,totalPieces:parseFloat(row.dataset.totalPieces)||0,cartonSize:parseFloat(row.dataset.cSize)||0,usedPrice:parseFloat(row.dataset.usedPrice)||0,qty:qtyPieces,price:parseFloat(row.dataset.usedPrice)||0,total:parseFloat(row.querySelector('.oi-total').value)||0});
+    items.push({productId:ps.value,productName:ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'',code:row.querySelector('.oi-code').value,qtyCtn:parseFloat(row.querySelector('.oi-qtyctn').value)||0,qtyPcs:parseFloat(row.querySelector('.oi-qtypcs').value)||0,freeCtn:parseFloat(row.querySelector('.oi-freectn').value)||0,freePcs:parseFloat(row.querySelector('.oi-freepcs').value)||0,qtyPieces,freePieces:parseFloat(row.dataset.freePieces)||0,totalPieces:parseFloat(row.dataset.totalPieces)||0,cartonSize:parseFloat(row.dataset.cSize)||0,usedPrice:parseFloat(row.dataset.usedPrice)||0,qty:qtyPieces,price:parseFloat(row.dataset.usedPrice)||0,total:parseFloat(row.querySelector('.oi-total').value)||0,forPartyId:(row.querySelector('.oi-forparty')?.value)||'',forPartyName:(row.querySelector('.oi-forparty')?.selectedOptions?.[0]?.textContent&&row.querySelector('.oi-forparty').value)?row.querySelector('.oi-forparty').selectedOptions[0].textContent:''});
   });
   const subtotal=items.reduce((s,i)=>s+i.total,0);
   const discount=parseFloat(document.getElementById('f-discount').value)||0;
@@ -971,7 +1008,7 @@ function populateForm(o){
   document.getElementById('pay-mobile').checked=(o.paymentMode||'').includes('মোবাইল');
   populatePartyDropdown(o.partyId);
   setPrevDue(o.prevDue||0);
-  JSON.parse(o.items||'[]').forEach(it=>addOrderItem(it.productName,it.code,it.qtyCtn,it.qtyPcs,it.freeCtn,it.freePcs,it.productId,(it.usedPrice!==undefined?it.usedPrice:(it.price!==undefined?it.price:''))));
+  JSON.parse(o.items||'[]').forEach(it=>addOrderItem(it.productName,it.code,it.qtyCtn,it.qtyPcs,it.freeCtn,it.freePcs,it.productId,(it.usedPrice!==undefined?it.usedPrice:(it.price!==undefined?it.price:'')),it.forPartyId||''));
   recalc();buildPrintInvoice();
 }
 
