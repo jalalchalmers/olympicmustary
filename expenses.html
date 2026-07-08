@@ -309,6 +309,9 @@ async function save(){
 }
 
 function del(id){
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_cashflow')==='off')){
+    toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
+  }
   const f=flows.find(x=>x.id===id); if(!f) return;
   bfConfirm(`${f.type==='income'?'আয়':'ব্যয়'} — "${f.category}" ${fmt.currency(f.amount)} মুছে দেবেন?`, async ()=>{
     flows=flows.filter(x=>x.id!==id);
