@@ -11,13 +11,15 @@
       border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;
       font-family:inherit;font-size:14px;color:var(--ink);outline:none;background:#fff}
     .vf-field input:focus,.vf-field select:focus{border-color:var(--accent)}
-    .vf-hide{display:none!important}
-    .vf-balance{font-size:13px;padding:8px 12px;border-radius:8px;background:var(--bg);
-      border:1px solid var(--border);color:var(--ink2)}
-    .tpl-desc{font-size:12px;color:var(--ink3);margin:-6px 0 12px;line-height:1.4}
-    .txn-badge{font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600}
-    .b-in{background:#dcfce7;color:#15803d}.b-out{background:#fee2e2;color:#dc2626}
-    @media print{.bf-nav,.bf-topbar,.no-print{display:none!important}.bf-main{margin-left:0}}
+    .cat-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+    .cat-tab{padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+      font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;transition:.15s}
+    .cat-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+    .preview{background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:12px 14px;
+      font-size:13px;color:var(--ink2);margin-top:6px;line-height:1.6}
+    @media (max-width:640px){.row2,.row3{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -28,115 +30,66 @@
     <div class="bf-topbar">
       <div style="display:flex;align-items:center;gap:12px">
         <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
-        <span class="bf-page-title">লেনদেন এন্ট্রি (Voucher)</span>
+        <span class="bf-page-title">লেনদেন এন্ট্রি</span>
       </div>
     </div>
 
     <div class="bf-body">
-      <div style="display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:20px;align-items:start">
+      <div class="card" style="padding:22px;max-width:720px">
 
-        <!-- ── INPUT FORM ── -->
-        <div class="card" style="padding:20px">
+        <!-- CATEGORY SELECTOR -->
+        <div class="cat-tabs" id="cat-tabs">
+          <div class="cat-tab active" data-cat="money">💵 টাকা প্রবাহ</div>
+          <div class="cat-tab" data-cat="products">📦 পণ্য</div>
+          <div class="cat-tab" data-cat="claims">🎁 ক্লেইম / কমিশন</div>
+          <div class="cat-tab" data-cat="opening">🏦 প্রারম্ভিক ব্যালেন্স</div>
+          <div class="cat-tab" data-cat="adjustment">🔧 সমন্বয়</div>
+        </div>
+
+        <!-- FORM: Date > Description > Amount > From > To > Via > Note -->
+        <div class="row2">
           <div class="vf-field">
-            <label>টেমপ্লেট *</label>
-            <select id="v-template">
-              <optgroup label="টাকা">
-                <option value="pay-supplier">সরবরাহকারীকে পেমেন্ট</option>
-                <option value="receive-customer">গ্রাহক থেকে আদায়</option>
-                <option value="customer-pays-supplier">গ্রাহক সরাসরি সরবরাহকারীকে পেমেন্ট</option>
-              </optgroup>
-              <optgroup label="পণ্য">
-                <option value="allocate-customer">সরবরাহকারীর পণ্য গ্রাহকের জন্য (বরাদ্দ)</option>
-                <option value="deliver-customer">গ্রাহককে পণ্য প্রদান (ইনভয়েস ছাড়া)</option>
-                <option value="goods-in-adj">পণ্য গ্রহণ সমন্বয় (PO ছাড়া)</option>
-              </optgroup>
-              <optgroup label="কমিশন / ইনসেন্টিভ">
-                <option value="commission">কমিশন</option>
-                <option value="incentive">ইনসেন্টিভ</option>
-              </optgroup>
-              <optgroup label="ডিস্ট্রিবিউটর হিসাব">
-                <option value="expense">ব্যয় (Expense)</option>
-                <option value="withdrawal">উত্তোলন (Withdrawal)</option>
-                <option value="capital">বিনিয়োগ (Capital)</option>
-              </optgroup>
-              <optgroup label="অন্যান্য">
-                <option value="opening">প্রারম্ভিক ব্যালেন্স</option>
-                <option value="adjustment">ম্যানুয়াল সমন্বয়</option>
-              </optgroup>
-            </select>
-          </div>
-          <div class="tpl-desc" id="v-tpl-desc"></div>
-
-          <div class="vf-field" id="wrap-date">
             <label>তারিখ *</label>
-            <input type="date" id="v-date"/>
+            <input type="date" id="f-date"/>
           </div>
-
-          <div class="vf-field" id="wrap-supplier">
-            <label>সরবরাহকারী *</label>
-            <select id="v-supplier"></select>
-          </div>
-
-          <div class="vf-field" id="wrap-customer">
-            <label>গ্রাহক *</label>
-            <select id="v-customer"></select>
-          </div>
-
-          <!-- commission mode -->
-          <div class="vf-field vf-hide" id="wrap-commode">
-            <label>কমিশন মোড</label>
-            <select id="v-commode">
-              <option value="percent">শতকরা (মাসিক বিক্রয়ের উপর)</option>
-              <option value="manual">ম্যানুয়াল</option>
-            </select>
-          </div>
-          <div class="vf-field vf-hide" id="wrap-month">
-            <label>মাস (কমিশনের জন্য)</label>
-            <input type="month" id="v-month"/>
-            <div class="vf-balance" id="v-monthsales">মোট বিক্রয়: ৳ —</div>
-          </div>
-          <div class="vf-field vf-hide" id="wrap-percent">
-            <label>শতকরা (%)</label>
-            <input type="number" id="v-percent" step="0.01" placeholder="যেমন: 3"/>
-          </div>
-
-          <div class="vf-field" id="wrap-amount">
-            <label>পরিমাণ (৳) *</label>
-            <input type="number" id="v-amount" step="0.01" placeholder="0.00"/>
-          </div>
-
           <div class="vf-field">
-            <label>নোট</label>
-            <input type="text" id="v-note" placeholder="বিবরণ (ঐচ্ছিক)"/>
-          </div>
-
-          <div class="vf-balance no-print" id="v-prevbal" style="margin-bottom:14px">পূর্ববর্তী ব্যালেন্স: ৳ —</div>
-
-          <div style="display:flex;gap:10px">
-            <button class="btn btn-outline" id="v-reset" style="flex:1">রিসেট</button>
-            <button class="btn btn-primary" id="v-save" style="flex:2">সেভ করুন</button>
+            <label>পরিমাণ (৳) *</label>
+            <input type="number" id="f-amount" step="0.01" placeholder="0.00"/>
           </div>
         </div>
 
-        <!-- ── RECENT TRANSACTIONS ── -->
-        <div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-            <strong style="font-size:14px">সাম্প্রতিক লেনদেন</strong>
-            <button class="btn btn-outline btn-sm" id="v-refresh">🔄 রিফ্রেশ</button>
+        <div class="vf-field">
+          <label>বিবরণ *</label>
+          <input type="text" id="f-desc" list="desc-options" placeholder="বিবরণ লিখুন বা বেছে নিন"/>
+          <datalist id="desc-options"></datalist>
+        </div>
+
+        <div class="row3">
+          <div class="vf-field">
+            <label>থেকে (From) *</label>
+            <select id="f-from"></select>
           </div>
-          <div class="table-wrap" style="max-height:70vh;overflow:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th>তারিখ</th><th>ধরন</th><th>পার্টি</th><th>গ্রাহক রেফ</th>
-                  <th style="text-align:right">পরিমাণ</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="v-txn-body">
-                <tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">লোড হচ্ছে…</td></tr>
-              </tbody>
-            </table>
+          <div class="vf-field">
+            <label>প্রতি (To) *</label>
+            <select id="f-to"></select>
           </div>
+          <div class="vf-field">
+            <label>মাধ্যমে (Via)</label>
+            <select id="f-via"><option value="">— নেই —</option></select>
+          </div>
+        </div>
+
+        <div class="vf-field">
+          <label>নোট</label>
+          <input type="text" id="f-note" placeholder="অতিরিক্ত তথ্য (ঐচ্ছিক)"/>
+        </div>
+
+        <!-- LIVE PREVIEW (design phase) -->
+        <div class="preview" id="f-preview">এন্ট্রির পূর্বরূপ এখানে দেখা যাবে…</div>
+
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn btn-outline" id="f-reset" style="flex:1">রিসেট</button>
+          <button class="btn btn-primary" id="f-save" style="flex:2">সেভ করুন</button>
         </div>
 
       </div>
@@ -150,204 +103,132 @@
 buildNav('voucher');
 
 let parties = JSON.parse(localStorage.getItem('bf_parties')||'[]');
-let editingTxnId = null;
+let currentCat = 'money';
 
-/* template config: which fields show, the txn type, party mapping, sign */
-const TEMPLATES = {
-  'pay-supplier':          {desc:'ডিস্ট্রিবিউটর সরবরাহকারীকে টাকা দেয়। (দায় কমে +)', fields:['supplier','amount'], type:'payment', sign:+1, party:'supplier', cp:'distributor'},
-  'receive-customer':      {desc:'গ্রাহক থেকে টাকা আদায়। (গ্রাহকের বকেয়া কমে −)', fields:['customer','amount'], type:'receipt', sign:-1, party:'customer', cp:'distributor'},
-  'customer-pays-supplier':{desc:'গ্রাহক সরাসরি সরবরাহকারীকে টাকা দেয় (ডিস্ট্রিবিউটর রেকর্ড করে)।', fields:['supplier','customer','amount'], type:'payment', sign:+1, party:'customer', cp:'supplier'},
-  'allocate-customer':     {desc:'সরবরাহকারীর পণ্যের অংশ নির্দিষ্ট গ্রাহকের জন্য বরাদ্দ। (ডিস্ট্রিবিউটর গ্রাহকের পণ্য ধরে রাখে −)', fields:['supplier','customer','amount'], type:'allocation', sign:-1, party:'distributor', cp:'customer'},
-  'deliver-customer':      {desc:'ইনভয়েস ছাড়া গ্রাহককে পণ্য প্রদান। (গ্রাহকের দায় বাড়ে +)', fields:['customer','amount'], type:'goods-out', sign:+1, party:'distributor', cp:'customer'},
-  'goods-in-adj':          {desc:'PO ছাড়া পণ্য গ্রহণ সমন্বয়। (দায় বাড়ে −)', fields:['supplier','amount'], type:'goods-in', sign:-1, party:'supplier', cp:'distributor'},
-  'commission':            {desc:'সরবরাহকারী থেকে কমিশন (ডিস্ট্রিবিউটর আয়)।', fields:['supplier','commode','amount'], type:'commission', sign:+1, party:'supplier', cp:'distributor'},
-  'incentive':             {desc:'ইনসেন্টিভ — নিজের বা গ্রাহকের জন্য।', fields:['supplier','customer','amount'], type:'incentive', sign:+1, party:'supplier', cp:'distributor'},
-  'expense':               {desc:'ব্যবসার ব্যয়।', fields:['amount'], type:'expense', sign:-1, party:'', cp:'distributor'},
-  'withdrawal':            {desc:'মালিক টাকা উত্তোলন করেন।', fields:['amount'], type:'withdrawal', sign:-1, party:'', cp:'distributor'},
-  'capital':               {desc:'মালিক টাকা বিনিয়োগ করেন।', fields:['amount'], type:'capital', sign:+1, party:'', cp:'distributor'},
-  'opening':               {desc:'পার্টির প্রারম্ভিক ব্যালেন্স।', fields:['anyparty','amount'], type:'opening', sign:+1, party:'any', cp:'distributor'},
-  'adjustment':            {desc:'ম্যানুয়াল সমন্বয়।', fields:['anyparty','customer','amount'], type:'adjustment', sign:+1, party:'any', cp:'distributor'},
+/* default descriptions per category (editable + appear in datalist) */
+const DEFAULT_DESC = {
+  money:      ['পেমেন্ট', 'আদায়', 'অগ্রিম', 'ব্যাংক জমা', 'নগদ প্রদান'],
+  products:   ['পণ্য গ্রহণ', 'পণ্য প্রদান', 'গ্রাহকের জন্য বরাদ্দ', 'ফেরত'],
+  claims:     ['কমিশন', 'ইনসেন্টিভ', 'ড্যামেজ ক্লেইম', 'ছাড়'],
+  opening:    ['প্রারম্ভিক ব্যালেন্স'],
+  adjustment: ['সমন্বয়', 'সংশোধন'],
 };
 
-function fillParties(){
+/* saved descriptions (persist locally so past entries appear as suggestions) */
+function savedDescs(){ try{ return JSON.parse(localStorage.getItem('bf_desc_history')||'[]'); }catch(e){ return []; } }
+function addSavedDesc(d){
+  if(!d) return;
+  let arr = savedDescs();
+  if(!arr.includes(d)){ arr.unshift(d); arr = arr.slice(0,50); localStorage.setItem('bf_desc_history',JSON.stringify(arr)); }
+}
+
+/* combined party list for From/To/Via: Distributor + suppliers + customers */
+function partyOptions(includeNone){
+  let opts = includeNone ? '<option value="">— নেই —</option>' : '';
+  opts += '<option value="distributor">🏢 ডিস্ট্রিবিউটর (Mustary)</option>';
   const sup = parties.filter(p=>p.type==='supplier'||p.type==='both');
   const cust= parties.filter(p=>p.type==='customer'||p.type==='both');
-  const all = parties;
-  const opt = p=>`<option value="${p.id}" data-name="${p.name}">${p.name}</option>`;
-  document.getElementById('v-supplier').innerHTML = sup.length?sup.map(opt).join(''):'<option value="">— সরবরাহকারী নেই —</option>';
-  document.getElementById('v-customer').innerHTML = cust.length?cust.map(opt).join(''):'<option value="">— গ্রাহক নেই —</option>';
-}
-
-function applyTemplate(){
-  const key = document.getElementById('v-template').value;
-  const t = TEMPLATES[key];
-  document.getElementById('v-tpl-desc').textContent = t.desc;
-  // hide all optional wraps, then show needed
-  ['supplier','customer','commode','month','percent'].forEach(f=>{
-    document.getElementById('wrap-'+f).classList.add('vf-hide');
-  });
-  const show = f=>document.getElementById('wrap-'+f).classList.remove('vf-hide');
-  const f = t.fields;
-  if(f.includes('supplier')||f.includes('anyparty')) show('supplier');
-  if(f.includes('customer')) show('customer');
-  if(f.includes('commode')) { show('commode'); toggleCommode(); }
-  // for anyparty (opening/adjustment) relabel supplier dropdown to all parties
-  const supSel = document.getElementById('v-supplier');
-  if(f.includes('anyparty')){
-    supSel.innerHTML = parties.map(p=>`<option value="${p.id}" data-name="${p.name}">${p.name} (${p.type})</option>`).join('');
-    document.querySelector('#wrap-supplier label').textContent='পার্টি *';
-  } else {
-    document.querySelector('#wrap-supplier label').textContent='সরবরাহকারী *';
-    fillParties();
+  if(sup.length){
+    opts += '<optgroup label="সরবরাহকারী">'+sup.map(p=>'<option value="'+p.name+'">'+p.name+'</option>').join('')+'</optgroup>';
   }
-  updatePrevBalance();
+  if(cust.length){
+    opts += '<optgroup label="গ্রাহক">'+cust.map(p=>'<option value="'+p.name+'">'+p.name+'</option>').join('')+'</optgroup>';
+  }
+  return opts;
 }
 
-function toggleCommode(){
-  const mode = document.getElementById('v-commode').value;
-  document.getElementById('wrap-month').classList.toggle('vf-hide', mode!=='percent');
-  document.getElementById('wrap-percent').classList.toggle('vf-hide', mode!=='percent');
-  const amtInput = document.getElementById('v-amount');
-  amtInput.readOnly = (mode==='percent');
-  if(mode==='percent') computeCommission();
-  else amtInput.readOnly=false;
+function fillParties(){
+  document.getElementById('f-from').innerHTML = partyOptions(false);
+  document.getElementById('f-to').innerHTML   = partyOptions(false);
+  document.getElementById('f-via').innerHTML  = partyOptions(true);
 }
 
-async function computeCommission(){
-  const month = document.getElementById('v-month').value; // YYYY-MM
-  const pct = parseFloat(document.getElementById('v-percent').value)||0;
-  if(!month){ return; }
-  // monthly sales = SUM of sales grandTotal in that month (from cached orders)
-  const orders = JSON.parse(localStorage.getItem('bf_orders')||'[]');
-  let total=0;
-  orders.filter(o=>o.orderType==='sales').forEach(o=>{
-    const d=String(o.date||'').slice(0,7); // YYYY-MM
-    if(d===month) total += parseFloat(o.grandTotal)||0;
-  });
-  document.getElementById('v-monthsales').textContent = 'মোট বিক্রয়: ৳ '+total.toLocaleString();
-  const comm = total*pct/100;
-  document.getElementById('v-amount').value = comm.toFixed(2);
+function fillDescOptions(){
+  const defs = DEFAULT_DESC[currentCat]||[];
+  const saved = savedDescs();
+  const all = [...new Set([...defs, ...saved])];
+  document.getElementById('desc-options').innerHTML = all.map(d=>'<option value="'+d+'">').join('');
 }
 
-async function updatePrevBalance(){
-  const el = document.getElementById('v-prevbal');
-  const key = document.getElementById('v-template').value;
-  const t = TEMPLATES[key];
-  let partyId='';
-  if(t.fields.includes('supplier')||t.fields.includes('anyparty')) partyId=document.getElementById('v-supplier').value;
-  else if(t.fields.includes('customer')) partyId=document.getElementById('v-customer').value;
-  if(!partyId||!BF.sheetUrl){ el.textContent='পূর্ববর্তী ব্যালেন্স: ৳ —'; return; }
-  el.textContent='পূর্ববর্তী ব্যালেন্স: লোড হচ্ছে…';
-  try{
-    const r=await API.fetch('partyBalance',{party:partyId});
-    const b=r&&typeof r.balance==='number'?r.balance:0;
-    el.textContent='পূর্ববর্তী ব্যালেন্স: ৳ '+b.toLocaleString()+(b<0?' (দিতে হবে)':b>0?' (পাওনা)':'');
-    el.style.color = b<0?'var(--danger)':b>0?'var(--success)':'var(--ink2)';
-  }catch(e){ el.textContent='পূর্ববর্তী ব্যালেন্স: ৳ —'; }
+function setCategory(cat){
+  currentCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(t=>t.classList.toggle('active', t.dataset.cat===cat));
+  fillDescOptions();
+  updatePreview();
 }
 
-async function saveVoucher(){
-  const key = document.getElementById('v-template').value;
-  const t = TEMPLATES[key];
-  const date = document.getElementById('v-date').value;
-  const amount = parseFloat(document.getElementById('v-amount').value)||0;
-  if(!date){ toast('তারিখ দিন','error'); return; }
-  if(!amount){ toast('পরিমাণ দিন','error'); return; }
+function updatePreview(){
+  const date = document.getElementById('f-date').value || '—';
+  const amt  = document.getElementById('f-amount').value || '0';
+  const desc = document.getElementById('f-desc').value || '(বিবরণ নেই)';
+  const from = document.getElementById('f-from').value || '?';
+  const to   = document.getElementById('f-to').value || '?';
+  const via  = document.getElementById('f-via').value;
+  const catLabel = {money:'টাকা প্রবাহ',products:'পণ্য',claims:'ক্লেইম/কমিশন',opening:'প্রারম্ভিক',adjustment:'সমন্বয়'}[currentCat];
+  document.getElementById('f-preview').innerHTML =
+    '<strong>['+catLabel+']</strong> '+date+' — '+desc+'<br>'+
+    '৳'+Number(amt).toLocaleString()+' : <strong>'+from+'</strong> → <strong>'+to+'</strong>'+
+    (via?' (via '+via+')':'');
+}
 
-  // resolve parties
-  const supSel=document.getElementById('v-supplier');
-  const custSel=document.getElementById('v-customer');
-  const supId=supSel.value, supName=supSel.selectedOptions[0]?.dataset.name||'';
-  const custId=custSel.value, custName=custSel.selectedOptions[0]?.dataset.name||'';
-
-  // map party/counterparty/refCustomer per template
-  let party='', counterparty='distributor', refCustomer='';
-  if(t.party==='supplier'){ party=supName||supId; }
-  else if(t.party==='customer'){ party=custName||custId; }
-  else if(t.party==='distributor'){ party='distributor'; }
-  else if(t.party==='any'){ party=supName||supId; }
-  if(t.cp==='supplier') counterparty=supName||supId;
-  else if(t.cp==='customer') counterparty=custName||custId;
-  if(t.fields.includes('customer')) refCustomer=custName||custId;
-  // customer-pays-supplier: refCustomer is the customer, party=customer, cp=supplier
-  if(key==='customer-pays-supplier'){ party=custName||custId; counterparty=supName||supId; refCustomer=custName||custId; }
-
-  const signedAmount = amount * t.sign;
-  const payload = {
-    action:'saveTxn',
-    txnId: editingTxnId||undefined,
-    date, type:t.type, party, counterparty, refCustomer,
-    amount: signedAmount, linkedType:'manual',
-    note: document.getElementById('v-note').value.trim(),
-    actor:(BF.session&&BF.session.role)||''
+function collect(){
+  return {
+    category: currentCat,
+    date: document.getElementById('f-date').value,
+    description: document.getElementById('f-desc').value.trim(),
+    amount: parseFloat(document.getElementById('f-amount').value)||0,
+    from: document.getElementById('f-from').value,
+    to:   document.getElementById('f-to').value,
+    via:  document.getElementById('f-via').value,
+    note: document.getElementById('f-note').value.trim(),
   };
-  const btn=document.getElementById('v-save'); spinBtn(btn,true);
-  try{
-    await API.post(payload);
-    toast(editingTxnId?'লেনদেন আপডেট হয়েছে ✓':'লেনদেন সেভ হয়েছে ✓','success');
-    editingTxnId=null;
-    document.getElementById('v-amount').value='';
-    document.getElementById('v-note').value='';
-    loadTxns();
-    updatePrevBalance();
-  }catch(e){ toast('সেভ ব্যর্থ — আবার চেষ্টা করুন','error'); }
-  spinBtn(btn,false);
 }
 
-const TYPE_LABEL={payment:'পেমেন্ট',receipt:'আদায়','goods-in':'পণ্য গ্রহণ','goods-out':'পণ্য প্রদান',allocation:'বরাদ্দ',commission:'কমিশন',incentive:'ইনসেন্টিভ',expense:'ব্যয়',withdrawal:'উত্তোলন',capital:'বিনিয়োগ',opening:'প্রারম্ভিক',adjustment:'সমন্বয়'};
+function save(){
+  const d = collect();
+  if(!d.date){ toast('তারিখ দিন','error'); return; }
+  if(!d.amount){ toast('পরিমাণ দিন','error'); return; }
+  if(!d.description){ toast('বিবরণ দিন','error'); return; }
+  if(!d.from || !d.to){ toast('From ও To বেছে নিন','error'); return; }
+  if(d.from===d.to){ toast('From ও To একই হতে পারে না','error'); return; }
 
-async function loadTxns(){
-  const body=document.getElementById('v-txn-body');
-  if(!BF.sheetUrl){ body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">Sheet সংযোগ নেই।</td></tr>'; return; }
-  try{
-    const rows=await API.fetch('getTransactions',{filter:{}});
-    if(!Array.isArray(rows)||!rows.length){ body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:30px">কোনো লেনদেন নেই।</td></tr>'; return; }
-    rows.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-    body.innerHTML=rows.slice(0,100).map(t=>{
-      const amt=parseFloat(t.amount)||0;
-      return `<tr>
-        <td style="font-size:12px">${String(t.date||'').slice(0,10)}</td>
-        <td><span class="txn-badge ${amt>=0?'b-in':'b-out'}">${TYPE_LABEL[t.type]||t.type}</span></td>
-        <td style="font-size:12px">${t.party||'—'}${t.counterparty&&t.counterparty!=='distributor'?' → '+t.counterparty:''}</td>
-        <td style="font-size:12px;color:var(--ink3)">${t.refCustomer||'—'}</td>
-        <td style="text-align:right;font-weight:600;color:${amt<0?'var(--danger)':'var(--success)'}">${fmt.currency(amt)}</td>
-        <td><button class="btn btn-danger btn-sm btn-icon" onclick="delTxn('${t.txnId}')" title="মুছুন">🗑️</button></td>
-      </tr>`;
-    }).join('');
-  }catch(e){ body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:30px">লোড ব্যর্থ।</td></tr>'; }
+  addSavedDesc(d.description);
+  fillDescOptions();
+
+  // DESIGN PHASE: no sheet write yet — show the assembled entry for confirmation.
+  toast('ডিজাইন মোড — এন্ট্রি প্রস্তুত (এখনো Sheet-এ সেভ হয়নি)','info');
+  console.log('Voucher entry (design):', d);
+  document.getElementById('f-preview').innerHTML =
+    '<strong>✓ প্রস্তুত এন্ট্রি (ডিজাইন):</strong><br><pre style="white-space:pre-wrap;margin:6px 0 0;font-size:12px">'
+    + JSON.stringify(d,null,2) + '</pre>';
 }
 
-function delTxn(id){
-  bfConfirm('এই লেনদেন মুছে দেবেন?', async ()=>{
-    try{ await API.post({action:'deleteTxn',txnId:id,actor:(BF.session&&BF.session.role)||''}); toast('মুছে ফেলা হয়েছে','success'); loadTxns(); }
-    catch(e){ toast('মুছতে ব্যর্থ','error'); }
-  });
+function reset(){
+  document.getElementById('f-amount').value='';
+  document.getElementById('f-desc').value='';
+  document.getElementById('f-note').value='';
+  document.getElementById('f-via').value='';
+  updatePreview();
 }
 
-/* ── events ── */
-document.getElementById('v-template').addEventListener('change',applyTemplate);
-document.getElementById('v-commode')?.addEventListener('change',toggleCommode);
-document.getElementById('v-month')?.addEventListener('change',computeCommission);
-document.getElementById('v-percent')?.addEventListener('input',computeCommission);
-document.getElementById('v-supplier').addEventListener('change',updatePrevBalance);
-document.getElementById('v-customer').addEventListener('change',updatePrevBalance);
-document.getElementById('v-save').addEventListener('click',saveVoucher);
-document.getElementById('v-reset').addEventListener('click',()=>{
-  editingTxnId=null;
-  document.getElementById('v-amount').value='';
-  document.getElementById('v-note').value='';
-  applyTemplate();
+/* events */
+document.getElementById('cat-tabs').addEventListener('click', function(e){
+  const tab=e.target.closest('.cat-tab'); if(tab) setCategory(tab.dataset.cat);
 });
-document.getElementById('v-refresh').addEventListener('click',loadTxns);
+['f-date','f-amount','f-desc','f-from','f-to','f-via'].forEach(function(id){
+  document.getElementById(id).addEventListener('input', updatePreview);
+  document.getElementById(id).addEventListener('change', updatePreview);
+});
+document.getElementById('f-save').addEventListener('click', save);
+document.getElementById('f-reset').addEventListener('click', reset);
 
-/* ── init ── */
-document.getElementById('v-date').value = fmt.dateInput();
+/* init */
+document.getElementById('f-date').value = fmt.dateInput();
 fillParties();
-applyTemplate();
-// refresh parties from sheet
+fillDescOptions();
+updatePreview();
 if(BF.sheetUrl){
-  API.fetch('getParties').then(pts=>{ if(Array.isArray(pts)&&pts.length){ parties=pts; localStorage.setItem('bf_parties',JSON.stringify(pts)); fillParties(); applyTemplate(); } }).catch(()=>{});
-  loadTxns();
+  API.fetch('getParties').then(function(pts){ if(Array.isArray(pts)&&pts.length){ parties=pts; localStorage.setItem('bf_parties',JSON.stringify(pts)); fillParties(); } }).catch(function(){});
 }
 </script>
 </body>
