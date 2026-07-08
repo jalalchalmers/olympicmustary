@@ -31,9 +31,19 @@
 
     #order-items-container.mode-ctn .order-item-row,.items-hdr.mode-ctn{grid-template-columns:2.4fr .8fr .8fr .8fr 1fr 1fr 1fr 34px}
     #order-items-container.mode-mix .order-item-row,.items-hdr.mode-mix{grid-template-columns:2.2fr .7fr .65fr .65fr .65fr .65fr .9fr 1fr 1fr 32px}
-    /* purchase mode: one extra "কার জন্য" column */
-    #order-items-container.po-attr.mode-ctn .order-item-row,.items-hdr.po-attr.mode-ctn{grid-template-columns:2.2fr .75fr .75fr .75fr .95fr .95fr .95fr 1.15fr 34px}
-    #order-items-container.po-attr.mode-mix .order-item-row,.items-hdr.po-attr.mode-mix{grid-template-columns:2fr .65fr .6fr .6fr .6fr .6fr .85fr .95fr .95fr 1.1fr 32px}
+    /* purchase mode: one extra "বণ্টন" button column */
+    #order-items-container.po-attr.mode-ctn .order-item-row,.items-hdr.po-attr.mode-ctn{grid-template-columns:2.4fr .8fr .8fr .8fr 1fr 1fr 1fr 44px 34px}
+    #order-items-container.po-attr.mode-mix .order-item-row,.items-hdr.po-attr.mode-mix{grid-template-columns:2.2fr .7fr .65fr .65fr .65fr .65fr .9fr 1fr 1fr 44px 32px}
+    .oi-alloc{width:100%;border:1.5px solid var(--border);border-radius:8px;background:#fff;padding:8px 0;font-size:15px;cursor:pointer;transition:all .15s;position:relative}
+    .oi-alloc:hover{border-color:#d97706}
+    .oi-alloc.has-alloc{border-color:#d97706;background:#fef3c7}
+    .oi-alloc .alloc-n{position:absolute;top:-6px;right:-6px;background:#d97706;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;line-height:1.3}
+    /* allocation modal rows */
+    .al-row{display:grid;grid-template-columns:1fr 70px 62px 30px;gap:8px;align-items:center;margin-bottom:8px}
+    .al-row select,.al-row input{border:1.5px solid var(--border);border-radius:8px;padding:9px 8px;font-family:inherit;font-size:13px;outline:none;width:100%}
+    .al-row input{text-align:right}
+    .al-del{border:none;background:#fee2e2;color:#dc2626;border-radius:8px;padding:7px 0;font-size:14px;cursor:pointer}
+    @media(max-width:520px){.al-row{grid-template-columns:1fr 60px 54px 28px;gap:6px}}
     .items-hdr{display:grid;gap:6px;padding:0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ink3);margin-bottom:6px}
     .items-hdr span{display:flex;align-items:center}
     @media(max-width:820px){
@@ -355,6 +365,37 @@
   </div>
 </div>
 
+<!-- ALLOCATION MODAL (PO: split one product among customers) -->
+<div class="modal-overlay" id="alloc-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="al-title">🧩 গ্রাহক অনুযায়ী বণ্টন</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px" id="al-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeAllocModal()">×</button>
+    </div>
+
+    <div class="al-row" style="margin-bottom:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3)">
+      <span>গ্রাহক</span><span style="text-align:right">কার্টন</span><span style="text-align:right">পিস</span><span></span>
+    </div>
+    <div id="al-rows"></div>
+    <button class="btn btn-outline btn-sm" type="button" onclick="allocAddRow()" style="margin-top:2px">+ গ্রাহক যোগ করুন</button>
+
+    <div style="margin-top:14px;background:var(--bg2);border-radius:10px;padding:10px 14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span>মোট পরিমাণ</span><strong id="al-total">—</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span>গ্রাহকদের বণ্টন</span><strong id="al-allocated">—</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0;border-top:1px dashed var(--border);margin-top:4px;padding-top:6px"><span>মুস্তারী (অবশিষ্ট)</span><strong id="al-remain">—</strong></div>
+      <div id="al-warn" style="display:none;color:var(--danger);font-weight:600;font-size:12px;margin-top:6px">⚠ বণ্টন মোট পরিমাণের চেয়ে বেশি!</div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAllocModal()">বাতিল</button>
+      <button class="btn btn-primary" onclick="saveAlloc()">সেভ করুন</button>
+    </div>
+  </div>
+</div>
+
 <script src="shared.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="layout.js"></script>
@@ -404,7 +445,7 @@ function renderItemsHeader(){
   const poAttr=(currentType==='purchase');
   hdr.className='items-hdr '+(cartonMode?'mode-ctn':'mode-mix')+(poAttr?' po-attr':'');
   document.getElementById('order-items-container').classList.toggle('po-attr',poAttr);
-  const fp=poAttr?'<span>কার জন্য</span>':'';
+  const fp=poAttr?'<span style="justify-content:center">বণ্টন</span>':'';
   if(cartonMode){
     hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">ফ্রি কার্টন</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span>${fp}<span></span>`;
   }else{
@@ -513,7 +554,7 @@ function setPrevDue(amount){
 }
 function getPrevDue(){return parseFloat(document.getElementById('f-prev-due-sum').textContent.replace(/[^\d.-]/g,''))||0;}
 
-function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',productId='',savedPrice='',forPartyId=''){
+function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',productId='',savedPrice='',allocData=null){
   itemCount++;
   const row=document.createElement('div');
   row.className='order-item-row';
@@ -550,7 +591,7 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
     <div class="oi-cell oi-cell-total"><span class="oi-lbl">মোট পরিমাণ</span><input type="text" class="oi-totalqty" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-price"><span class="oi-lbl">কার্টন মূল্য</span><input type="text" class="oi-price" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-amount"><span class="oi-lbl">পরিমাণ (৳)</span><input type="number" class="oi-total" readonly value="" style="text-align:right"/></div>
-    ${currentType==='purchase'?`<div class="oi-cell oi-cell-forparty no-print" style="min-width:130px"><span class="oi-lbl">কার জন্য</span><select class="oi-forparty"><option value="">মুস্তারী (নিজ)</option>${parties.filter(p=>p.type==='customer'||p.type==='both').map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>`:''}
+    ${currentType==='purchase'?`<div class="oi-cell oi-cell-forparty no-print"><span class="oi-lbl">বণ্টন</span><button type="button" class="oi-alloc" onclick="openAllocModal(this)" title="গ্রাহক অনুযায়ী বণ্টন">🧩</button></div>`:''}
     <button class="oi-del no-print" onclick="removeItem(this)" title="বাদ দিন">×</button>`;
   const ps=row.querySelector('.oi-product');
   if(productId){const p=products.find(x=>x.id===productId);if(p)row.querySelector('.oi-code').value=p.code||code||'';}
@@ -560,8 +601,10 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
   row.querySelector('.oi-freectn').addEventListener('input',()=>recalcRow(row));
   row.querySelector('.oi-freepcs').addEventListener('input',()=>recalcRow(row));
   row.querySelector('.oi-code').addEventListener('input',buildPrintInvoice);
-  const fpSel=row.querySelector('.oi-forparty');
-  if(fpSel){ if(forPartyId)fpSel.value=forPartyId; fpSel.addEventListener('change',updatePOBreakdown); }
+  if(allocData&&Array.isArray(allocData)&&allocData.length){
+    row.dataset.alloc=JSON.stringify(allocData);
+    updateAllocBadge(row);
+  }
   document.getElementById('order-items-container').appendChild(row);
   recalcRow(row);
 }
@@ -756,25 +799,126 @@ function recalcRow(row){
   recalc();
 }
 
+/* ════ PO ALLOCATION (one product → many customers) ════ */
+let allocRow=null;   // the item row being allocated
+
+function qtyDisp(pieces,cs){
+  if(cs>0){const c=Math.floor(pieces/cs),p=Math.round((pieces%cs)*100)/100;return p?`${c} কার্টন + ${p} পিস`:`${c} কার্টন`;}
+  return `${Math.round(pieces*100)/100} পিস`;
+}
+
+function updateAllocBadge(row){
+  const btn=row.querySelector('.oi-alloc');if(!btn)return;
+  let a=[];try{a=JSON.parse(row.dataset.alloc||'[]');}catch(e){}
+  a=a.filter(x=>x.partyId&&((parseFloat(x.ctn)||0)+(parseFloat(x.pcs)||0))>0);
+  btn.classList.toggle('has-alloc',a.length>0);
+  btn.innerHTML='🧩'+(a.length?`<span class="alloc-n">${a.length}</span>`:'');
+}
+
+function openAllocModal(btn){
+  allocRow=btn.closest('.order-item-row');
+  const ps=allocRow.querySelector('.oi-product');
+  const pname=ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'';
+  const totP=parseFloat(allocRow.dataset.totalPieces)||0;
+  const cs=parseFloat(allocRow.dataset.cSize)||0;
+  if(!ps.value){toast('আগে পণ্য নির্বাচন করুন','error');return;}
+  if(totP<=0){toast('আগে পরিমাণ লিখুন','error');return;}
+  document.getElementById('al-title').textContent='🧩 বণ্টন — '+pname;
+  document.getElementById('al-sub').textContent='মোট: '+qtyDisp(totP,cs)+(cs>0?` (১ কার্টন = ${cs} পিস)`:'');
+  document.getElementById('al-rows').innerHTML='';
+  let a=[];try{a=JSON.parse(allocRow.dataset.alloc||'[]');}catch(e){}
+  if(a.length)a.forEach(x=>allocAddRow(x.partyId,x.ctn,x.pcs));else allocAddRow();
+  allocRecalc();
+  document.getElementById('alloc-modal').classList.add('open');
+}
+function closeAllocModal(){document.getElementById('alloc-modal').classList.remove('open');allocRow=null;}
+
+function allocAddRow(partyId='',ctn='',pcs=''){
+  const custs=parties.filter(p=>p.type==='customer'||p.type==='both');
+  const div=document.createElement('div');
+  div.className='al-row';
+  div.innerHTML=`
+    <select class="al-party"><option value="">— গ্রাহক —</option>${custs.map(p=>`<option value="${p.id}" ${p.id===partyId?'selected':''}>${p.name}</option>`).join('')}</select>
+    <input type="number" class="al-ctn" placeholder="0" min="0" step="any" inputmode="decimal" value="${ctn||''}"/>
+    <input type="number" class="al-pcs" placeholder="0" min="0" step="any" inputmode="decimal" value="${pcs||''}"/>
+    <button type="button" class="al-del" onclick="this.parentElement.remove();allocRecalc()">×</button>`;
+  div.querySelectorAll('select,input').forEach(el=>el.addEventListener('input',allocRecalc));
+  document.getElementById('al-rows').appendChild(div);
+}
+
+function allocReadRows(){
+  const out=[];
+  document.querySelectorAll('#al-rows .al-row').forEach(r=>{
+    const pid=r.querySelector('.al-party').value;
+    const ctn=parseFloat(r.querySelector('.al-ctn').value)||0;
+    const pcs=parseFloat(r.querySelector('.al-pcs').value)||0;
+    if(!pid||(ctn+pcs)<=0)return;
+    const p=parties.find(x=>x.id===pid)||{};
+    out.push({partyId:pid,partyName:p.name||'',ctn,pcs});
+  });
+  return out;
+}
+
+function allocRecalc(){
+  if(!allocRow)return 0;
+  const cs=parseFloat(allocRow.dataset.cSize)||0;
+  const totP=parseFloat(allocRow.dataset.totalPieces)||0;
+  let alloc=0;
+  allocReadRows().forEach(x=>{alloc+=x.ctn*cs+x.pcs;});
+  document.getElementById('al-total').textContent=qtyDisp(totP,cs);
+  document.getElementById('al-allocated').textContent=qtyDisp(alloc,cs);
+  const remain=totP-alloc;
+  const rEl=document.getElementById('al-remain');
+  rEl.textContent=qtyDisp(Math.max(0,remain),cs);
+  rEl.style.color=remain<0?'var(--danger)':'var(--ink)';
+  document.getElementById('al-warn').style.display=remain<0?'block':'none';
+  return remain;
+}
+
+function saveAlloc(){
+  if(!allocRow)return;
+  if(allocRecalc()<0){toast('বণ্টন মোট পরিমাণের চেয়ে বেশি — কমান','error');return;}
+  const a=allocReadRows();
+  // duplicate customer guard
+  const seen={};for(const x of a){if(seen[x.partyId]){toast('একই গ্রাহক দুইবার আছে — একত্র করুন','error');return;}seen[x.partyId]=1;}
+  if(a.length)allocRow.dataset.alloc=JSON.stringify(a);else delete allocRow.dataset.alloc;
+  updateAllocBadge(allocRow);
+  updatePOBreakdown();
+  closeAllocModal();
+  toast(a.length?'বণ্টন সেভ হয়েছে ✓':'বণ্টন মুছে ফেলা হয়েছে','success');
+}
+
 function updatePOBreakdown(){
   const box=document.getElementById('po-breakdown');
   if(!box)return;
   if(currentType!=='purchase'){box.style.display='none';return;}
-  const groups={};let any=false;
+  const groups={};let any=false;let mustaryAmt=0;let mustaryPieces=0;
   document.querySelectorAll('.order-item-row').forEach(row=>{
     const amt=parseFloat(row.querySelector('.oi-total')?.value)||0;
-    if(amt<=0)return;
-    const sel=row.querySelector('.oi-forparty');
-    const key=(sel&&sel.value)?sel.selectedOptions[0].textContent:'মুস্তারী (নিজ)';
-    if(sel&&sel.value)any=true;
-    groups[key]=(groups[key]||0)+amt;
+    const totP=parseFloat(row.dataset.totalPieces)||0;
+    const cs=parseFloat(row.dataset.cSize)||0;
+    if(totP<=0)return;
+    const perPiece=amt/totP;
+    let a=[];try{a=JSON.parse(row.dataset.alloc||'[]');}catch(e){}
+    let allocated=0;
+    a.forEach(x=>{
+      const pieces=(parseFloat(x.ctn)||0)*cs+(parseFloat(x.pcs)||0);
+      if(!x.partyId||pieces<=0)return;
+      any=true;allocated+=pieces;
+      if(!groups[x.partyName])groups[x.partyName]={amount:0,lines:0};
+      groups[x.partyName].amount+=pieces*perPiece;
+      groups[x.partyName].lines++;
+    });
+    mustaryAmt+=(totP-allocated)*perPiece;
+    mustaryPieces+=(totP-allocated);
   });
   if(!any){box.style.display='none';return;}
   box.style.display='';
-  const total=Object.values(groups).reduce((s,v)=>s+v,0);
+  const rows=Object.entries(groups).sort((a,b)=>b[1].amount-a[1].amount);
+  let total=mustaryAmt;rows.forEach(([,v])=>total+=v.amount);
   document.getElementById('po-breakdown-body').innerHTML=
-    Object.entries(groups).sort((a,b)=>b[1]-a[1])
-      .map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border)"><span>${k}</span><strong>${fmt.currency(v)}</strong></div>`).join('')
+    rows.map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border)"><span>${k} <span style="color:var(--ink3);font-size:11px">(${v.lines}টি পণ্য)</span></span><strong>${fmt.currency(v.amount)}</strong></div>`).join('')
+    +(mustaryAmt>0.005?`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border)"><span>মুস্তারী (নিজ)</span><strong>${fmt.currency(mustaryAmt)}</strong></div>`:'')
     +`<div style="display:flex;justify-content:space-between;padding:5px 0 0;font-weight:700"><span>মোট</span><span>${fmt.currency(total)}</span></div>`;
 }
 
@@ -905,7 +1049,19 @@ function collectFormData(){
     const ps=row.querySelector('.oi-product');
     const qtyPieces=parseFloat(row.dataset.qtyPieces)||0;
     if(qtyPieces<=0)return;
-    items.push({productId:ps.value,productName:ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'',code:row.querySelector('.oi-code').value,qtyCtn:parseFloat(row.querySelector('.oi-qtyctn').value)||0,qtyPcs:parseFloat(row.querySelector('.oi-qtypcs').value)||0,freeCtn:parseFloat(row.querySelector('.oi-freectn').value)||0,freePcs:parseFloat(row.querySelector('.oi-freepcs').value)||0,qtyPieces,freePieces:parseFloat(row.dataset.freePieces)||0,totalPieces:parseFloat(row.dataset.totalPieces)||0,cartonSize:parseFloat(row.dataset.cSize)||0,usedPrice:parseFloat(row.dataset.usedPrice)||0,qty:qtyPieces,price:parseFloat(row.dataset.usedPrice)||0,total:parseFloat(row.querySelector('.oi-total').value)||0,forPartyId:(row.querySelector('.oi-forparty')?.value)||'',forPartyName:(row.querySelector('.oi-forparty')?.selectedOptions?.[0]?.textContent&&row.querySelector('.oi-forparty').value)?row.querySelector('.oi-forparty').selectedOptions[0].textContent:''});
+    const rowAlloc=(function(){
+      let a=[];try{a=JSON.parse(row.dataset.alloc||'[]');}catch(e){}
+      if(!a.length)return [];
+      const cs=parseFloat(row.dataset.cSize)||0;
+      const totP=parseFloat(row.dataset.totalPieces)||0;
+      const lineTotal=parseFloat(row.querySelector('.oi-total').value)||0;
+      const perPiece=totP>0?(lineTotal/totP):0;
+      return a.map(x=>{
+        const pieces=(parseFloat(x.ctn)||0)*cs+(parseFloat(x.pcs)||0);
+        return {partyId:x.partyId,partyName:x.partyName||'',ctn:parseFloat(x.ctn)||0,pcs:parseFloat(x.pcs)||0,pieces,amount:Math.round(pieces*perPiece*100)/100};
+      }).filter(x=>x.partyId&&x.pieces>0);
+    })();
+    items.push({productId:ps.value,productName:ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'',code:row.querySelector('.oi-code').value,qtyCtn:parseFloat(row.querySelector('.oi-qtyctn').value)||0,qtyPcs:parseFloat(row.querySelector('.oi-qtypcs').value)||0,freeCtn:parseFloat(row.querySelector('.oi-freectn').value)||0,freePcs:parseFloat(row.querySelector('.oi-freepcs').value)||0,qtyPieces,freePieces:parseFloat(row.dataset.freePieces)||0,totalPieces:parseFloat(row.dataset.totalPieces)||0,cartonSize:parseFloat(row.dataset.cSize)||0,usedPrice:parseFloat(row.dataset.usedPrice)||0,qty:qtyPieces,price:parseFloat(row.dataset.usedPrice)||0,total:parseFloat(row.querySelector('.oi-total').value)||0,alloc:rowAlloc});
   });
   const subtotal=items.reduce((s,i)=>s+i.total,0);
   const discount=parseFloat(document.getElementById('f-discount').value)||0;
@@ -1008,7 +1164,12 @@ function populateForm(o){
   document.getElementById('pay-mobile').checked=(o.paymentMode||'').includes('মোবাইল');
   populatePartyDropdown(o.partyId);
   setPrevDue(o.prevDue||0);
-  JSON.parse(o.items||'[]').forEach(it=>addOrderItem(it.productName,it.code,it.qtyCtn,it.qtyPcs,it.freeCtn,it.freePcs,it.productId,(it.usedPrice!==undefined?it.usedPrice:(it.price!==undefined?it.price:'')),it.forPartyId||''));
+  JSON.parse(o.items||'[]').forEach(it=>{
+    let alloc=it.alloc||null;
+    // legacy single "কার জন্য" items → convert to a full allocation
+    if(!alloc&&it.forPartyId){alloc=[{partyId:it.forPartyId,partyName:it.forPartyName||'',ctn:it.qtyCtn||0,pcs:it.qtyPcs||0}];}
+    addOrderItem(it.productName,it.code,it.qtyCtn,it.qtyPcs,it.freeCtn,it.freePcs,it.productId,(it.usedPrice!==undefined?it.usedPrice:(it.price!==undefined?it.price:'')),alloc);
+  });
   recalc();buildPrintInvoice();
 }
 
@@ -1123,6 +1284,7 @@ function printOrderInvoice(){
 document.getElementById('btn-print-order').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-print-order-2').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-add-item').addEventListener('click',()=>addOrderItem());
+document.getElementById('alloc-modal').addEventListener('click',e=>{if(e.target.id==='alloc-modal')closeAllocModal();});
 document.getElementById('btn-load-all').addEventListener('click',loadAllProducts);
 document.getElementById('btn-upload-file').addEventListener('click',()=>document.getElementById('file-input').click());
 document.getElementById('file-input').addEventListener('change',function(e){
