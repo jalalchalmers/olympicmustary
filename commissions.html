@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>BizFlow — কমিশন</title>
+  <style>
+    .cm-basis-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px}
+    .cm-basis-box .big{font-size:18px;font-weight:800;color:var(--accent)}
+    .cm-break{max-height:180px;overflow:auto;margin-top:8px;border-top:1px dashed var(--border);padding-top:8px}
+    .cm-break div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--ink2)}
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">সরবরাহকারী কমিশন</span>
+      </div>
+      <div class="bf-topbar-right">
+        <button class="btn btn-primary btn-sm" id="btn-new">+ নতুন কমিশন</button>
+      </div>
+    </div>
+
+    <div class="bf-body">
+
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card"><div class="stat-icon">🤝</div><div class="stat-label">মোট এন্ট্রি</div><div class="stat-value" id="s-count">0</div></div>
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-label">এ মাসের কমিশন</div><div class="stat-value" id="s-month" style="font-size:16px;color:var(--success)">৳0</div></div>
+        <div class="stat-card"><div class="stat-icon">💵</div><div class="stat-label">মোট কমিশন</div><div class="stat-value" id="s-total" style="font-size:16px;color:var(--accent)">৳0</div></div>
+      </div>
+
+      <div class="card" style="padding:14px 20px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <select id="f-sup-filter" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;outline:none;background:#fff">
+            <option value="">সব সরবরাহকারী</option>
+          </select>
+          <input type="month" id="f-month-filter" style="border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;outline:none"/>
+          <button class="btn btn-outline btn-sm" id="btn-clear">পরিষ্কার</button>
+          <button class="btn btn-outline btn-sm" id="btn-export" style="margin-left:auto">⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>মাস</th><th>সরবরাহকারী</th><th>ভিত্তি</th>
+              <th style="text-align:right">বিক্রয় ভলিউম (৳)</th>
+              <th style="text-align:right">হার</th>
+              <th style="text-align:right">কমিশন (৳)</th>
+              <th>ভাউচার</th><th>অ্যাকশন</th>
+            </tr></thead>
+            <tbody id="cm-body">
+              <tr><td colspan="8"><div class="empty"><div class="empty-icon">🤝</div><p>লোড হচ্ছে…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--ink3);margin-top:10px">
+        প্রতিটি কমিশন এন্ট্রি সরবরাহকারীর হিসাবে একটি সমন্বয় (ক্রেডিট) ভাউচার তৈরি করে —
+        অর্থাৎ সরবরাহকারীকে দেয় টাকা কমিশনের সমপরিমাণ কমে যায় এবং লেজারে দেখা যায়।
+      </p>
+
+    </div>
+  </div>
+</div>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-overlay" id="cm-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" id="cm-modal-title">নতুন কমিশন</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field">
+        <label>মাস *</label>
+        <input type="month" id="c-month"/>
+      </div>
+      <div class="field">
+        <label>সরবরাহকারী *</label>
+        <select id="c-supplier"><option value="">— নির্বাচন করুন —</option></select>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>ভিত্তি</label>
+        <div style="display:flex;gap:10px">
+          <label style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;font-size:13px">
+            <input type="radio" name="cbasis" value="percent" checked style="margin-right:6px;accent-color:var(--accent)">বিক্রয়ের % হারে
+          </label>
+          <label style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;font-size:13px">
+            <input type="radio" name="cbasis" value="manual" style="margin-right:6px;accent-color:var(--accent)">ম্যানুয়াল পরিমাণ
+          </label>
+        </div>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <div class="cm-basis-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>এ মাসে এই সরবরাহকারীর পণ্যের বিক্রয়:
+              <div class="big" id="c-volume">—</div>
+              <div style="font-size:11px;color:var(--ink3)" id="c-volume-sub"></div>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-calc" type="button">🔄 হিসাব করুন</button>
+          </div>
+          <div class="cm-break" id="c-break" style="display:none"></div>
+        </div>
+      </div>
+      <div class="field" id="rate-field">
+        <label>কমিশন হার (%)</label>
+        <input type="number" id="c-rate" min="0" step="0.01" placeholder="যেমন: 2.5"/>
+      </div>
+      <div class="field">
+        <label>কমিশন পরিমাণ (৳) *</label>
+        <input type="number" id="c-amount" min="0" step="0.01" placeholder="0.00"/>
+      </div>
+      <div class="field">
+        <label>এন্ট্রির তারিখ</label>
+        <input type="date" id="c-date"/>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>নোট</label>
+        <input type="text" id="c-note" placeholder="ঐচ্ছিক"/>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">বাতিল</button>
+      <button class="btn btn-primary" id="btn-save-cm">সেভ করুন</button>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+buildNav('commissions');
+
+let commissions=JSON.parse(localStorage.getItem('bf_commissions')||'[]');
+let parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
+let editId=null;
+let lastBasis=null;   // last computed {salesVolume, lines, breakdown}
+
+function suppliers(){ return parties.filter(p=>p.type==='supplier'||p.type==='both'); }
+
+function saveLocal(){ localStorage.setItem('bf_commissions',JSON.stringify(commissions)); }
+
+/* ── FILTER DROPDOWN ── */
+function refreshFilters(){
+  const sel=document.getElementById('f-sup-filter');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">সব সরবরাহকারী</option>'+suppliers().map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  sel.value=cur;
+}
+
+/* ── RENDER ── */
+function render(){
+  refreshFilters();
+  const supF=document.getElementById('f-sup-filter').value;
+  const monF=document.getElementById('f-month-filter').value;
+  const list=commissions
+    .filter(c=>(!supF||c.supplierId===supF)&&(!monF||c.month===monF))
+    .sort((a,b)=>(b.month||'').localeCompare(a.month||''));
+  const tb=document.getElementById('cm-body');
+  if(!list.length){
+    tb.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-icon">🤝</div><p>কোনো কমিশন এন্ট্রি নেই।</p></div></td></tr>';
+  }else{
+    tb.innerHTML=list.map(c=>`<tr>
+      <td style="font-weight:600">${c.month||''}</td>
+      <td><strong>${c.supplierName||''}</strong></td>
+      <td><span class="badge ${c.basis==='percent'?'badge-supplier':'badge-both'}">${c.basis==='percent'?'% হারে':'ম্যানুয়াল'}</span></td>
+      <td style="text-align:right">${fmt.currency(c.salesVolume||0)}</td>
+      <td style="text-align:right">${c.basis==='percent'?((parseFloat(c.rate)||0)+'%'):'—'}</td>
+      <td style="text-align:right;font-weight:700;color:var(--success)">${fmt.currency(c.amount||0)}</td>
+      <td style="font-size:12px;color:var(--accent);font-weight:600">${c.vno||'—'}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${c.id}')" title="সম্পাদনা">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="delCm('${c.id}')" title="মুছুন">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+  }
+  // stats
+  document.getElementById('s-count').textContent=commissions.length;
+  const tm=new Date().toISOString().slice(0,7);
+  const sMonth=commissions.filter(c=>c.month===tm).reduce((s,c)=>s+(parseFloat(c.amount)||0),0);
+  const sTotal=commissions.reduce((s,c)=>s+(parseFloat(c.amount)||0),0);
+  document.getElementById('s-month').textContent=fmt.currency(sMonth);
+  document.getElementById('s-total').textContent=fmt.currency(sTotal);
+}
+
+/* ── MODAL ── */
+function basisVal(){ return document.querySelector('input[name="cbasis"]:checked').value; }
+
+function openModal(id=null){
+  editId=id;
+  const c=id?commissions.find(x=>x.id===id):null;
+  lastBasis=null;
+  document.getElementById('cm-modal-title').textContent=c?'কমিশন সম্পাদনা':'নতুন কমিশন';
+  document.getElementById('c-month').value=c?.month||new Date().toISOString().slice(0,7);
+  const sel=document.getElementById('c-supplier');
+  sel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+suppliers().map(s=>`<option value="${s.id}" ${c?.supplierId===s.id?'selected':''}>${s.name}</option>`).join('');
+  document.querySelector(`input[name="cbasis"][value="${c?.basis||'percent'}"]`).checked=true;
+  document.getElementById('c-rate').value=c?.rate||'';
+  document.getElementById('c-amount').value=c?.amount||'';
+  document.getElementById('c-date').value=c?.date||fmt.dateInput();
+  document.getElementById('c-note').value=c?.note||'';
+  document.getElementById('c-volume').textContent=c?fmt.currency(c.salesVolume||0):'—';
+  document.getElementById('c-volume-sub').textContent='';
+  document.getElementById('c-break').style.display='none';
+  if(c) lastBasis={salesVolume:parseFloat(c.salesVolume)||0,lines:0,breakdown:[]};
+  toggleRate();
+  document.getElementById('cm-modal').classList.add('open');
+}
+function closeModal(){ document.getElementById('cm-modal').classList.remove('open'); }
+
+function toggleRate(){
+  document.getElementById('rate-field').style.opacity=basisVal()==='percent'?'1':'.4';
+  document.getElementById('c-rate').disabled=basisVal()!=='percent';
+}
+document.querySelectorAll('input[name="cbasis"]').forEach(r=>r.addEventListener('change',()=>{toggleRate();autoAmount();}));
+
+/* ── COMPUTE BASIS FROM SERVER ── */
+async function calcBasis(){
+  const month=document.getElementById('c-month').value;
+  const sid=document.getElementById('c-supplier').value;
+  if(!month){toast('মাস নির্বাচন করুন','error');return;}
+  if(!sid){toast('সরবরাহকারী নির্বাচন করুন','error');return;}
+  const btn=document.getElementById('btn-calc');spinBtn(btn,true);
+  try{
+    const r=await API.fetch('getCommissionBasis',{month,supplierId:sid});
+    if(r&&r.salesVolume!==undefined){
+      lastBasis=r;
+      document.getElementById('c-volume').textContent=fmt.currency(r.salesVolume);
+      document.getElementById('c-volume-sub').textContent=r.lines+'টি বিক্রয় লাইন';
+      const br=document.getElementById('c-break');
+      if(r.breakdown&&r.breakdown.length){
+        br.innerHTML=r.breakdown.map(b=>`<div><span>${b.name}</span><span>${fmt.currency(b.amount)}</span></div>`).join('');
+        br.style.display='block';
+      }else br.style.display='none';
+      autoAmount();
+    }else toast('হিসাব ব্যর্থ','error');
+  }catch(e){toast('হিসাব ব্যর্থ: '+e.message,'error');}
+  spinBtn(btn,false);
+}
+
+function autoAmount(){
+  if(basisVal()!=='percent')return;
+  const rate=parseFloat(document.getElementById('c-rate').value)||0;
+  const vol=lastBasis?(parseFloat(lastBasis.salesVolume)||0):0;
+  if(rate>0&&vol>0)document.getElementById('c-amount').value=(vol*rate/100).toFixed(2);
+}
+document.getElementById('c-rate').addEventListener('input',autoAmount);
+
+/* ── SAVE ── */
+async function saveCm(){
+  const month=document.getElementById('c-month').value;
+  const sid=document.getElementById('c-supplier').value;
+  const sup=parties.find(p=>p.id===sid)||{};
+  const amount=parseFloat(document.getElementById('c-amount').value)||0;
+  if(!month){toast('মাস নির্বাচন করুন','error');return;}
+  if(!sid){toast('সরবরাহকারী নির্বাচন করুন','error');return;}
+  if(amount<=0){toast('কমিশনের পরিমাণ দিন','error');return;}
+  if(!BF.sheetUrl){toast('Sheet সংযোগ নেই','error');return;}
+
+  const existing=editId?commissions.find(x=>x.id===editId):null;
+  const rec={
+    id:editId||('CM'+Date.now()),
+    month,supplierId:sid,supplierName:sup.name||'',
+    basis:basisVal(),
+    rate:basisVal()==='percent'?(parseFloat(document.getElementById('c-rate').value)||0):'',
+    salesVolume:lastBasis?(parseFloat(lastBasis.salesVolume)||0):(existing?(parseFloat(existing.salesVolume)||0):0),
+    amount,
+    date:document.getElementById('c-date').value||fmt.dateInput(),
+    voucherId:existing?.voucherId||'',
+    vno:existing?.vno||'',
+    note:document.getElementById('c-note').value.trim(),
+    savedAt:new Date().toISOString()
+  };
+
+  const btn=document.getElementById('btn-save-cm');spinBtn(btn,true);
+  try{
+    // JSONP GET → we get the server's response (voucherId + vno) synchronously
+    const r=await API.fetch('saveCommission',rec);
+    if(r&&!r.error){
+      rec.voucherId=r.voucherId||rec.voucherId;
+      rec.vno=r.vno||rec.vno;
+      const idx=commissions.findIndex(x=>x.id===rec.id);
+      if(idx>-1)commissions[idx]=rec;else commissions.unshift(rec);
+      saveLocal();render();closeModal();
+      toast((editId?'কমিশন আপডেট হয়েছে':'কমিশন সেভ হয়েছে')+' ✓ ভাউচার: '+rec.vno,'success');
+    }else toast('সেভ ব্যর্থ: '+((r&&r.error)||''),'error');
+  }catch(e){toast('সেভ ব্যর্থ: '+e.message,'error');}
+  spinBtn(btn,false);
+}
+
+/* ── DELETE ── */
+function delCm(id){
+  if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){
+    toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;
+  }
+  const c=commissions.find(x=>x.id===id);if(!c)return;
+  bfConfirm(`${c.month} — "${c.supplierName}" এর ${fmt.currency(c.amount)} কমিশন মুছে দেবেন? সংযুক্ত ভাউচার ${c.vno||''}ও মুছে যাবে।`,async()=>{
+    try{
+      const r=await API.fetch('deleteCommission',{id});
+      if(r&&!r.error){
+        commissions=commissions.filter(x=>x.id!==id);
+        saveLocal();render();toast('কমিশন ও ভাউচার মুছে ফেলা হয়েছে','success');
+      }else toast('মুছতে ব্যর্থ','error');
+    }catch(e){toast('মুছতে ব্যর্থ: '+e.message,'error');}
+  });
+}
+
+/* ── EXPORT ── */
+function exportCsv(){
+  if(!commissions.length){toast('কোনো ডেটা নেই','error');return;}
+  const h=['মাস','সরবরাহকারী','ভিত্তি','বিক্রয় ভলিউম','হার(%)','কমিশন','ভাউচার','তারিখ','নোট'];
+  const rows=commissions.map(c=>[c.month,c.supplierName,(c.basis==='percent'?'% হারে':'ম্যানুয়াল'),c.salesVolume,c.rate,c.amount,c.vno,c.date,c.note].map(v=>`"${v||''}"`).join(','));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
+  a.download='commissions_'+fmt.dateInput()+'.csv';a.click();
+}
+
+/* ── EVENTS ── */
+document.getElementById('btn-new').addEventListener('click',()=>openModal());
+document.getElementById('btn-save-cm').addEventListener('click',saveCm);
+document.getElementById('btn-calc').addEventListener('click',calcBasis);
+document.getElementById('btn-export').addEventListener('click',exportCsv);
+document.getElementById('f-sup-filter').addEventListener('change',render);
+document.getElementById('f-month-filter').addEventListener('change',render);
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  document.getElementById('f-sup-filter').value='';
+  document.getElementById('f-month-filter').value='';
+  render();
+});
+document.getElementById('cm-modal').addEventListener('click',e=>{if(e.target.id==='cm-modal')closeModal();});
+
+/* ── LOAD ── */
+async function load(){
+  render();
+  if(!BF.sheetUrl)return;
+  try{const d=await API.fetch('getCommissions');if(Array.isArray(d)){commissions=d;saveLocal();}}catch(e){}
+  try{const p=await API.fetch('getParties');if(Array.isArray(p)&&p.length){parties=p;localStorage.setItem('bf_parties',JSON.stringify(p));}}catch(e){}
+  render();
+}
+load();
+</script>
+</body>
+</html>
