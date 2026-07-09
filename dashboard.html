@@ -2,8 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
   <title>BizFlow — ড্যাশবোর্ড</title>
+  <style>
+    /* ── hero money cards ── */
+    .hero-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+    .hero-card{border-radius:14px;padding:18px;color:#fff;position:relative;overflow:hidden}
+    .hero-card::after{content:'';position:absolute;right:-24px;top:-24px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.12)}
+    .hero-card .h-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;opacity:.85;margin-bottom:8px}
+    .hero-card .h-val{font-size:21px;font-weight:800;line-height:1.1;word-break:break-word}
+    .hero-card .h-sub{font-size:11px;opacity:.85;margin-top:6px}
+    .hc-recv{background:linear-gradient(135deg,#059669,#10b981)}
+    .hc-pay{background:linear-gradient(135deg,#dc2626,#f87171)}
+    .hc-today{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
+    .hc-month{background:linear-gradient(135deg,#0369a1,#0ea5e9)}
+    /* ── secondary stats ── */
+    .mini-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+    .mini-card{background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:14px 16px}
+    .mini-card .m-lbl{font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+    .mini-card .m-val{font-size:16px;font-weight:800;color:var(--ink)}
+    .mini-card .m-sub{font-size:11px;color:var(--ink3);margin-top:3px}
+    /* ── quick actions ── */
+    .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .qa-btn{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--bg2);border:1.5px solid var(--border);border-radius:12px;padding:16px 8px;text-decoration:none;color:var(--ink);font-size:12.5px;font-weight:700;transition:all .15s;text-align:center;min-height:82px;justify-content:center}
+    .qa-btn:hover{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}
+    .qa-btn .qa-ic{font-size:24px}
+    /* ── 7-day bars ── */
+    .bars{display:flex;align-items:flex-end;gap:8px;height:130px;padding-top:8px}
+    .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;min-width:0}
+    .bar-val{font-size:9.5px;color:var(--ink3);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    .bar{width:100%;max-width:44px;background:linear-gradient(180deg,#818cf8,var(--accent));border-radius:6px 6px 2px 2px;min-height:3px;transition:height .4s}
+    .bar.today{background:linear-gradient(180deg,#34d399,var(--success))}
+    .bar-day{font-size:10.5px;font-weight:600;color:var(--ink2)}
+    /* ── lists ── */
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .row-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+    .row-item:last-child{border-bottom:none}
+    .row-ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+    .row-main{flex:1;min-width:0}
+    .row-t{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row-s{font-size:11px;color:var(--ink3)}
+    .row-amt{font-size:13px;font-weight:700;white-space:nowrap}
+    .empty-sm{text-align:center;color:var(--ink3);font-size:13px;padding:24px 0}
+    .see-all{font-size:12px;font-weight:600;color:var(--accent);text-decoration:none}
+    /* ── responsive ── */
+    @media(max-width:1100px){.hero-grid,.mini-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:768px){
+      .two-col{grid-template-columns:1fr}
+      .qa-grid{grid-template-columns:repeat(2,1fr)}
+      .hero-card .h-val{font-size:19px}
+      .bars{height:110px}
+    }
+    @media(max-width:400px){.hero-grid,.mini-grid{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
 <div class="bf-layout">
@@ -23,145 +74,84 @@
 
     <div class="bf-body">
 
-      <!-- SETUP BANNER — shown when Sheet URL not configured -->
-      <div id="setup-banner" style="display:none;background:#fffbeb;border:2px solid #fbbf24;border-radius:var(--r);padding:18px 22px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px">
-        <span style="font-size:28px;flex-shrink:0">⚠️</span>
-        <div>
-          <div style="font-weight:700;font-size:15px;margin-bottom:4px">Google Sheet সংযুক্ত নেই</div>
-          <div style="font-size:13px;color:var(--ink2);margin-bottom:12px">
-            ডেটা সেভ ও লোড করতে Settings থেকে Google Sheet Web App URL যোগ করুন।
-            Sheet সংযুক্ত না হলে ডেটা শুধু এই ব্রাউজারে থাকবে।
-          </div>
-          <a href="settings.html" class="btn btn-primary btn-sm">⚙️ Settings খুলুন</a>
+      <!-- sync status -->
+      <div id="sync-bar" style="display:none;background:var(--accent-bg);border:1px solid #c7d2fe;border-radius:10px;padding:9px 14px;margin-bottom:16px;font-size:12.5px;color:var(--accent)">
+        ⟳ <span id="sync-bar-msg">ডেটা লোড হচ্ছে…</span>
+      </div>
+
+      <!-- HERO: money position -->
+      <div class="hero-grid">
+        <div class="hero-card hc-recv">
+          <div class="h-lbl">মোট পাবো</div>
+          <div class="h-val" id="h-recv">৳—</div>
+          <div class="h-sub" id="h-recv-sub">গ্রাহকদের কাছে বাকি</div>
+        </div>
+        <div class="hero-card hc-pay">
+          <div class="h-lbl">মোট দেবো</div>
+          <div class="h-val" id="h-pay">৳—</div>
+          <div class="h-sub" id="h-pay-sub">সরবরাহকারীকে দেয়</div>
+        </div>
+        <div class="hero-card hc-today">
+          <div class="h-lbl">আজকের বিক্রয়</div>
+          <div class="h-val" id="h-today">৳—</div>
+          <div class="h-sub" id="h-today-sub">০টি ইনভয়েস</div>
+        </div>
+        <div class="hero-card hc-month">
+          <div class="h-lbl">এ মাসের বিক্রয়</div>
+          <div class="h-val" id="h-month">৳—</div>
+          <div class="h-sub" id="h-month-sub">০টি ইনভয়েস</div>
         </div>
       </div>
 
-      <!-- SYNC STATUS BAR -->
-      <div id="sync-bar" style="display:none;background:var(--accent-bg);border:1px solid #c7d2fe;border-radius:10px;padding:10px 16px;margin-bottom:20px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px">
-        <span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(79,70,229,.3);border-top-color:var(--accent);border-radius:50%;animation:bf-spin .6s linear infinite;flex-shrink:0"></span>
-        <span id="sync-bar-msg">ডেটা লোড হচ্ছে…</span>
+      <!-- secondary stats -->
+      <div class="mini-grid">
+        <div class="mini-card"><div class="m-lbl">🏭 এ মাসের ক্রয়</div><div class="m-val" id="m-purch">৳—</div><div class="m-sub" id="m-purch-sub"></div></div>
+        <div class="mini-card"><div class="m-lbl">💰 এ মাসের নগদ</div><div class="m-val" id="m-cash">৳—</div><div class="m-sub" id="m-cash-sub"></div></div>
+        <div class="mini-card"><div class="m-lbl">🤝 এ মাসের কমিশন</div><div class="m-val" id="m-comm">৳—</div><div class="m-sub" id="m-comm-sub"></div></div>
+        <div class="mini-card"><div class="m-lbl">📦 স্টক মূল্য (FIFO)</div><div class="m-val" id="m-stock">৳—</div><div class="m-sub" id="m-stock-sub">লোড হচ্ছে…</div></div>
       </div>
 
-      <!-- MAIN STATS -->
-      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
-        <div class="stat-card">
-          <div class="stat-icon">👥</div>
-          <div class="stat-label">মোট পার্টি</div>
-          <div class="stat-value" id="stat-parties">—</div>
-          <div class="stat-sub">সরবরাহকারী ও গ্রাহক</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">📦</div>
-          <div class="stat-label">মোট পণ্য</div>
-          <div class="stat-value" id="stat-products">—</div>
-          <div class="stat-sub">সক্রিয় পণ্য</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🟢</div>
-          <div class="stat-label">মোট বিক্রয়</div>
-          <div class="stat-value" id="stat-sales">—</div>
-          <div class="stat-sub">সব বিক্রয় অর্ডার</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🔵</div>
-          <div class="stat-label">মোট ক্রয়</div>
-          <div class="stat-value" id="stat-purchases">—</div>
-          <div class="stat-sub">সব ক্রয় অর্ডার</div>
+      <!-- quick actions -->
+      <div class="card" style="padding:18px">
+        <div class="card-title" style="margin-bottom:14px">⚡ দ্রুত কাজ</div>
+        <div class="qa-grid">
+          <a class="qa-btn" href="orders.html?new=sales"><span class="qa-ic">🛒</span>নতুন বিক্রয়</a>
+          <a class="qa-btn" href="orders.html?new=purchase"><span class="qa-ic">🏭</span>নতুন ক্রয়</a>
+          <a class="qa-btn" href="payments.html"><span class="qa-ic">🧾</span>রিসিট / পেমেন্ট</a>
+          <a class="qa-btn" href="parties.html?new=1"><span class="qa-ic">👥</span>নতুন পার্টি</a>
         </div>
       </div>
 
-      <!-- FINANCIAL STATS -->
-      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
-        <div class="stat-card">
-          <div class="stat-icon">💰</div>
-          <div class="stat-label">মোট বিক্রয় পরিমাণ</div>
-          <div class="stat-value" id="stat-sales-total" style="font-size:18px">৳—</div>
-          <div class="stat-sub" id="stat-sales-due" style="color:var(--danger)"></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">✅</div>
-          <div class="stat-label">মোট জমা</div>
-          <div class="stat-value" id="stat-total-paid" style="font-size:18px;color:var(--success)">৳—</div>
-          <div class="stat-sub">নগদ + ব্যাংক + কর্তন</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">⏳</div>
-          <div class="stat-label">মোট বাকি</div>
-          <div class="stat-value" id="stat-total-due" style="font-size:18px;color:var(--danger)">৳—</div>
-          <div class="stat-sub">সব পার্টির বাকি</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🏪</div>
-          <div class="stat-label">প্রকৃত স্টক (মোট)</div>
-          <div class="stat-value" id="stat-physical-stock" style="font-size:18px;color:var(--success)">—</div>
-          <div class="stat-sub">শেলফে মোট পণ্য</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">💰</div>
-          <div class="stat-label">স্টকের মূল্য (ক্রয়মূল্যে)</div>
-          <div class="stat-value" id="stat-stock-value" style="font-size:18px;color:var(--accent)">৳—</div>
-          <div class="stat-sub">FIFO ক্রয়মূল্যে</div>
-        </div>
-      </div>
-
-      <!-- QUICK ACTIONS -->
+      <!-- 7-day sales -->
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="margin-bottom:10px;padding-bottom:10px">
           <div>
-            <div class="card-title">দ্রুত কাজ</div>
-            <div class="card-sub">সরাসরি নতুন এন্ট্রি করুন</div>
+            <div class="card-title">📈 শেষ ৭ দিনের বিক্রয়</div>
+            <div class="card-sub" id="bars-total"></div>
           </div>
         </div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <a href="orders.html?type=sales&new=1"    class="btn btn-success">+ নতুন বিক্রয়</a>
-          <a href="orders.html?type=purchase&new=1" class="btn btn-primary">+ নতুন ক্রয়</a>
-          <a href="parties.html?new=1"              class="btn btn-outline">+ নতুন পার্টি</a>
-          <a href="products.html?new=1"             class="btn btn-outline">+ নতুন পণ্য</a>
-        </div>
+        <div class="bars" id="bars"></div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-
-        <!-- RECENT SALES -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">সাম্প্রতিক বিক্রয়</div>
-            <a href="orders.html?type=sales" class="btn btn-outline btn-sm">সব দেখুন →</a>
+      <div class="two-col">
+        <!-- top dues -->
+        <div class="card" style="margin-bottom:0">
+          <div class="card-header" style="margin-bottom:8px;padding-bottom:10px">
+            <div class="card-title">🔥 শীর্ষ বাকি (গ্রাহক)</div>
+            <a class="see-all" href="ledger.html">সব দেখুন →</a>
           </div>
-          <div id="recent-sales">
-            <div class="empty"><div class="empty-icon" style="font-size:28px">🟢</div><p style="font-size:13px">কোনো বিক্রয় নেই</p></div>
-          </div>
+          <div id="top-dues"><div class="empty-sm">লোড হচ্ছে…</div></div>
         </div>
 
-        <!-- RECENT PURCHASES -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">সাম্প্রতিক ক্রয়</div>
-            <a href="orders.html?type=purchase" class="btn btn-outline btn-sm">সব দেখুন →</a>
+        <!-- recent activity -->
+        <div class="card" style="margin-bottom:0">
+          <div class="card-header" style="margin-bottom:8px;padding-bottom:10px">
+            <div class="card-title">🕘 সাম্প্রতিক লেনদেন</div>
+            <a class="see-all" href="orders.html">সব দেখুন →</a>
           </div>
-          <div id="recent-purchases">
-            <div class="empty"><div class="empty-icon" style="font-size:28px">🔵</div><p style="font-size:13px">কোনো ক্রয় নেই</p></div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- TOP PARTIES WITH DUE -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">বাকি আছে এমন পার্টি</div>
-            <div class="card-sub">সর্বোচ্চ বাকির ক্রমানুসারে</div>
-          </div>
-          <a href="ledger.html" class="btn btn-outline btn-sm">লেজার →</a>
-        </div>
-        <div id="due-parties-list">
-          <div class="empty"><div class="empty-icon" style="font-size:28px">📒</div><p style="font-size:13px">কোনো বাকি নেই</p></div>
+          <div id="recent"><div class="empty-sm">লোড হচ্ছে…</div></div>
         </div>
       </div>
-
-      <!-- LAST SYNC INFO -->
-      <div style="text-align:center;font-size:11px;color:var(--ink3);margin-top:8px" id="last-sync-info"></div>
 
     </div>
   </div>
@@ -172,281 +162,202 @@
 <script>
 buildNav('dashboard');
 
-/* ── DATE ── */
-document.getElementById('today-date').textContent =
-  new Date().toLocaleDateString('en-BD', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-
-/* ── SETUP BANNER ── */
-if (!BF.sheetUrl) {
-  document.getElementById('setup-banner').style.display = 'flex';
-} else {
-  document.getElementById('setup-banner').style.display = 'none';
+/* ════ data ════ */
+let orders=[], vouchers=[], parties=[], commissions=[], expenses=[];
+function loadLocal(){
+  orders     =JSON.parse(localStorage.getItem('bf_orders')||'[]');
+  vouchers   =JSON.parse(localStorage.getItem('bf_payments')||'[]');
+  parties    =JSON.parse(localStorage.getItem('bf_parties')||'[]');
+  commissions=JSON.parse(localStorage.getItem('bf_commissions')||'[]');
+  expenses   =JSON.parse(localStorage.getItem('bf_expenses')||'[]');
 }
 
-/* ── LOAD STATS FROM LOCAL CACHE ── */
-function loadFromCache() {
-  const orders   = JSON.parse(localStorage.getItem('bf_orders')   || '[]');
-  const parties  = JSON.parse(localStorage.getItem('bf_parties')  || '[]');
-  const products = JSON.parse(localStorage.getItem('bf_products') || '[]');
+/* robust date → 'YYYY-MM-DD' (handles ISO strings AND long Date strings from the Sheet) */
+function dKey(d){
+  if(!d)return '';
+  const s=String(d);
+  const m=s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if(m)return m[1];
+  const t=new Date(s);
+  if(isNaN(t.getTime()))return '';
+  return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+}
+function todayKey(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}
 
-  const sales     = orders.filter(o => o.orderType === 'sales');
-  const purchases = orders.filter(o => o.orderType === 'purchase');
-
-  const salesTotal   = sales.reduce((s,o)    => s + parseFloat(o.grandTotal||0), 0);
-  const totalPaid    = orders.reduce((s,o)   => s + parseFloat(o.totalPaid||0),  0);
-
-  // Standalone vouchers (payments/receipts/adjustments) reduce dues
-  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]');
-  function voucherCreditForType(otype){
-    // sales-side parties = customers; purchase-side = suppliers. For the dashboard totals
-    // we just net all voucher credits against the combined due.
-    let c = 0;
-    payments.forEach(v=>{
-      const amt = parseFloat(v.amount||0);
-      if (v.vtype==='receipt' || v.vtype==='payment') c += amt;
-      else if (v.vtype==='adjust') c += (v.direction==='debit' ? -amt : amt);
-    });
-    return c;
-  }
-  // Split dues & payments by party side.
-  // Customers: sales orders + their vouchers.  Suppliers: purchase orders + their vouchers.
-  const partyTypeById = {};
-  parties.forEach(p => { partyTypeById[p.id] = p.type; });
-  function sideOf(o){
-    // an order's side: sales→customer, purchase→supplier
-    return o.orderType === 'sales' ? 'cust' : 'supp';
-  }
-  let custBilled=0, custPaid=0, suppBilled=0, suppPaid=0;
+/* ════ canonical due (same convention as ledger/payments/orders) ════ */
+function dueOf(pid, opening){
+  let bal=parseFloat(opening)||0;
   orders.forEach(o=>{
-    const g = parseFloat(o.grandTotal||0), p = parseFloat(o.totalPaid||0);
-    if (sideOf(o)==='cust'){ custBilled+=g; custPaid+=p; }
-    else { suppBilled+=g; suppPaid+=p; }
+    if(o.partyId!==pid)return;
+    bal+=(parseFloat(o.grandTotal)||0)-(parseFloat(o.totalPaid)||0);
   });
-  // vouchers: receipt = customer payment; payment = supplier payment; adjust → follow party type
-  let custVoucher=0, suppVoucher=0;
-  payments.forEach(v=>{
-    const amt=parseFloat(v.amount||0);
-    const signed = (v.vtype==='adjust' && v.direction==='debit') ? -amt : amt;
-    if (v.vtype==='receipt') custVoucher+=signed;
-    else if (v.vtype==='payment') suppVoucher+=signed;
-    else { // adjust → use the party's type
-      const t = partyTypeById[v.partyId];
-      if (t==='supplier') suppVoucher+=signed; else custVoucher+=signed;
-    }
+  vouchers.forEach(v=>{
+    const amt=parseFloat(v.amount)||0;
+    const isP=v.partyId===pid,isC=v.counterpartyId===pid;
+    if(!isP&&!isC)return;
+    if(v.vtype==='dual'){bal-=amt;return;}
+    if(!isP)return;
+    if(v.vtype==='receipt'||v.vtype==='payment')bal-=amt;
+    else if(v.vtype==='adjust')bal+=(v.direction==='debit'?amt:-amt);
   });
-  const custDue = custBilled - custPaid - custVoucher;  // customers owe us
-  const suppDue = suppBilled - suppPaid - suppVoucher;  // we owe suppliers
-  const custPaidTotal = custPaid + custVoucher;          // received from customers
-  const suppPaidTotal = suppPaid + suppVoucher;          // paid to suppliers
-  // sales-only due (billed − paid for sales orders), for the sub-label under মোট বিক্রয়
-  const salesDue     = sales.reduce((s,o)=>s+parseFloat(o.grandTotal||0),0)
-                     - sales.reduce((s,o)=>s+parseFloat(o.totalPaid||0),0);
-
-  // Physical stock (on shelf) per product, then total as ctn + pcs.
-  // Carton size comes from the PRODUCTS MASTER (same source as the Stock page)
-  // so both pages produce identical totals.
-  const cartonById = {};
-  products.forEach(p => { if (p.id) cartonById[p.id] = parseFloat(p.cartonSize)||0; });
-
-  const physMap = {}; // productId → { pieces, cartonSize }
-  orders.forEach(o => {
-    let items = [];
-    try { items = JSON.parse(o.items||'[]'); } catch(e) {}
-    items.forEach(it => {
-      if (!it.productId) return;
-      if (!physMap[it.productId]) physMap[it.productId] = { pieces:0, cartonSize: cartonById[it.productId]||parseFloat(it.cartonSize)||0 };
-      const rec = physMap[it.productId];
-      // always prefer the master carton size if we have it
-      if (cartonById[it.productId]) rec.cartonSize = cartonById[it.productId];
-      const qp = parseFloat(it.qtyPieces!==undefined?it.qtyPieces:it.qty)||0;
-      const fp = parseFloat(it.freePieces)||0;
-      if (o.orderType === 'purchase') rec.pieces += (qp + fp);
-      if (o.orderType === 'sales')    rec.pieces -= (qp + fp);
-    });
-  });
-  let physCtn = 0, physPcs = 0;
-  Object.values(physMap).forEach(r => {
-    if (r.cartonSize > 0) {
-      // Math.trunc keeps ctn and pcs on the same side of zero for negatives,
-      // so an oversold product reads e.g. "-5 pcs" not "-1 ctn + -5 pcs".
-      physCtn += Math.trunc(r.pieces / r.cartonSize);
-      physPcs += r.pieces % r.cartonSize;
-    } else {
-      physPcs += r.pieces;
-    }
-  });
-  const physicalStock = (physCtn ? physCtn.toLocaleString() + ' ctn' : '')
-    + (physCtn && physPcs ? ' + ' : '')
-    + (physPcs || !physCtn ? physPcs + ' pcs' : '');
-
-  document.getElementById('stat-parties').textContent   = parties.length;
-  document.getElementById('stat-products').textContent  = products.filter(p=>p.status==='active').length;
-  document.getElementById('stat-sales').textContent     = sales.length;
-  document.getElementById('stat-purchases').textContent = purchases.length;
-  document.getElementById('stat-sales-total').textContent = fmt.currency(salesTotal);
-  document.getElementById('stat-sales-due').textContent   = `বাকি: ${fmt.currency(salesDue)}`;
-  document.getElementById('stat-total-paid').innerHTML =
-    `<span style="font-size:14px">গ্রাহক: ${fmt.currency(custPaidTotal)}</span><br>` +
-    `<span style="font-size:14px;color:var(--ink2)">সরবরাহকারী: ${fmt.currency(suppPaidTotal)}</span>`;
-  document.getElementById('stat-total-due').innerHTML =
-    `<span style="font-size:14px;color:var(--danger)">গ্রাহক: ${fmt.currency(custDue)}</span><br>` +
-    `<span style="font-size:14px;color:var(--ink2)">সরবরাহকারী: ${fmt.currency(suppDue)}</span>`;
-  document.getElementById('stat-physical-stock').textContent = physicalStock;
-
-  // Recent sales (last 5)
-  renderRecentOrders(sales.slice(0,5),   'recent-sales');
-  renderRecentOrders(purchases.slice(0,5),'recent-purchases');
-
-  // Due parties
-  renderDueParties(parties, orders);
-
-  // Last sync
-  const ls = localStorage.getItem('bf_last_sync');
-  document.getElementById('last-sync-info').textContent = ls
-    ? 'শেষ সিঙ্ক: ' + new Date(ls).toLocaleString('en-BD')
-    : 'এখনো Sheet থেকে সিঙ্ক হয়নি';
+  return bal;
 }
 
-/* ── RECENT ORDERS ── */
-function renderRecentOrders(list, containerId) {
-  const el = document.getElementById(containerId);
-  if (!list.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon" style="font-size:24px">${containerId.includes('sales')?'🟢':'🔵'}</div><p style="font-size:13px">কোনো অর্ডার নেই</p></div>`;
-    return;
+/* ════ render ════ */
+function render(){
+  loadLocal();
+  document.getElementById('today-date').textContent=new Date().toLocaleDateString('bn-BD',{weekday:'long',day:'numeric',month:'long'});
+
+  /* money position — পাবো/দেবো across all parties, per the sign convention */
+  let recv=0,pay=0,recvN=0,payN=0;
+  parties.forEach(p=>{
+    const d=dueOf(p.id,p.balance);
+    if(Math.abs(d)<0.005)return;
+    const receivable=(p.type==='supplier')?(d<0):(d>0);
+    if(receivable){recv+=Math.abs(d);recvN++;}else{pay+=Math.abs(d);payN++;}
+  });
+  document.getElementById('h-recv').textContent=fmt.currency(recv);
+  document.getElementById('h-recv-sub').textContent=recvN+'টি পার্টির কাছে বাকি';
+  document.getElementById('h-pay').textContent=fmt.currency(pay);
+  document.getElementById('h-pay-sub').textContent=payN+'টি পার্টিকে দেয়';
+
+  /* sales today / this month */
+  const tk=todayKey(),mk=tk.slice(0,7);
+  const sales=orders.filter(o=>o.orderType==='sales');
+  const tS=sales.filter(o=>dKey(o.date)===tk);
+  const mS=sales.filter(o=>dKey(o.date).slice(0,7)===mk);
+  document.getElementById('h-today').textContent=fmt.currency(tS.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0));
+  document.getElementById('h-today-sub').textContent=tS.length+'টি ইনভয়েস';
+  document.getElementById('h-month').textContent=fmt.currency(mS.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0));
+  document.getElementById('h-month-sub').textContent=mS.length+'টি ইনভয়েস';
+
+  /* purchases this month */
+  const mP=orders.filter(o=>o.orderType==='purchase'&&dKey(o.date).slice(0,7)===mk);
+  document.getElementById('m-purch').textContent=fmt.currency(mP.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0));
+  document.getElementById('m-purch-sub').textContent=mP.length+'টি PO';
+
+  /* cash this month: orders + vouchers (cash/bank/mobile) + manual entries */
+  let cin=0,cout=0;
+  orders.forEach(o=>{
+    if(dKey(o.date).slice(0,7)!==mk)return;
+    const c=(parseFloat(o.cash)||0)+(parseFloat(o.bankDeposit)||0)+(parseFloat(o.mobile)||0);
+    if(o.orderType==='sales')cin+=c;else cout+=c;
+  });
+  vouchers.forEach(v=>{
+    if(dKey(v.date).slice(0,7)!==mk)return;
+    if(v.vtype!=='receipt'&&v.vtype!=='payment')return;
+    const c=(parseFloat(v.cash)||0)+(parseFloat(v.bank)||0)+(parseFloat(v.mobile)||0);
+    if(v.vtype==='receipt')cin+=c;else cout+=c;
+  });
+  expenses.forEach(f=>{
+    if(dKey(f.date).slice(0,7)!==mk)return;
+    const a=parseFloat(f.amount)||0;
+    if(f.type==='income')cin+=a;else cout+=a;
+  });
+  const net=cin-cout;
+  const mc=document.getElementById('m-cash');
+  mc.textContent=(net<0?'−':'')+fmt.currency(Math.abs(net));
+  mc.style.color=net<0?'var(--danger)':'var(--success)';
+  document.getElementById('m-cash-sub').textContent='আয় '+fmt.currency(cin)+' · ব্যয় '+fmt.currency(cout);
+
+  /* commissions this month */
+  const mC=commissions.filter(c=>c.month===mk);
+  document.getElementById('m-comm').textContent=fmt.currency(mC.reduce((s,c)=>s+(parseFloat(c.amount)||0),0));
+  document.getElementById('m-comm-sub').textContent=mC.length? (mC.length+'টি এন্ট্রি') : 'এখনো এন্ট্রি নেই';
+
+  /* 7-day bars */
+  const days=[];
+  for(let i=6;i>=0;i--){
+    const t=new Date();t.setDate(t.getDate()-i);
+    const key=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    days.push({key,lbl:t.toLocaleDateString('bn-BD',{weekday:'short'}),amt:0});
   }
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse">` +
-    list.map(o => `
-      <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:8px 4px">
-          <strong style="font-size:13px;color:var(--accent)">${o.orderId}</strong>
-          <span style="font-size:11px;color:var(--ink3);margin-left:6px">${o.date}</span>
-        </td>
-        <td style="padding:8px 4px;font-size:13px">${o.partyName||'—'}</td>
-        <td style="padding:8px 4px;text-align:right;font-weight:600;font-size:13px">${fmt.currency(o.grandTotal)}</td>
-        <td style="padding:8px 4px;text-align:right">
-          <span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;
-            background:${o.status==='paid'?'#dcfce7':o.status==='partial'?'#fef9c3':'#fee2e2'};
-            color:${o.status==='paid'?'#15803d':o.status==='partial'?'#854d0e':'#dc2626'}">
-            ${o.status==='paid'?'পরিশোধিত':o.status==='partial'?'আংশিক':'বাকি'}
-          </span>
-        </td>
-      </tr>`).join('') +
-    `</table>`;
-}
-
-/* ── DUE PARTIES ── */
-function renderDueParties(parties, orders) {
-  const el = document.getElementById('due-parties-list');
-
-  // Calculate balance per party: opening + billed − paid − voucher credits
-  const allPayments = JSON.parse(localStorage.getItem('bf_payments')||'[]');
-  const balances = parties.map(p => {
-    const pOrders = orders.filter(o => o.partyId === p.id);
-    const opening = parseFloat(p.balance||0)||0;
-    const billed  = pOrders.reduce((s,o) => s + parseFloat(o.grandTotal||0), 0);
-    const paid    = pOrders.reduce((s,o) => s + parseFloat(o.totalPaid||0),  0);
-    let vCredit = 0;
-    allPayments.filter(v => v.partyId === p.id).forEach(v => {
-      const amt = parseFloat(v.amount||0);
-      if (v.vtype==='receipt' || v.vtype==='payment') vCredit += amt;
-      else if (v.vtype==='adjust') vCredit += (v.direction==='debit' ? -amt : amt);
-    });
-    const balance = opening + billed - paid - vCredit;
-    return { ...p, computedBalance: balance };
-  }).filter(p => p.computedBalance > 0.01)
-    .sort((a,b) => b.computedBalance - a.computedBalance)
-    .slice(0, 8);
-
-  if (!balances.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon" style="font-size:24px">✅</div><p style="font-size:13px">সব পার্টির হিসাব পরিষ্কার</p></div>`;
-    return;
-  }
-
-  const maxBal = balances[0].computedBalance;
-
-  el.innerHTML = balances.map(p => `
-    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-        <div style="font-size:11px;color:var(--ink3)">${p.area||p.phone||''}</div>
-      </div>
-      <div style="flex:2;min-width:80px">
-        <div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden">
-          <div style="height:100%;border-radius:20px;background:var(--danger);width:${Math.round((p.computedBalance/maxBal)*100)}%"></div>
-        </div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:14px;font-weight:700;color:var(--danger)">${fmt.currency(p.computedBalance)}</div>
-      </div>
-      <a href="ledger.html" onclick="localStorage.setItem('bf_selected_party','${p.id}')"
-        class="btn btn-outline btn-sm" style="flex-shrink:0">স্টেটমেন্ট</a>
+  sales.forEach(o=>{const k=dKey(o.date);const d=days.find(x=>x.key===k);if(d)d.amt+=(parseFloat(o.grandTotal)||0);});
+  const max=Math.max(...days.map(d=>d.amt),1);
+  const week=days.reduce((s,d)=>s+d.amt,0);
+  document.getElementById('bars-total').textContent='মোট: '+fmt.currency(week);
+  document.getElementById('bars').innerHTML=days.map((d,i)=>`
+    <div class="bar-col">
+      <span class="bar-val">${d.amt>0?'৳'+Math.round(d.amt).toLocaleString('en-BD'):''}</span>
+      <div class="bar ${i===6?'today':''}" style="height:${Math.max(3,Math.round(d.amt/max*100))}%"></div>
+      <span class="bar-day">${d.lbl}</span>
     </div>`).join('');
+
+  /* top dues — customers Mustary will receive from */
+  const dues=parties
+    .map(p=>({p,due:dueOf(p.id,p.balance)}))
+    .filter(x=>{const rec=(x.p.type==='supplier')?(x.due<0):(x.due>0);return rec&&Math.abs(x.due)>0.005&&x.p.type!=='supplier';})
+    .sort((a,b)=>b.due-a.due).slice(0,5);
+  document.getElementById('top-dues').innerHTML=dues.length?dues.map(x=>`
+    <div class="row-item">
+      <div class="row-ic" style="background:#fef2f2">👤</div>
+      <div class="row-main">
+        <div class="row-t">${x.p.name}</div>
+        <div class="row-s">${x.p.area||x.p.phone||''}</div>
+      </div>
+      <div class="row-amt">${dueChip(x.due,x.p.type)}</div>
+    </div>`).join(''):'<div class="empty-sm">✓ কোনো বাকি নেই</div>';
+
+  /* recent activity — orders + vouchers merged by savedAt */
+  const acts=[];
+  orders.forEach(o=>acts.push({t:o.savedAt||'',ic:o.orderType==='sales'?'🛒':'🏭',bg:o.orderType==='sales'?'#eef2ff':'#f0fdf4',
+    title:(o.orderId||'')+' — '+(o.partyName||''),sub:dKey(o.date),amt:parseFloat(o.grandTotal)||0,
+    col:o.orderType==='sales'?'var(--accent)':'var(--success)'}));
+  vouchers.forEach(v=>acts.push({t:v.savedAt||'',ic:'🧾',bg:'#fefce8',
+    title:(v.vno||'')+' — '+(v.partyName||'')+(v.vtype==='dual'?' ⇄ '+(v.counterpartyName||''):''),
+    sub:dKey(v.date),amt:parseFloat(v.amount)||0,col:'var(--warn)'}));
+  acts.sort((a,b)=>String(b.t).localeCompare(String(a.t)));
+  document.getElementById('recent').innerHTML=acts.length?acts.slice(0,8).map(a=>`
+    <div class="row-item">
+      <div class="row-ic" style="background:${a.bg}">${a.ic}</div>
+      <div class="row-main">
+        <div class="row-t">${a.title}</div>
+        <div class="row-s">${a.sub}</div>
+      </div>
+      <div class="row-amt" style="color:${a.col}">${fmt.currency(a.amt)}</div>
+    </div>`).join(''):'<div class="empty-sm">এখনো কোনো লেনদেন নেই</div>';
 }
 
-/* ── SYNC FROM SHEET ── */
-async function syncAndRefresh() {
-  if (!BF.sheetUrl) { loadFromCache(); return; }
-
-  const bar    = document.getElementById('sync-bar');
-  const barMsg = document.getElementById('sync-bar-msg');
-  bar.style.display = 'flex';
-
-  const steps = [
-    { action:'getParties',  store:'bf_parties',  label:'পার্টি লোড হচ্ছে…' },
-    { action:'getProducts', store:'bf_products', label:'পণ্য লোড হচ্ছে…' },
-    { action:'getOrders',   store:'bf_orders',   label:'অর্ডার লোড হচ্ছে…' },
-    { action:'getPayments', store:'bf_payments', label:'পেমেন্ট লোড হচ্ছে…' },
-  ];
-
-  for (const step of steps) {
-    try {
-      barMsg.textContent = step.label;
-      const data = await API.fetch(step.action);
-      if (Array.isArray(data)) {
-        if (step.action === 'getProducts') {
-          localStorage.setItem(step.store, JSON.stringify(
-            data.map(p => ({...p, hasOffer: p.hasOffer==='true'||p.hasOffer===true}))
-          ));
-        } else {
-          localStorage.setItem(step.store, JSON.stringify(data));
-        }
-      }
-    } catch(e) {
-      // Silently continue — use cached data
-    }
-  }
-
-  localStorage.setItem('bf_last_sync', new Date().toISOString());
-  bar.style.display = 'none';
-  loadFromCache();
-  loadDashFifoValue();
-}
-
-/* fetch FIFO (acquisition-cost) stock value and show it on the dashboard */
-async function loadDashFifoValue(){
-  if(!BF.sheetUrl) return;
+/* ════ stock value (server FIFO) ════ */
+async function loadStockValue(){
+  if(!BF.sheetUrl){document.getElementById('m-stock-sub').textContent='Sheet সংযোগ নেই';return;}
   try{
-    const r = await API.fetch('getStockValue');
-    if(r && typeof r.totalValue==='number'){
-      const el = document.getElementById('stat-stock-value');
-      if(el) el.textContent = fmt.currency(r.totalValue);
-    }
-  }catch(e){ /* leave as — */ }
+    const r=await API.fetch('getRevaluation');
+    if(r&&r.totalCost!==undefined){
+      document.getElementById('m-stock').textContent=fmt.currency(r.totalCost);
+      document.getElementById('m-stock-sub').textContent=(r.rows?r.rows.length:0)+'টি পণ্য স্টকে';
+    }else document.getElementById('m-stock-sub').textContent='লোড ব্যর্থ';
+  }catch(e){document.getElementById('m-stock-sub').textContent='লোড ব্যর্থ';}
 }
 
-/* ── EVENTS ── */
-document.getElementById('btn-refresh').addEventListener('click', () => {
-  document.getElementById('btn-refresh').textContent = '⟳ লোড হচ্ছে…';
-  syncAndRefresh().then(() => {
-    document.getElementById('btn-refresh').textContent = '🔄 রিফ্রেশ';
-    toast('ড্যাশবোর্ড আপডেট হয়েছে ✓','success');
-  });
-});
+/* ════ background refresh ════ */
+async function refresh(showBar){
+  if(!BF.sheetUrl){render();loadStockValue();return;}
+  const bar=document.getElementById('sync-bar');
+  if(showBar)bar.style.display='block';
+  const steps=[
+    ['getParties','bf_parties'],['getOrders','bf_orders'],
+    ['getPayments','bf_payments'],['getCommissions','bf_commissions'],['getExpenses','bf_expenses']
+  ];
+  for(const [action,key] of steps){
+    try{
+      document.getElementById('sync-bar-msg').textContent=action+' লোড হচ্ছে…';
+      const d=await API.fetch(action);
+      if(Array.isArray(d))localStorage.setItem(key,JSON.stringify(d));
+    }catch(e){}
+  }
+  bar.style.display='none';
+  localStorage.setItem('bf_last_sync',new Date().toISOString());
+  render();
+  loadStockValue();
+}
 
-/* ── INIT ── */
-loadFromCache();      // Show cached data immediately
-loadDashFifoValue();  // FIFO stock value
-syncAndRefresh();     // Then fetch fresh data in background
+document.getElementById('btn-refresh').addEventListener('click',()=>refresh(true));
+
+/* instant paint from cache, then silent refresh */
+render();
+loadStockValue();
+refresh(false);
 </script>
 </body>
 </html>
