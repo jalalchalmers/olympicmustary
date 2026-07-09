@@ -16,6 +16,8 @@
     .rv-zero{color:var(--ink3)}
     tr.rv-foot td{border-top:2px solid var(--ink3);font-weight:700;background:var(--bg);font-size:14px}
     .rv-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+    @media(max-width:900px){.rv-cards{grid-template-columns:1fr 1fr}}
+    @media(max-width:440px){.rv-cards{grid-template-columns:1fr}}
     .rv-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px}
     .rv-card .lbl{font-size:12px;color:var(--ink3);margin-bottom:6px}
     .rv-card .val{font-size:20px;font-weight:800}
@@ -68,9 +70,9 @@
           <thead>
             <tr>
               <th>কোড</th><th>পণ্য</th>
-              <th>স্টক (পিস)</th>
-              <th>ক্রয় দর</th><th>ক্রয়মূল্য</th>
-              <th>বিক্রয় দর</th><th>বিক্রয়মূল্য</th>
+              <th>স্টক (কার্টন)</th>
+              <th>ক্রয় দর (কার্টন)</th><th>ক্রয়মূল্য</th>
+              <th>বিক্রয় দর (কার্টন)</th><th>বিক্রয়মূল্য</th>
               <th>পুনর্মূল্যায়ন</th>
             </tr>
           </thead>
@@ -100,7 +102,7 @@
               <tr>
                 <th>কোড</th><th>পণ্য</th>
                 <th>পুরনো স্টক (কার্টন+পিস)</th>
-                <th>পুরনো দর</th><th>বর্তমান দর</th>
+                <th>পুরনো দর (কার্টন)</th><th>বর্তমান দর (কার্টন)</th>
                 <th>পুরনো দরে স্টকের মূল্য</th>
                 <th>বর্তমান দরে স্টকের মূল্য</th>
               </tr>
@@ -124,6 +126,8 @@ buildNav('revaluation');
 let revData = null;
 
 function fmtC(n){ return fmt.currency(n); }
+/* per-carton rate when cartonSize is known; otherwise per-piece with a suffix */
+function rateDisp(rate,cs){ return cs>0 ? fmtC(rate*cs) : (fmtC(rate)+'<span style="font-size:10px;color:var(--ink3)">/পিস</span>'); }
 
 function render(){
   const body=document.getElementById('rv-body');
@@ -138,13 +142,14 @@ function render(){
   body.innerHTML = revData.rows.map(r=>{
     const cls = r.reval>0.009?'rv-gain':(r.reval<-0.009?'rv-loss':'rv-zero');
     const sign = r.reval>0.009?'+':'';
+    const cs = parseFloat(r.cartonSize)||0;
     return `<tr>
       <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${r.code||''}</code></td>
       <td>${r.name||''}</td>
-      <td>${r.pieces.toLocaleString()}</td>
-      <td>${fmtC(r.costRate)}</td>
+      <td>${qtyCarton(r.pieces,cs)}</td>
+      <td>${rateDisp(r.costRate,cs)}</td>
       <td>${fmtC(r.costVal)}</td>
-      <td>${fmtC(r.saleRate)}</td>
+      <td>${rateDisp(r.saleRate,cs)}</td>
       <td>${fmtC(r.saleVal)}</td>
       <td class="${cls}">${sign}${fmtC(r.reval)}</td>
     </tr>`;
@@ -190,8 +195,8 @@ async function loadOldStock(){
         <td><code style="background:var(--bg);padding:1px 5px;border-radius:4px">${x.code||''}</code></td>
         <td>${x.name||''}</td>
         <td>${qtyCarton(x.oldPieces,x.cartonSize)}</td>
-        <td>${fmtC(x.oldRate)}</td>
-        <td>${fmtC(x.currentRate)}</td>
+        <td>${rateDisp(x.oldRate,x.cartonSize)}</td>
+        <td>${rateDisp(x.currentRate,x.cartonSize)}</td>
         <td>${fmtC(x.oldValue)}</td>
         <td>${fmtC(x.currentValue)}</td>
       </tr>`).join('')
@@ -214,9 +219,15 @@ function printOldStock(){
 
 function exportCsv(){
   if(!revData||!revData.rows.length){ toast('কোনো ডেটা নেই','error'); return; }
-  const h=['কোড','পণ্য','স্টক(পিস)','ক্রয় দর','ক্রয়মূল্য','বিক্রয় দর','বিক্রয়মূল্য','পুনর্মূল্যায়ন'];
-  const rows=revData.rows.map(r=>[r.code,r.name,r.pieces,r.costRate.toFixed(2),r.costVal.toFixed(2),r.saleRate.toFixed(2),r.saleVal.toFixed(2),r.reval.toFixed(2)].map(v=>`"${v}"`).join(','));
-  rows.push([`"মোট","","","","${revData.totalCost.toFixed(2)}","","${revData.totalSale.toFixed(2)}","${revData.totalReval.toFixed(2)}"`].join(''));
+  const h=['কোড','পণ্য','স্টক(কার্টন)','স্টক(পিস)','ক্রয় দর(কার্টন)','ক্রয়মূল্য','বিক্রয় দর(কার্টন)','বিক্রয়মূল্য','পুনর্মূল্যায়ন'];
+  const rows=revData.rows.map(r=>{
+    const cs=parseFloat(r.cartonSize)||0;
+    const stockC=cs>0?(Math.floor(r.pieces/cs)+(r.pieces%cs?(' ctn + '+(r.pieces%cs)+' pcs'):' ctn')):(r.pieces+' pcs');
+    const cRate=cs>0?(r.costRate*cs):r.costRate;
+    const sRate=cs>0?(r.saleRate*cs):r.saleRate;
+    return [r.code,r.name,stockC,r.pieces,cRate.toFixed(2),r.costVal.toFixed(2),sRate.toFixed(2),r.saleVal.toFixed(2),r.reval.toFixed(2)].map(v=>`"${v}"`).join(',');
+  });
+  rows.push([`"মোট","","","","","${revData.totalCost.toFixed(2)}","","${revData.totalSale.toFixed(2)}","${revData.totalReval.toFixed(2)}"`].join(''));
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));
   a.download='revaluation_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
