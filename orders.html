@@ -95,6 +95,7 @@
     /* PRINT */
     .print-only{display:none!important}
     @media print{
+      @page{size:A4;margin:10mm}
       .no-print{display:none!important}
       body{background:#fff;font-size:12px;margin:0;padding:0}
       .bf-layout{display:block}
@@ -109,7 +110,8 @@
       .card{box-shadow:none!important;border:none!important;padding:0!important;margin:0!important}
       #print-invoice{display:block!important;font-family:Arial,sans-serif;color:#000;padding:6px 4px}
       .pi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
-      .pi-brand{font-size:22px;font-weight:800;letter-spacing:-.5px}
+      .pi-brand{font-size:23px;font-weight:800;letter-spacing:-.5px}
+      .pi-bizinfo{font-size:10.5px;color:#444;margin-top:3px;line-height:1.5;max-width:300px}
       .pi-invlabel{text-align:right}
       .pi-invlabel .lbl{font-size:20px;font-weight:800;letter-spacing:2px}
       .pi-invlabel .num{font-size:12px;margin-top:3px}
@@ -119,21 +121,25 @@
       .pi-cust-label{font-size:11px;color:#555}
       .pi-cust-name{font-size:14px;font-weight:700;margin:2px 0}
       .pi-cust-addr{font-size:11px;color:#555}
-      .pi-cust-right{text-align:right;font-size:12px;font-weight:600}
       .pi-items-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:4px}
       .pi-table{width:100%;border-collapse:collapse;margin-bottom:10px}
-      .pi-table th{background:#f0f0f0;border:1px solid #000;padding:4px 6px;font-size:11px;text-align:left;font-weight:bold}
+      .pi-table th{background:#e8e8e8;border:1px solid #000;padding:5px 6px;font-size:11px;text-align:left;font-weight:bold;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .pi-table td{border:1px solid #000;padding:4px 6px;font-size:11px}
+      .pi-table tbody tr:nth-child(even) td{background:#f7f7f7;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .pi-table .c{text-align:center}.pi-table .r{text-align:right}
       .pi-bottom{display:flex;gap:16px;margin-top:8px}
       .pi-bleft{flex:1;font-size:11px}
       .pi-bleft .line{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #ccc}
       .pi-bleft .line.tot{font-weight:700;border-bottom:none;border-top:1px solid #000;margin-top:2px;padding-top:4px}
       .pi-bleft .grp-title{font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#666;margin:8px 0 2px}
-      .pi-bright{width:210px;font-size:12px}
+      .pi-bright{width:230px;font-size:12px;border:1px solid #000;border-radius:4px;padding:4px 10px 8px;align-self:flex-start}
       .pi-bright .line{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #ddd}
-      .pi-bright .line.bal{font-weight:800;font-size:13px;border-top:2px solid #000;border-bottom:none;margin-top:2px;padding-top:5px}
+      .pi-bright .line.bal{font-weight:800;font-size:13.5px;border-top:2px solid #000;border-bottom:none;margin-top:2px;padding-top:6px}
       .pi-note{margin-top:10px;font-size:11px;border-top:1px dashed #999;padding-top:6px}
+      .pi-sign{display:flex;justify-content:space-between;margin-top:48px;font-size:11px;text-align:center;page-break-inside:avoid}
+      .pi-sign .s{width:190px}
+      .pi-sign .ln{border-top:1px solid #000;margin-bottom:5px}
+      .pi-foot{text-align:center;font-size:10px;color:#555;margin-top:18px;border-top:1px dashed #999;padding-top:6px}
     }
   </style>
 </head>
@@ -193,14 +199,16 @@
         <!-- PRINT INVOICE -->
         <div id="print-invoice" class="print-only">
           <div class="pi-top">
-            <div class="pi-brand" id="pi-brand">BizFlow</div>
-            <div class="pi-invlabel"><div class="lbl" id="pi-invtype">INVOICE</div><div class="num" id="pi-invno"></div></div>
+            <div>
+              <div class="pi-brand" id="pi-brand">BizFlow</div>
+              <div class="pi-bizinfo" id="pi-bizinfo"></div>
+            </div>
+            <div class="pi-invlabel"><div class="lbl" id="pi-invtype">INVOICE</div><div class="num" id="pi-invno"></div><div class="num" id="pi-date"></div></div>
           </div>
           <hr class="pi-blackline"/>
           <div class="pi-depo" id="pi-depo">Super Depo: Mustary Enterprise, Chakaria, Coxsbazar, 01857274119</div>
           <div class="pi-cust">
             <div><div class="pi-cust-label" id="pi-cust-label">গ্রাহক</div><div class="pi-cust-name" id="pi-cust-name"></div><div class="pi-cust-addr" id="pi-cust-addr"></div></div>
-            <div class="pi-cust-right" id="pi-date"></div>
           </div>
           <div class="pi-items-title">পণ্য তালিকা</div>
           <table class="pi-table">
@@ -227,6 +235,11 @@
               <div class="line bal"><span>অবশিষ্ট বাকি</span><span id="pi-balance">৳0.00</span></div>
             </div>
           </div>
+          <div class="pi-sign">
+            <div class="s"><div class="ln"></div>গ্রাহকের স্বাক্ষর</div>
+            <div class="s"><div class="ln"></div>অনুমোদিত স্বাক্ষর</div>
+          </div>
+          <div class="pi-foot" id="pi-foot"></div>
         </div>
 
         <!-- TOP ACTION BAR -->
@@ -984,6 +997,11 @@ function buildPrintInvoice(){
   const partySel=document.getElementById('f-party');
   const party=parties.find(p=>p.id===partySel.value)||{};
   document.getElementById('pi-brand').textContent=bizName;
+  const bizPhone=localStorage.getItem('bf_biz_phone')||'';
+  document.getElementById('pi-bizinfo').textContent=[localStorage.getItem('bf_biz_address')||'',bizPhone?('ফোন: '+bizPhone):''].filter(Boolean).join(' · ');
+  const depoTxt=localStorage.getItem('bf_depo_text');
+  if(depoTxt)document.getElementById('pi-depo').textContent=depoTxt;
+  document.getElementById('pi-foot').textContent='আপনার ব্যবসার জন্য ধন্যবাদ'+(bizPhone?(' · যোগাযোগ: '+bizPhone):'');
   document.getElementById('pi-invtype').textContent=currentType==='sales'?'INVOICE':'PURCHASE ORDER';
   document.getElementById('pi-invno').textContent='অর্ডার নং: '+orderId;
   document.getElementById('pi-cust-label').textContent=currentType==='sales'?'গ্রাহক':'সরবরাহকারী';
@@ -1227,7 +1245,7 @@ function editOrder(id){
   }
   const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);
 }
-function printOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);setTimeout(()=>{buildPrintInvoice();window.print();},600);}
+function printOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);setTimeout(()=>{printOrderInvoice();},600);}
 function deleteOrder(id){
   if(BF.session&&BF.session.role==='admin'){
     const o=orders.find(x=>x.orderId===id);
