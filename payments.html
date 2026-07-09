@@ -342,9 +342,10 @@ function onPartyChange(){
   const pill=document.getElementById('cur-due');
   const pid=document.getElementById('f-party').value;
   if(!pid){pill.textContent='৳0.00';pill.className='balance-pill balance-zero';return;}
+  const party=parties.find(p=>p.id===pid)||{};
   const due=partyDue(pid);
-  pill.textContent=fmt.currency(due);
-  pill.className='balance-pill '+(due>0.009?'balance-due':due<-0.009?'balance-ok':'balance-zero');
+  pill.innerHTML=dueChip(due, party.type);
+  pill.className='balance-pill balance-zero';
 }
 
 function recalc(){
