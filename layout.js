@@ -123,16 +123,46 @@ const LAYOUT_CSS = `
 
   /* ── MOBILE ── */
   .bf-menu-btn { display:none; background:none; border:none; font-size:22px; cursor:pointer; padding:4px 8px; }
+  html { -webkit-tap-highlight-color:transparent; }
+  body { -webkit-text-size-adjust:100%; }
+  .table-wrap { -webkit-overflow-scrolling:touch; }
   @media(max-width:768px) {
-    .bf-nav { transform:translateX(-100%); }
+    .bf-nav { transform:translateX(-100%); box-shadow:8px 0 30px rgba(0,0,0,.25); }
     .bf-nav.open { transform:translateX(0); }
+    .bf-nav-item { padding:12px 12px; font-size:14px; }
     .bf-main { margin-left:0; }
     .bf-menu-btn { display:block; }
-    .bf-body { padding:16px 16px 60px; }
-    .bf-topbar { padding:0 16px; }
-    .stats-grid { grid-template-columns:1fr 1fr; }
+    .bf-body { padding:14px 12px calc(70px + env(safe-area-inset-bottom)); }
+
+    /* topbar wraps to two lines when action buttons overflow */
+    .bf-topbar { padding:8px 12px; height:auto; min-height:56px; flex-wrap:wrap; gap:8px; }
+    .bf-topbar-right { flex-wrap:wrap; gap:8px; }
+
+    /* stats: beat per-page inline grid-template-columns */
+    .stats-grid { grid-template-columns:1fr 1fr !important; gap:10px; }
+    .stat-card { padding:14px; }
+    .stat-value { font-size:20px; }
+
+    /* touch targets + prevent iOS zoom-on-focus (needs 16px inputs) */
+    .field input,.field select,.field textarea { font-size:16px; padding:11px 12px; min-height:44px; }
+    .btn { min-height:40px; }
+    .btn-sm { min-height:36px; }
+    .btn-icon { min-width:38px; }
+
+    /* tables: scroll horizontally instead of crushing */
+    .table-wrap table { min-width:620px; }
+    th { padding:8px 10px; }
+    td { padding:9px 10px; }
+
+    /* modals become bottom sheets */
+    .modal-overlay { align-items:flex-end; padding:0; }
+    .modal { max-width:100%; border-radius:20px 20px 0 0; max-height:92vh;
+             padding:22px 16px calc(18px + env(safe-area-inset-bottom)); }
+    .modal-footer .btn { flex:1; justify-content:center; }
+
+    .card { padding:16px; }
   }
-  @media(max-width:400px) { .stats-grid { grid-template-columns:1fr; } }
+  @media(max-width:480px) { .stats-grid { grid-template-columns:1fr !important; } }
   @media print { .bf-nav,.bf-topbar { display:none!important; } .bf-main { margin-left:0; } .bf-body { padding:0; } }
 `;
 
@@ -206,6 +236,10 @@ function buildNav(activePage) {
     </div>`;
 
   navEl.innerHTML = html;
+
+  // Mobile: tapping a nav link closes the drawer
+  navEl.querySelectorAll('a.bf-nav-item').forEach(a =>
+    a.addEventListener('click', () => navEl.classList.remove('open')));
 
   // Mobile hamburger toggle
   const menuBtn = document.getElementById('bf-menu-btn');
