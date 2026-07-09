@@ -43,7 +43,12 @@
       .vp-table td{border:1px solid #000;padding:6px 8px;font-size:12px}
       .vp-table .lbl{background:#f0f0f0;font-weight:bold;width:40%}
       .vp-total{display:flex;justify-content:space-between;border-top:2px solid #000;padding-top:8px;font-size:15px;font-weight:800}
-      .vp-sign{display:flex;justify-content:space-between;margin-top:48px;font-size:11px}
+      .vp-sign{display:flex;justify-content:space-between;margin-top:48px;font-size:11px;page-break-inside:avoid}
+      .vp-sign div{width:170px;text-align:center;border-top:1px solid #000;padding-top:5px}
+      .vp-bizinfo{font-size:10.5px;color:#444;margin-top:3px;line-height:1.5;max-width:280px}
+      .vp-foot{text-align:center;font-size:10px;color:#555;margin-top:16px;border-top:1px dashed #999;padding-top:6px}
+      .vp-table .lbl{background:#e8e8e8;font-weight:bold;width:40%;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      @page{size:A4;margin:12mm}
       .vp-sign div{border-top:1px solid #000;padding-top:4px;width:40%;text-align:center}
     }
   </style>
@@ -205,7 +210,10 @@
       <!-- OLYMPIC VOUCHER PRINT -->
       <div id="voucher-print" class="print-only">
         <div class="vp-top">
-          <div class="vp-brand" id="vp-brand">BizFlow</div>
+          <div>
+            <div class="vp-brand" id="vp-brand">BizFlow</div>
+            <div class="vp-bizinfo" id="vp-bizinfo"></div>
+          </div>
           <div class="vp-title"><div class="lbl" id="vp-type">MONEY RECEIPT</div><div class="num" id="vp-no"></div></div>
         </div>
         <hr class="vp-blackline"/>
@@ -218,6 +226,7 @@
         <div class="vp-total"><span id="vp-total-label">মোট গৃহীত</span><span id="vp-total">৳0.00</span></div>
         <div id="vp-note-wrap" style="margin-top:10px;font-size:11px;display:none"><b>নোট:</b> <span id="vp-note"></span></div>
         <div class="vp-sign"><div>গ্রহীতার স্বাক্ষর</div><div>অনুমোদনকারী</div></div>
+        <div class="vp-foot" id="vp-foot"></div>
       </div>
 
     </div>
@@ -436,6 +445,11 @@ function buildVoucherPrint(){
   const d=collectData();
   const party=parties.find(p=>p.id===d.partyId)||{};
   document.getElementById('vp-brand').textContent=localStorage.getItem('bf_biz_name')||'BizFlow';
+  const vpPhone=localStorage.getItem('bf_biz_phone')||'';
+  document.getElementById('vp-bizinfo').textContent=[localStorage.getItem('bf_biz_address')||'',vpPhone?('ফোন: '+vpPhone):''].filter(Boolean).join(' · ');
+  const vpDepo=localStorage.getItem('bf_depo_text');
+  if(vpDepo)document.getElementById('vp-depo').textContent=vpDepo;
+  document.getElementById('vp-foot').textContent='আপনার ব্যবসার জন্য ধন্যবাদ'+(vpPhone?(' · যোগাযোগ: '+vpPhone):'');
   const typeTitle={receipt:'MONEY RECEIPT',payment:'PAYMENT VOUCHER',adjust:'ADJUSTMENT VOUCHER',dual:'DIRECT / COMMISSION VOUCHER'};
   document.getElementById('vp-type').textContent=typeTitle[d.vtype];
   document.getElementById('vp-no').textContent='ভাউচার নং: '+d.vno;
@@ -511,7 +525,22 @@ function updateStats(){
 }
 
 function editV(id){showForm(id);}
-function printV(id){const v=vouchers.find(x=>x.id===id);if(!v)return;showForm(id);setTimeout(()=>{buildVoucherPrint();window.print();},500);}
+/* Print / Save as PDF — same output from the list 🖨 button and the in-form
+   button; document.title becomes the PDF filename (PartyName_VNO_Date). */
+function doPrintVoucher(){
+  buildVoucherPrint();
+  const vno=(document.getElementById('f-vno').value||'voucher').trim();
+  const psel=document.getElementById('f-party');
+  const pname=(psel.options[psel.selectedIndex]?.text||'').replace(/^—.*$/,'').trim();
+  const dt=document.getElementById('f-date').value||'';
+  const clean=s=>String(s).replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'').trim();
+  const fname=[clean(pname),clean(vno),clean(dt)].filter(Boolean).join('_')||'voucher';
+  const prev=document.title;
+  document.title=fname;
+  window.print();
+  setTimeout(()=>{document.title=prev;},1000);
+}
+function printV(id){const v=vouchers.find(x=>x.id===id);if(!v)return;showForm(id);setTimeout(doPrintVoucher,500);}
 function delV(id){
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;}
   const v=vouchers.find(x=>x.id===id); if(!v) return;
@@ -535,7 +564,7 @@ document.getElementById('btn-back').addEventListener('click',showList);
 document.getElementById('btn-back-2').addEventListener('click',showList);
 document.getElementById('btn-save').addEventListener('click',save);
 document.getElementById('btn-save-2').addEventListener('click',save);
-document.getElementById('btn-print').addEventListener('click',()=>{buildVoucherPrint();window.print();});
+document.getElementById('btn-print').addEventListener('click',doPrintVoucher);
 document.getElementById('btn-export').addEventListener('click',exportCSV);
 document.getElementById('f-party').addEventListener('change',onPartyChange);
 ['f-cash','f-bank','f-mobile','f-salary','f-ta','f-da','f-damage','f-other','f-dual-amount'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
