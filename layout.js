@@ -163,7 +163,14 @@ const LAYOUT_CSS = `
     .card { padding:16px; }
   }
   @media(max-width:480px) { .stats-grid { grid-template-columns:1fr !important; } }
-  @media print { .bf-nav,.bf-topbar { display:none!important; } .bf-main { margin-left:0; } .bf-body { padding:0; } }
+  #bf-print-stamp { display:none; }
+  @media print {
+    @page { margin:0; }                                /* removes browser URL/date/title stamps */
+    .bf-nav,.bf-topbar { display:none!important; }
+    .bf-main { margin-left:0; padding:10mm 12mm!important; }  /* simulated page margins */
+    .bf-body { padding:0; }
+    #bf-print-stamp { display:block; text-align:right; font-size:10px; color:#555; margin:0 0 6px; }
+  }
 `;
 
 /* ── Inject CSS + fonts ── */
@@ -240,6 +247,22 @@ function buildNav(activePage) {
   // Mobile: tapping a nav link closes the drawer
   navEl.querySelectorAll('a.bf-nav-item').forEach(a =>
     a.addEventListener('click', () => navEl.classList.remove('open')));
+
+  // Print stamp — the browser's own date/time header is suppressed (@page margin:0),
+  // so we place it inside the printed content, top-right.
+  const bodyEl = document.querySelector('.bf-body');
+  if (bodyEl && !document.getElementById('bf-print-stamp')) {
+    const st = document.createElement('div');
+    st.id = 'bf-print-stamp';
+    bodyEl.prepend(st);
+  }
+  function bfStamp() {
+    const el = document.getElementById('bf-print-stamp');
+    if (el) el.textContent = 'প্রিন্ট: ' + new Date().toLocaleString('en-GB',
+      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+  bfStamp();
+  window.addEventListener('beforeprint', bfStamp);
 
   // Mobile hamburger toggle
   const menuBtn = document.getElementById('bf-menu-btn');
