@@ -208,6 +208,24 @@ const fmt = {
 };
 
 /* ════════════════════════════════════════
+   DUE DISPLAY — unified sign convention
+   Convention: positive balance = outstanding in the party's natural
+   direction (customer → they owe Mustary; supplier → Mustary owes them).
+   This helper renders it identically everywhere:
+     পাবো (Mustary will receive) → green
+     দেবো (Mustary must pay)     → red
+════════════════════════════════════════ */
+function dueChip(balance, partyType) {
+  const b = parseFloat(balance) || 0;
+  if (Math.abs(b) < 0.005) return '<span style="font-weight:600;color:var(--ink3)">৳0.00</span>';
+  const sup = (partyType === 'supplier');
+  const receivable = sup ? (b < 0) : (b > 0);   // is Mustary the one who will receive?
+  const label = receivable ? 'পাবো' : 'দেবো';
+  const color = receivable ? 'var(--success)' : 'var(--danger)';
+  return '<span style="font-weight:700;color:' + color + '">' + label + ' ' + fmt.currency(Math.abs(b)) + '</span>';
+}
+
+/* ════════════════════════════════════════
    SPINNER BUTTON
 ════════════════════════════════════════ */
 function spinBtn(btn, loading) {
