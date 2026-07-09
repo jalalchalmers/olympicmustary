@@ -23,11 +23,10 @@
     <div class="bf-body">
 
       <!-- STATS -->
-      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-label">মোট পার্টি</div><div class="stat-value" id="s-total">0</div></div>
         <div class="stat-card"><div class="stat-icon">🏭</div><div class="stat-label">সরবরাহকারী</div><div class="stat-value" id="s-supplier">0</div></div>
         <div class="stat-card"><div class="stat-icon">🛒</div><div class="stat-label">গ্রাহক</div><div class="stat-value" id="s-customer">0</div></div>
-        <div class="stat-card"><div class="stat-icon">🔄</div><div class="stat-label">উভয়</div><div class="stat-value" id="s-both">0</div></div>
       </div>
 
       <!-- FILTERS -->
@@ -40,7 +39,6 @@
             <option value="">সব ধরন</option>
             <option value="supplier">সরবরাহকারী</option>
             <option value="customer">গ্রাহক</option>
-            <option value="both">উভয়</option>
           </select>
           <button class="btn btn-outline btn-sm" id="btn-sync">🔄 Sheet থেকে লোড</button>
           <button class="btn btn-outline btn-sm" id="btn-export">⬇ Export CSV</button>
@@ -91,7 +89,6 @@
         <select id="p-type">
           <option value="customer">গ্রাহক</option>
           <option value="supplier">সরবরাহকারী</option>
-          <option value="both">উভয়</option>
         </select>
       </div>
       <div class="field">
@@ -113,6 +110,7 @@
       <div class="field">
         <label>প্রারম্ভিক ব্যালেন্স (৳)</label>
         <input type="number" id="p-balance" placeholder="0.00" value="0"/>
+        <p style="font-size:11px;color:var(--ink3);margin-top:3px;line-height:1.5">গ্রাহক: (+) হলে গ্রাহকের কাছে <strong>পাবো</strong> · সরবরাহকারী: (+) হলে সরবরাহকারীকে <strong>দেবো</strong> · উল্টো হলে (−) দিন</p>
       </div>
       <div class="field" style="grid-column:1/-1">
         <label>সরবরাহকারী নেটওয়ার্ক (ঐচ্ছিক)</label>
@@ -151,7 +149,6 @@ function updateStats() {
   document.getElementById('s-total').textContent    = parties.length;
   document.getElementById('s-supplier').textContent = parties.filter(p=>p.type==='supplier').length;
   document.getElementById('s-customer').textContent = parties.filter(p=>p.type==='customer').length;
-  document.getElementById('s-both').textContent     = parties.filter(p=>p.type==='both').length;
 }
 
 /* ── RENDER TABLE ── */
@@ -177,9 +174,7 @@ function renderTable(list) {
       <td><span class="badge ${typeBadge[p.type]||''}">${typeLabel[p.type]||p.type}</span></td>
       <td>${p.phone||'—'}</td>
       <td style="font-size:12px;max-width:180px;color:var(--ink2)">${p.address||'—'}</td>
-      <td style="text-align:right;font-weight:600;color:${parseFloat(p.balance||0)<0?'var(--danger)':'var(--success)'}">
-        ${fmt.currency(p.balance||0)}
-      </td>
+      <td style="text-align:right">${dueChip(p.balance||0, p.type)}</td>
       <td>
         <div class="td-actions">
           <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${p.id}')" title="সম্পাদনা">✏️</button>
@@ -206,7 +201,13 @@ function openModal(id = null) {
   const p = id ? parties.find(x => x.id === id) : null;
   document.getElementById('modal-title').textContent = p ? 'পার্টি সম্পাদনা করুন' : 'নতুন পার্টি যোগ করুন';
   document.getElementById('p-name').value    = p?.name    || '';
-  document.getElementById('p-type').value    = p?.type    || 'customer';
+  // legacy 'both' parties keep their type until deliberately changed
+  const typeSel = document.getElementById('p-type');
+  const legacyBoth = typeSel.querySelector('option[value="both"]');
+  if (p?.type === 'both') {
+    if (!legacyBoth) typeSel.insertAdjacentHTML('beforeend','<option value="both">উভয় (পুরনো)</option>');
+  } else if (legacyBoth) legacyBoth.remove();
+  typeSel.value = p?.type || 'customer';
   document.getElementById('p-phone').value   = p?.phone   || '';
   document.getElementById('p-email').value   = p?.email   || '';
   document.getElementById('p-address').value = p?.address || '';
