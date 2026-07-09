@@ -1304,9 +1304,12 @@ document.getElementById('ctn-mode-toggle').addEventListener('change',function(){
 renderItemsHeader();
 const urlParams=new URLSearchParams(window.location.search);
 const urlType=urlParams.get('type');
-if(urlType==='purchase'||urlType==='sales'){currentType=urlType;setOrderType(urlType);}else setOrderType('sales');
+const urlNew=urlParams.get('new');
+if(urlType==='purchase'||urlType==='sales'){currentType=urlType;setOrderType(urlType);}
+else if(urlNew==='purchase'||urlNew==='sales'){currentType=urlNew;setOrderType(urlNew);}
+else setOrderType('sales');
 updateListStats();renderOrderList();
-if(urlParams.get('new')==='1')showForm();
+if(urlNew==='1'||urlNew==='purchase'||urlNew==='sales')showForm();
 </script>
 </body>
 </html>
