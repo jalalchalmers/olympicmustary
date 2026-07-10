@@ -294,6 +294,7 @@
           <div class="items-hdr" id="items-hdr"></div>
           <div id="order-items-container" class="mode-mix"></div>
           <button class="btn btn-outline btn-sm" id="btn-add-item" style="margin-top:8px">+ পণ্য যোগ করুন</button>
+          <button class="btn btn-outline btn-sm no-print" id="btn-rate-now" style="margin-top:8px;margin-left:8px;display:none;border-color:#d97706;color:#b45309">⟳ বর্তমান দরে আনুন</button>
           <div id="po-breakdown" class="no-print" style="display:none;margin-top:14px;background:var(--bg2);border:1px dashed var(--border2);border-radius:10px;padding:12px 14px">
             <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px">🧩 গ্রাহক অনুযায়ী বণ্টন (এই PO-তে কার জন্য কত টাকার পণ্য)</div>
             <div id="po-breakdown-body" style="font-size:13px"></div>
@@ -501,6 +502,7 @@ function showForm(orderId=null){
 
 function initNewForm(){
   applyCartonMode();
+  document.getElementById('btn-rate-now').style.display='none';
   document.getElementById('f-date').value=fmt.dateInput();
   document.getElementById('f-order-id').value=generateOrderId();
   document.getElementById('form-title').textContent=`নতুন ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার`;
@@ -901,6 +903,39 @@ function saveAlloc(){
   toast(a.length?'বণ্টন সেভ হয়েছে ✓':'বণ্টন মুছে ফেলা হয়েছে','success');
 }
 
+/* ════ PRESENT-RATE RESET ════
+   Reopened orders carry each line's ORIGINAL saved price as a lock
+   (row.dataset.lockedPrice) so history can't silently re-price.
+   This button deliberately removes those locks and re-runs the SAME
+   recalcRow pricing engine that prices a brand-new line — so the result
+   is exactly today's product-master rate (correct purchase/sales side,
+   offer math, full precision). No separate price math = no drift.
+   Lines whose product has no valid current rate keep their old price. */
+function canRateUpdate(){
+  const role=BF.session&&BF.session.role;
+  return role==='super'||(role==='admin'&&localStorage.getItem('bf_perm_rateupdate')==='on');
+}
+function applyPresentRates(){
+  const rows=[...document.querySelectorAll('.order-item-row')].filter(r=>r.querySelector('.oi-product').value);
+  if(!rows.length){toast('কোনো পণ্য লাইন নেই','error');return;}
+  bfConfirm('সব লাইনের দর বর্তমান মূল্য তালিকার দরে পরিবর্তিত হবে — সেভ করা পুরনো দর বাদ যাবে। সেভ করলে হিসাব, স্টক ও লেজার নতুন দর অনুযায়ী আপডেট হবে। নিশ্চিত?',()=>{
+    let changed=0,kept=0;
+    rows.forEach(row=>{
+      const opt=row.querySelector('.oi-product').selectedOptions[0];
+      const reg=parseFloat(opt?.dataset?.price)||0;
+      if(reg<=0){kept++;return;}                 // product missing/rate-less → keep old price
+      const before=parseFloat(row.dataset.usedPrice)||0;
+      delete row.dataset.lockedPrice;
+      recalcRow(row);
+      const after=parseFloat(row.dataset.usedPrice)||0;
+      if(Math.abs(after-before)>0.0001)changed++;
+    });
+    recalc();
+    buildPrintInvoice();
+    toast(`✓ ${changed}টি লাইনের দর বর্তমান দরে পরিবর্তিত হয়েছে${kept?` — ${kept}টি লাইনে বর্তমান দর নেই, আগের দর রাখা হয়েছে`:''}`,'success');
+  },'বর্তমান দরে আনুন');
+}
+
 function updatePOBreakdown(){
   const box=document.getElementById('po-breakdown');
   if(!box)return;
@@ -1161,6 +1196,7 @@ function updatePartyBalance(partyId){
 
 function populateForm(o){
   currentType=o.orderType;setOrderType(currentType);
+  document.getElementById('btn-rate-now').style.display=canRateUpdate()?'':'none';
   cartonMode=o.cartonMode==='yes';
   document.getElementById('ctn-mode-toggle').checked=cartonMode;
   applyCartonMode();
@@ -1302,6 +1338,7 @@ function printOrderInvoice(){
 document.getElementById('btn-print-order').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-print-order-2').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-add-item').addEventListener('click',()=>addOrderItem());
+document.getElementById('btn-rate-now').addEventListener('click',applyPresentRates);
 document.getElementById('alloc-modal').addEventListener('click',e=>{if(e.target.id==='alloc-modal')closeAllocModal();});
 document.getElementById('btn-load-all').addEventListener('click',loadAllProducts);
 document.getElementById('btn-upload-file').addEventListener('click',()=>document.getElementById('file-input').click());
