@@ -31,11 +31,12 @@
 
     #order-items-container.mode-ctn .order-item-row,.items-hdr.mode-ctn{grid-template-columns:2.4fr .8fr .8fr .8fr 1fr 1fr 1fr 34px}
     #order-items-container.mode-mix .order-item-row,.items-hdr.mode-mix{grid-template-columns:2.2fr .7fr .65fr .65fr .65fr .65fr .9fr 1fr 1fr 32px}
-    /* purchase mode: one extra "বণ্টন" button column */
-    #order-items-container.po-attr.mode-ctn .order-item-row,.items-hdr.po-attr.mode-ctn{grid-template-columns:2.4fr .8fr .8fr .8fr 1fr 1fr 1fr 44px 34px}
-    #order-items-container.po-attr.mode-mix .order-item-row,.items-hdr.po-attr.mode-mix{grid-template-columns:2.2fr .7fr .65fr .65fr .65fr .65fr .9fr 1fr 1fr 44px 32px}
-    .oi-alloc{width:100%;border:1.5px solid var(--border);border-radius:8px;background:#fff;padding:8px 0;font-size:15px;cursor:pointer;transition:all .15s;position:relative}
+    /* purchase mode: extra "বণ্টন/কমপ্লি" button column */
+    #order-items-container.po-attr.mode-ctn .order-item-row,.items-hdr.po-attr.mode-ctn{grid-template-columns:2.3fr .75fr .75fr .75fr .95fr .95fr .95fr 84px 34px}
+    #order-items-container.po-attr.mode-mix .order-item-row,.items-hdr.po-attr.mode-mix{grid-template-columns:2fr .65fr .6fr .6fr .6fr .6fr .85fr .95fr .95fr 84px 32px}
+    .oi-alloc,.oi-compli{flex:1;border:1.5px solid var(--border);border-radius:8px;background:#fff;padding:8px 0;font-size:14px;cursor:pointer;transition:all .15s;position:relative}
     .oi-alloc:hover{border-color:#d97706}
+    .oi-compli:hover{border-color:#059669}
     .oi-alloc.has-alloc{border-color:#d97706;background:#fef3c7}
     .oi-alloc .alloc-n{position:absolute;top:-6px;right:-6px;background:#d97706;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;line-height:1.3}
     /* allocation modal rows */
@@ -224,11 +225,12 @@
               <div class="grp-title">জমা (Payments)</div>
               <div id="pi-pay-lines"></div>
               <div class="line tot"><span>মোট জমা</span><span id="pi-pay-total">৳0.00</span></div>
+              <div class="pi-note" id="pi-compli-block" style="display:none"></div>
               <div class="pi-note" id="pi-note-block" style="display:none"><b>নোট:</b> <span id="pi-note"></span></div>
             </div>
             <div class="pi-bright">
               <div class="line"><span>সাবটোটাল</span><span id="pi-subtotal">৳0.00</span></div>
-              <div class="line"><span>ছাড়</span><span id="pi-discount">৳0.00</span></div>
+              <div class="line"><span id="pi-discount-lbl">ছাড়</span><span id="pi-discount">৳0.00</span></div>
               <div class="line"><span>এই অর্ডার মোট</span><span id="pi-grand">৳0.00</span></div>
               <div class="line"><span>পূর্ববর্তী বাকি</span><span id="pi-prevdue">৳0.00</span></div>
               <div class="line"><span>মোট জমা + কর্তন</span><span id="pi-totalpaid">৳0.00</span></div>
@@ -410,6 +412,46 @@
   </div>
 </div>
 
+<!-- COMPLEMENTARY HELPER (PO: supplier gives product B free with product A) -->
+<div class="modal-overlay" id="compli-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🎁 কমপ্লিমেন্টারি পণ্য</div>
+        <div style="font-size:12px;font-weight:700;color:var(--success);margin-top:3px" id="cp-src"></div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">পণ্যটি পূর্ণ দরের লাইন হিসেবে যোগ হবে; কমপ্লিমেন্টারি মূল্য ছাড়-এ যুক্ত হবে — সরবরাহকারীর হিসাব ও স্টক দুটোই সঠিক থাকবে।</div>
+      </div>
+      <button class="modal-close" onclick="closeCompliModal()">×</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field" style="grid-column:1/-1">
+        <label>কমপ্লিমেন্টারি পণ্য (B) *</label>
+        <select id="cp-product"><option value="">— নির্বাচন করুন —</option></select>
+      </div>
+      <div class="field">
+        <label>মোট প্রাপ্ত (কার্টন)</label>
+        <input type="number" id="cp-received" min="0" step="any" inputmode="decimal" placeholder="যেমন: 50"/>
+        <p style="font-size:11px;color:var(--ink3);margin-top:3px">0 রাখলে লাইন যোগ হবে না (নিজে লাইন করবেন)</p>
+      </div>
+      <div class="field">
+        <label>কমপ্লিমেন্টারি (কার্টন) *</label>
+        <input type="number" id="cp-compli" min="0" step="any" inputmode="decimal" placeholder="যেমন: 30"/>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;background:var(--bg2);border-radius:10px;padding:10px 14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span>কার্যকর দর (প্রতি কার্টন)</span><strong id="cp-rate">—</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0;border-top:1px dashed var(--border);margin-top:4px;padding-top:6px"><span>ছাড়-এ যুক্ত হবে</span><strong id="cp-value" style="color:var(--success)">৳0.00</strong></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCompliModal()">বাতিল</button>
+      <button class="btn btn-primary" onclick="applyCompli()">যোগ করুন</button>
+    </div>
+  </div>
+</div>
+
 <script src="shared.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="layout.js"></script>
@@ -459,7 +501,7 @@ function renderItemsHeader(){
   const poAttr=(currentType==='purchase');
   hdr.className='items-hdr '+(cartonMode?'mode-ctn':'mode-mix')+(poAttr?' po-attr':'');
   document.getElementById('order-items-container').classList.toggle('po-attr',poAttr);
-  const fp=poAttr?'<span style="justify-content:center">বণ্টন</span>':'';
+  const fp=poAttr?'<span style="justify-content:center">বণ্টন/🎁</span>':'';
   if(cartonMode){
     hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">ফ্রি কার্টন</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span>${fp}<span></span>`;
   }else{
@@ -606,7 +648,7 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
     <div class="oi-cell oi-cell-total"><span class="oi-lbl">মোট পরিমাণ</span><input type="text" class="oi-totalqty" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-price"><span class="oi-lbl">কার্টন মূল্য</span><input type="text" class="oi-price" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-amount"><span class="oi-lbl">পরিমাণ (৳)</span><input type="number" class="oi-total" readonly value="" style="text-align:right"/></div>
-    ${currentType==='purchase'?`<div class="oi-cell oi-cell-forparty no-print"><span class="oi-lbl">বণ্টন</span><button type="button" class="oi-alloc" onclick="openAllocModal(this)" title="গ্রাহক অনুযায়ী বণ্টন">🧩</button></div>`:''}
+    ${currentType==='purchase'?`<div class="oi-cell oi-cell-forparty no-print"><span class="oi-lbl">বণ্টন / কমপ্লি</span><div style="display:flex;gap:4px"><button type="button" class="oi-alloc" onclick="openAllocModal(this)" title="গ্রাহক অনুযায়ী বণ্টন">🧩</button><button type="button" class="oi-compli" onclick="openCompliModal(this)" title="এই পণ্যের সাথে কমপ্লিমেন্টারি">🎁</button></div></div>`:''}
     <button class="oi-del no-print" onclick="removeItem(this)" title="বাদ দিন">×</button>`;
   const ps=row.querySelector('.oi-product');
   if(productId){const p=products.find(x=>x.id===productId);if(p)row.querySelector('.oi-code').value=p.code||code||'';}
@@ -936,6 +978,82 @@ function applyPresentRates(){
   },'বর্তমান দরে আনুন');
 }
 
+/* ════ COMPLEMENTARY HELPER (PO only) ════
+   Idiom: supplier gives B free with A. B enters as a NORMAL PAID line at
+   master rate (so its FIFO layer rate is correct — never a rate-0 layer),
+   and the complementary value goes into the order-level ছাড়, which is
+   exactly what the supplier deducts. This helper only fills existing
+   fields (item line + discount + note) — no new pricing math is stored.
+   The per-carton rate mirrors what the line itself will charge:
+   effective per-piece (price×os/(os+fq) when offer, else price) × cartonSize. */
+function compliEffCarton(p){
+  const price=parseFloat(p.price)||0;
+  const has=(p.hasOffer===true||p.hasOffer==='true');
+  const os=has?(parseFloat(p.offerSize)||0):0;
+  const fq=has?(parseFloat(p.freeQty)||0):0;
+  const effPiece=(os>0&&(os+fq)>0)?(price*os/(os+fq)):price;
+  const cs=parseFloat(p.cartonSize)||0;
+  return {effPiece,cs,perCarton:effPiece*cs};
+}
+let compliSrcName='';   // the product (A) whose row opened the modal
+function openCompliModal(btn){
+  compliSrcName='';
+  if(btn&&btn.closest){
+    const row=btn.closest('.order-item-row');
+    const ps=row&&row.querySelector('.oi-product');
+    if(ps&&ps.value)compliSrcName=ps.options[ps.selectedIndex]?.dataset?.name||'';
+  }
+  document.getElementById('cp-src').textContent=compliSrcName?('মূল পণ্য: '+compliSrcName):'';
+  const sel=document.getElementById('cp-product');
+  sel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+products.filter(p=>p.status==='active').map(p=>`<option value="${p.id}">${p.code?'['+p.code+'] ':''}${p.name}</option>`).join('');
+  document.getElementById('cp-received').value='';
+  document.getElementById('cp-compli').value='';
+  compliRecalc();
+  document.getElementById('compli-modal').classList.add('open');
+}
+function closeCompliModal(){document.getElementById('compli-modal').classList.remove('open');}
+function compliRecalc(){
+  const pid=document.getElementById('cp-product').value;
+  const n=parseFloat(document.getElementById('cp-compli').value)||0;
+  const p=products.find(x=>x.id===pid);
+  if(!p){document.getElementById('cp-rate').textContent='—';document.getElementById('cp-value').textContent='৳0.00';return 0;}
+  const {perCarton}=compliEffCarton(p);
+  document.getElementById('cp-rate').textContent=fmt.currency(perCarton);
+  const val=Math.round(n*perCarton*100)/100;
+  document.getElementById('cp-value').textContent=fmt.currency(val);
+  return val;
+}
+function applyCompli(){
+  const pid=document.getElementById('cp-product').value;
+  const received=parseFloat(document.getElementById('cp-received').value)||0;
+  const compli=parseFloat(document.getElementById('cp-compli').value)||0;
+  const p=products.find(x=>x.id===pid);
+  if(!p){toast('পণ্য নির্বাচন করুন','error');return;}
+  if(compli<=0){toast('কমপ্লিমেন্টারি কার্টন লিখুন','error');return;}
+  const {perCarton,cs}=compliEffCarton(p);
+  if(cs<=0){toast('এই পণ্যের কার্টন সাইজ সেট নেই — পণ্য তালিকায় ঠিক করুন','error');return;}
+  if(perCarton<=0){toast('এই পণ্যের দর সেট নেই','error');return;}
+  if(received>0&&compli>received){toast('কমপ্লিমেন্টারি প্রাপ্ত পরিমাণের চেয়ে বেশি হতে পারে না','error');return;}
+
+  // 1) B as a normal paid line (only if received qty given)
+  if(received>0)addOrderItem(p.name,p.code||'',received,'','','',p.id);
+
+  // 2) complementary value → ADD to order discount
+  const val=Math.round(compli*perCarton*100)/100;
+  const dEl=document.getElementById('f-discount');
+  dEl.value=(Math.round(((parseFloat(dEl.value)||0)+val)*100)/100);
+
+  // 3) auto note (auditable later)
+  const nEl=document.getElementById('f-notes');
+  const note=`🎁 কমপ্লি${compliSrcName?(' ('+compliSrcName+' এর সাথে)'):''}: ${compli} কার্টন ${p.name} = ${fmt.currency(val)} (১ কার্টন = ${fmt.currency(perCarton)})`;
+  nEl.value=(nEl.value?nEl.value+'\n':'')+note;
+
+  recalc();
+  buildPrintInvoice();
+  closeCompliModal();
+  toast(`✓ ${received>0?received+' কার্টন লাইন যোগ হয়েছে, ':''}ছাড়ে ${fmt.currency(val)} যুক্ত হয়েছে`,'success');
+}
+
 function updatePOBreakdown(){
   const box=document.getElementById('po-breakdown');
   if(!box)return;
@@ -1090,8 +1208,20 @@ function buildPrintInvoice(){
   document.getElementById('pi-pay-total').textContent=fmt.currency(payTotal);
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=fmt.currency(v);};
   set('pi-subtotal',subtotal);set('pi-discount',discount);set('pi-grand',grand);set('pi-prevdue',prevDue);set('pi-totalpaid',totalPaid);set('pi-balance',balance);
-  const note=document.getElementById('f-notes').value;
-  if(note){document.getElementById('pi-note').textContent=note;document.getElementById('pi-note-block').style.display='';}else document.getElementById('pi-note-block').style.display='none';
+  // Notes: complementary lines (from the 🎁 helper) print as a CLEAN, labeled
+  // deduction explanation beside the ছাড় — the rest print as the normal note.
+  const noteRaw=document.getElementById('f-notes').value;
+  const noteLines=noteRaw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const compliLines=noteLines.filter(l=>l.startsWith('🎁 কমপ্লি'));
+  const otherNote=noteLines.filter(l=>!l.startsWith('🎁 কমপ্লি')).join(' | ');
+  const cb=document.getElementById('pi-compli-block');
+  if(compliLines.length){
+    document.getElementById('pi-discount-lbl').textContent='ছাড় *';
+    cb.innerHTML='<b>* ছাড়ের বিবরণ (কমপ্লিমেন্টারি):</b>'
+      +compliLines.map(l=>'<div style="padding:1px 0">• '+l.replace(/^🎁\s*/,'')+'</div>').join('');
+    cb.style.display='';
+  }else{cb.style.display='none';document.getElementById('pi-discount-lbl').textContent='ছাড়';}
+  if(otherNote){document.getElementById('pi-note').textContent=otherNote;document.getElementById('pi-note-block').style.display='';}else document.getElementById('pi-note-block').style.display='none';
 }
 
 function collectFormData(){
@@ -1339,6 +1469,9 @@ document.getElementById('btn-print-order').addEventListener('click',printOrderIn
 document.getElementById('btn-print-order-2').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-add-item').addEventListener('click',()=>addOrderItem());
 document.getElementById('btn-rate-now').addEventListener('click',applyPresentRates);
+document.getElementById('cp-product').addEventListener('change',compliRecalc);
+document.getElementById('cp-compli').addEventListener('input',compliRecalc);
+document.getElementById('compli-modal').addEventListener('click',e=>{if(e.target.id==='compli-modal')closeCompliModal();});
 document.getElementById('alloc-modal').addEventListener('click',e=>{if(e.target.id==='alloc-modal')closeAllocModal();});
 document.getElementById('btn-load-all').addEventListener('click',loadAllProducts);
 document.getElementById('btn-upload-file').addEventListener('click',()=>document.getElementById('file-input').click());
