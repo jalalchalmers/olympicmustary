@@ -35,6 +35,17 @@
     #order-items-container.po-attr.mode-ctn .order-item-row,.items-hdr.po-attr.mode-ctn{grid-template-columns:2.3fr .75fr .75fr .75fr .95fr .95fr .95fr 84px 34px}
     #order-items-container.po-attr.mode-mix .order-item-row,.items-hdr.po-attr.mode-mix{grid-template-columns:2fr .65fr .6fr .6fr .6fr .6fr .85fr .95fr .95fr 84px 32px}
     .oi-alloc,.oi-compli{flex:1;border:1.5px solid var(--border);border-radius:8px;background:#fff;padding:8px 0;font-size:14px;cursor:pointer;transition:all .15s;position:relative}
+    /* searchable product picker */
+    .oi-pwrap{position:relative}
+    .oi-pwrap select.oi-product{display:none}
+    .oi-plist{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;min-width:240px;z-index:80;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.16);max-height:250px;overflow:auto}
+    .oi-plist.open{display:block}
+    .oi-plist .pl-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--bg)}
+    .oi-plist .pl-item:last-child{border-bottom:none}
+    .oi-plist .pl-item:hover,.oi-plist .pl-item.hl{background:var(--accent-bg)}
+    .oi-plist .pl-code{color:var(--ink3);font-size:11px}
+    .oi-plist .pl-none{color:var(--ink3);cursor:default}
+    @media(max-width:820px){.oi-psearch{font-size:16px}}
     .oi-alloc:hover{border-color:#d97706}
     .oi-compli:hover{border-color:#059669}
     .oi-alloc.has-alloc{border-color:#d97706;background:#fef3c7}
@@ -639,7 +650,7 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
     return `<option value="${p.id}" data-name="${p.name}" data-code="${p.code||''}" data-price="${price||0}" data-eff="${p.effectivePrice||price||0}" data-offersize="${offerSize||0}" data-freeunits="${freeUnits||0}" data-cprice="${p.cartonPrice||0}" data-csize="${p.cartonSize||0}" data-offer="${hasOffer?'1':'0'}" data-peff="${pEff.toFixed(4)}" data-seff="${sEff.toFixed(4)}" ${p.id===productId?'selected':''}>${p.code?'['+p.code+'] ':''}${p.name}</option>`;
   }).join('');
   row.innerHTML=`
-    <div class="oi-cell oi-cell-product"><span class="oi-lbl">পণ্য</span><select class="oi-product"><option value="">— পণ্য —</option>${prodOpts}</select></div>
+    <div class="oi-cell oi-cell-product"><span class="oi-lbl">পণ্য</span><div class="oi-pwrap"><input type="text" class="oi-psearch" placeholder="🔍 পণ্য খুঁজুন…" autocomplete="off" value="${(productId?(products.find(x=>x.id===productId)?.name||name||''):(name||'')).replace(/"/g,'&quot;')}"/><div class="oi-plist"></div><select class="oi-product" tabindex="-1"><option value="">— পণ্য —</option>${prodOpts}</select></div></div>
     <div class="oi-cell oi-cell-code"><span class="oi-lbl">কোড</span><input type="text" class="oi-code" placeholder="কোড" value="${code}" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-qtyctn"><span class="oi-lbl">কার্টন</span><input type="number" class="oi-qtyctn" placeholder="0" value="${qtyCtn}" min="0" step="any" inputmode="decimal" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-qtypcs pcs-field"><span class="oi-lbl">পিস</span><input type="number" class="oi-qtypcs" placeholder="0" value="${qtyPcs}" min="0" step="any" inputmode="decimal" style="text-align:right"/></div>
@@ -653,6 +664,43 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
   const ps=row.querySelector('.oi-product');
   if(productId){const p=products.find(x=>x.id===productId);if(p)row.querySelector('.oi-code').value=p.code||code||'';}
   ps.addEventListener('change',()=>{const o=ps.options[ps.selectedIndex];if(o.dataset.code)row.querySelector('.oi-code').value=o.dataset.code;delete row.dataset.lockedPrice;recalcRow(row);});
+  /* ── searchable product picker (overlay; the hidden select stays the source of truth) ── */
+  const pin=row.querySelector('.oi-psearch'),plist=row.querySelector('.oi-plist');
+  const optData=[...ps.options].filter(o=>o.value).map(o=>({id:o.value,name:o.dataset.name||o.textContent,code:(o.dataset.code||'')}));
+  let hl=-1,visible=[];
+  function paintHl(){[...plist.children].forEach((el,i)=>el.classList.toggle('hl',i===hl));if(hl>-1&&plist.children[hl])plist.children[hl].scrollIntoView({block:'nearest'});}
+  function renderPList(q){
+    q=(q||'').trim().toLowerCase();
+    visible=optData.filter(p=>!q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q)).slice(0,60);
+    hl=visible.length?0:-1;
+    plist.innerHTML=visible.length
+      ? visible.map((p,i)=>`<div class="pl-item${i===0?' hl':''}" data-id="${p.id}">${p.code?`<span class="pl-code">[${p.code}]</span> `:''}${p.name}</div>`).join('')
+      : '<div class="pl-item pl-none">কোনো পণ্য মেলেনি</div>';
+    plist.classList.add('open');
+  }
+  function chooseProduct(id){
+    const p=optData.find(x=>x.id===id);if(!p)return;
+    ps.value=id;pin.value=p.name;plist.classList.remove('open');
+    ps.dispatchEvent(new Event('change'));   // same path as a native pick
+  }
+  pin.addEventListener('focus',()=>{pin.select();renderPList('');});
+  pin.addEventListener('input',()=>renderPList(pin.value));
+  pin.addEventListener('keydown',e=>{
+    if(!plist.classList.contains('open'))return;
+    if(e.key==='ArrowDown'){e.preventDefault();if(visible.length){hl=Math.min(hl+1,visible.length-1);paintHl();}}
+    else if(e.key==='ArrowUp'){e.preventDefault();if(visible.length){hl=Math.max(hl-1,0);paintHl();}}
+    else if(e.key==='Enter'){e.preventDefault();if(hl>-1&&visible[hl])chooseProduct(visible[hl].id);}
+    else if(e.key==='Escape'){plist.classList.remove('open');}
+  });
+  plist.addEventListener('mousedown',e=>{const it=e.target.closest('.pl-item');if(it&&it.dataset.id){e.preventDefault();chooseProduct(it.dataset.id);}});
+  pin.addEventListener('blur',()=>{
+    setTimeout(()=>{plist.classList.remove('open');
+      // text must match the actual selection — revert stray typing
+      const o=ps.options[ps.selectedIndex];
+      pin.value=(o&&o.value)?(o.dataset.name||o.textContent):'';
+    },150);
+  });
+  ps.addEventListener('change',()=>{const o=ps.options[ps.selectedIndex];if(o&&o.value)pin.value=o.dataset.name||o.textContent;});
   row.querySelector('.oi-qtyctn').addEventListener('input',()=>recalcRow(row));
   row.querySelector('.oi-qtypcs').addEventListener('input',()=>recalcRow(row));
   row.querySelector('.oi-freectn').addEventListener('input',()=>recalcRow(row));
