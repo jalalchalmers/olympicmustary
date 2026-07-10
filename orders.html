@@ -419,7 +419,7 @@
       <div>
         <div class="modal-title">🎁 কমপ্লিমেন্টারি পণ্য</div>
         <div style="font-size:12px;font-weight:700;color:var(--success);margin-top:3px" id="cp-src"></div>
-        <div style="font-size:12px;color:var(--ink3);margin-top:3px">পণ্যটি পূর্ণ দরের লাইন হিসেবে যোগ হবে; কমপ্লিমেন্টারি মূল্য ছাড়-এ যুক্ত হবে — সরবরাহকারীর হিসাব ও স্টক দুটোই সঠিক থাকবে।</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px" id="cp-hint"></div>
       </div>
       <button class="modal-close" onclick="closeCompliModal()">×</button>
     </div>
@@ -498,10 +498,10 @@ let cartonMode=false;
 
 function renderItemsHeader(){
   const hdr=document.getElementById('items-hdr');
-  const poAttr=(currentType==='purchase');
-  hdr.className='items-hdr '+(cartonMode?'mode-ctn':'mode-mix')+(poAttr?' po-attr':'');
-  document.getElementById('order-items-container').classList.toggle('po-attr',poAttr);
-  const fp=poAttr?'<span style="justify-content:center">বণ্টন/🎁</span>':'';
+  const isPO=(currentType==='purchase');
+  hdr.className='items-hdr '+(cartonMode?'mode-ctn':'mode-mix')+' po-attr';
+  document.getElementById('order-items-container').classList.add('po-attr');
+  const fp='<span style="justify-content:center">'+(isPO?'বণ্টন/🎁':'🎁')+'</span>';
   if(cartonMode){
     hdr.innerHTML=`<span>পণ্য</span><span>কোড</span><span style="justify-content:flex-end">কার্টন</span><span style="justify-content:flex-end">ফ্রি কার্টন</span><span style="justify-content:flex-end">মোট পরিমাণ</span><span style="justify-content:flex-end">কার্টন মূল্য</span><span style="justify-content:flex-end">পরিমাণ (৳)</span>${fp}<span></span>`;
   }else{
@@ -648,7 +648,7 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
     <div class="oi-cell oi-cell-total"><span class="oi-lbl">মোট পরিমাণ</span><input type="text" class="oi-totalqty" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-price"><span class="oi-lbl">কার্টন মূল্য</span><input type="text" class="oi-price" readonly value="" style="text-align:right"/></div>
     <div class="oi-cell oi-cell-amount"><span class="oi-lbl">পরিমাণ (৳)</span><input type="number" class="oi-total" readonly value="" style="text-align:right"/></div>
-    ${currentType==='purchase'?`<div class="oi-cell oi-cell-forparty no-print"><span class="oi-lbl">বণ্টন / কমপ্লি</span><div style="display:flex;gap:4px"><button type="button" class="oi-alloc" onclick="openAllocModal(this)" title="গ্রাহক অনুযায়ী বণ্টন">🧩</button><button type="button" class="oi-compli" onclick="openCompliModal(this)" title="এই পণ্যের সাথে কমপ্লিমেন্টারি">🎁</button></div></div>`:''}
+    <div class="oi-cell oi-cell-forparty no-print"><span class="oi-lbl">${currentType==='purchase'?'বণ্টন / কমপ্লি':'কমপ্লি'}</span><div style="display:flex;gap:4px">${currentType==='purchase'?'<button type="button" class="oi-alloc" onclick="openAllocModal(this)" title="গ্রাহক অনুযায়ী বণ্টন">🧩</button>':''}<button type="button" class="oi-compli" onclick="openCompliModal(this)" title="এই পণ্যের সাথে কমপ্লিমেন্টারি">🎁</button></div></div>
     <button class="oi-del no-print" onclick="removeItem(this)" title="বাদ দিন">×</button>`;
   const ps=row.querySelector('.oi-product');
   if(productId){const p=products.find(x=>x.id===productId);if(p)row.querySelector('.oi-code').value=p.code||code||'';}
@@ -987,10 +987,16 @@ function applyPresentRates(){
    The per-carton rate mirrors what the line itself will charge:
    effective per-piece (price×os/(os+fq) when offer, else price) × cartonSize. */
 function compliEffCarton(p){
-  const price=parseFloat(p.price)||0;
-  const has=(p.hasOffer===true||p.hasOffer==='true');
-  const os=has?(parseFloat(p.offerSize)||0):0;
-  const fq=has?(parseFloat(p.freeQty)||0):0;
+  // Mirrors the option-builder pricing exactly: invoices use the SALES side
+  // (empty sales price falls back to the purchase side, offer included);
+  // POs use the purchase side. So the discount always cancels the line value.
+  const isSale=(currentType==='sales');
+  const salesSet=(p.salesPrice!==undefined&&p.salesPrice!==''&&p.salesPrice!==null);
+  const useSales=isSale&&salesSet;
+  const price=parseFloat(useSales?p.salesPrice:p.price)||0;
+  const has=useSales?(p.salesHasOffer===true||p.salesHasOffer==='true'):(p.hasOffer===true||p.hasOffer==='true');
+  const os=has?(parseFloat(useSales?p.salesOfferSize:p.offerSize)||0):0;
+  const fq=has?(parseFloat(useSales?p.salesFreeQty:p.freeQty)||0):0;
   const effPiece=(os>0&&(os+fq)>0)?(price*os/(os+fq)):price;
   const cs=parseFloat(p.cartonSize)||0;
   return {effPiece,cs,perCarton:effPiece*cs};
@@ -1004,6 +1010,7 @@ function openCompliModal(btn){
     if(ps&&ps.value)compliSrcName=ps.options[ps.selectedIndex]?.dataset?.name||'';
   }
   document.getElementById('cp-src').textContent=compliSrcName?('মূল পণ্য: '+compliSrcName):'';
+  document.getElementById('cp-hint').textContent='পণ্যটি পূর্ণ দরের লাইন হিসেবে যোগ হবে; কমপ্লিমেন্টারি মূল্য ছাড়-এ যুক্ত হবে — '+(currentType==='purchase'?'সরবরাহকারীর':'গ্রাহকের')+' হিসাব ও স্টক দুটোই সঠিক থাকবে।';
   const sel=document.getElementById('cp-product');
   sel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+products.filter(p=>p.status==='active').map(p=>`<option value="${p.id}">${p.code?'['+p.code+'] ':''}${p.name}</option>`).join('');
   document.getElementById('cp-received').value='';
