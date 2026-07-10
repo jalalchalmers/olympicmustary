@@ -132,6 +132,7 @@ function syncData(logEl) {
           localStorage.setItem('bf_edit_orders',   data.edit_orders   || 'on');
           localStorage.setItem('bf_perm_pricelist',data.perm_pricelist|| 'on');
           localStorage.setItem('bf_perm_pushprice',data.perm_pushprice|| 'off');
+          localStorage.setItem('bf_perm_rateupdate',data.perm_rateupdate|| 'off');
         } else if (step.store && Array.isArray(data)) {
           if (step.action==='getProducts') {
             localStorage.setItem(step.store, JSON.stringify(
@@ -182,6 +183,7 @@ function doLogin() {
       localStorage.setItem('bf_edit_orders',   config.edit_orders   || 'on');
       localStorage.setItem('bf_perm_pricelist',config.perm_pricelist|| 'on');
       localStorage.setItem('bf_perm_pushprice',config.perm_pushprice|| 'off');
+      localStorage.setItem('bf_perm_rateupdate',config.perm_rateupdate|| 'off');
     }
   }).catch(function(){}).then(function(){
     finishLogin(pw);
