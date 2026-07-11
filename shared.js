@@ -205,6 +205,18 @@ const fmt = {
   currency:  n  => '৳' + parseFloat(n || 0).toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   date:      d  => d ? new Date(d).toLocaleDateString('en-BD') : '—',
   dateInput: () => new Date().toISOString().split('T')[0],
+  /* Robust DD-MM-YYYY for display. Handles ISO strings, plain YYYY-MM-DD,
+     and the long "Sun May 24 2026 …" Date-serialized strings from Sheets. */
+  dmy: d => {
+    if (!d) return '';
+    const s = String(d);
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    const t = new Date(s);
+    if (isNaN(t.getTime())) return s;
+    const p = n => String(n).padStart(2, '0');
+    return p(t.getDate()) + '-' + p(t.getMonth() + 1) + '-' + t.getFullYear();
+  },
 };
 
 /* ════════════════════════════════════════
