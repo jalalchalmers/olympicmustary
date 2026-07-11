@@ -299,6 +299,7 @@ async function saveCm(){
       rec.voucherId=r.voucherId||rec.voucherId;
       rec.vno=r.vno||rec.vno;
       const idx=commissions.findIndex(x=>x.id===rec.id);
+      rec.month=normMonth(rec.month);
       if(idx>-1)commissions[idx]=rec;else commissions.unshift(rec);
       saveLocal();render();closeModal();
       toast((editId?'কমিশন আপডেট হয়েছে':'কমিশন সেভ হয়েছে')+' ✓ ভাউচার: '+rec.vno,'success');
@@ -349,10 +350,24 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
 document.getElementById('cm-modal').addEventListener('click',e=>{if(e.target.id==='cm-modal')closeModal();});
 
 /* ── LOAD ── */
+/* Sheets auto-converts "2026-07" into a Date → it returns as a long
+   "Wed Jul 01 2026 …" string. Coerce any month-ish value back to YYYY-MM. */
+function normMonth(m){
+  if(!m)return '';
+  let s=String(m).replace(/^'/,'');
+  let mm=s.match(/^(\d{4}-\d{2})/);
+  if(mm)return mm[1];
+  const t=new Date(s);
+  if(isNaN(t.getTime()))return s;
+  return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+}
+function normalizeCommissions(){ commissions.forEach(c=>{ c.month=normMonth(c.month); }); }
+
 async function load(){
+  normalizeCommissions();
   render();
   if(!BF.sheetUrl)return;
-  try{const d=await API.fetch('getCommissions');if(Array.isArray(d)){commissions=d;saveLocal();}}catch(e){}
+  try{const d=await API.fetch('getCommissions');if(Array.isArray(d)){commissions=d;normalizeCommissions();saveLocal();}}catch(e){}
   try{const p=await API.fetch('getParties');if(Array.isArray(p)&&p.length){parties=p;localStorage.setItem('bf_parties',JSON.stringify(p));}}catch(e){}
   render();
 }
