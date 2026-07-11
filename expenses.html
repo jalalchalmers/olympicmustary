@@ -196,6 +196,7 @@ function derivedFlows(){
   });
   const vs=JSON.parse(localStorage.getItem('bf_payments')||'[]');
   vs.forEach(v=>{
+    // only receipt/payment vouchers move cash — adjust/dual/commission do not
     if(v.vtype!=='receipt'&&v.vtype!=='payment')return;
     [['cash','নগদ'],['bank','ব্যাংক'],['mobile','মোবাইল']].forEach(([f,lbl])=>{
       const a=parseFloat(v[f]||0);if(a<=0)return;
