@@ -146,8 +146,8 @@
             <div class="card-title" style="margin-bottom:6px">🔀 গ্রাহক ⇄ সরবরাহকারী লেনদেন</div>
             <p style="font-size:12px;color:var(--ink3);margin:0 0 14px">
               গ্রাহক সরাসরি সরবরাহকারীকে টাকা দিলে, অথবা সরবরাহকারী মুস্তারীর মাধ্যমে গ্রাহককে
-              কমিশন/দাবি দিলে — একটি ভাউচারেই দুই পক্ষের হিসাব হবে:
-              গ্রাহকের বাকি কমবে এবং সরবরাহকারীকে দেয় সমপরিমাণ কমবে।
+              কমিশন/দাবি দিলে — একটি ভাউচারেই দুই পক্ষের হিসাব হবে।
+              নিচের ধরন অনুযায়ী গ্রাহক ও সরবরাহকারী উভয়ের বাকি একসাথে কমবে বা বাড়বে।
             </p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
               <div class="field"><label>সরবরাহকারী *</label><select id="f-counterparty"><option value="">— নির্বাচন করুন —</option></select></div>
@@ -160,6 +160,17 @@
                 </select>
               </div>
               <div class="field"><label>পরিমাণ (৳) *</label><input type="number" id="f-dual-amount" value="0" min="0" step="0.01"/></div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label>ধরন *</label>
+              <div style="display:flex;gap:10px">
+                <label style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;font-size:13px">
+                  <input type="radio" name="ddir" value="credit" checked style="margin-right:6px;accent-color:var(--accent)">দুই পক্ষের বাকি <b>কমবে</b> (ক্রেডিট)
+                </label>
+                <label style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;font-size:13px">
+                  <input type="radio" name="ddir" value="debit" style="margin-right:6px;accent-color:var(--accent)">দুই পক্ষের বাকি <b>বাড়বে</b> (ডেবিট)
+                </label>
+              </div>
             </div>
           </div>
 
@@ -338,7 +349,7 @@ function partyDue(partyId){
     const amt=parseFloat(v.amount||0);
     const isParty=v.partyId===partyId, isCounter=v.counterpartyId===partyId;
     if(!isParty && !isCounter) return;
-    if(v.vtype==='dual'){ vAdj+=amt; return; }         // customer credit / supplier credit
+    if(v.vtype==='dual'){ vAdj+=(v.direction==='debit'?-amt:amt); return; }   // credit lowers due, debit raises it
     if(!isParty) return;
     if(v.vtype==='receipt')vAdj+=amt;          // received → reduces due
     else if(v.vtype==='payment')vAdj+=amt;     // we paid supplier → reduces what we owe (their due to us logic mirrored)
@@ -378,6 +389,7 @@ function resetForm(){
   document.getElementById('f-counterparty').value='';
   document.getElementById('cur-due').textContent='৳0.00';
   document.querySelector('input[name="adir"][value="credit"]').checked=true;
+  const ddc=document.querySelector('input[name="ddir"][value="credit"]');if(ddc)ddc.checked=true;
 }
 
 function collectData(){
@@ -387,7 +399,9 @@ function collectData(){
   const cpid=vType==='dual'?document.getElementById('f-counterparty').value:'';
   const cparty=cpid?(parties.find(p=>p.id===cpid)||{}):{};
   const total=recalc();
-  const direction=vType==='adjust'?(document.querySelector('input[name="adir"]:checked').value):'credit';
+  const direction=vType==='adjust'?(document.querySelector('input[name="adir"]:checked').value)
+                 :vType==='dual'?(document.querySelector('input[name="ddir"]:checked').value)
+                 :'credit';
   return{
     id:editId||('PMT'+Date.now()),
     vno:document.getElementById('f-vno').value,
@@ -436,7 +450,10 @@ function populateForm(v){
   document.getElementById('f-note').value=v.note||'';
   document.getElementById('f-dual-amount').value=(v.vtype==='dual'?(v.amount||0):0);
   document.getElementById('f-category').value=v.category||'direct';
-  if(v.direction)document.querySelector('input[name="adir"][value="'+v.direction+'"]').checked=true;
+  if(v.direction){
+    const a=document.querySelector('input[name="adir"][value="'+v.direction+'"]');if(a)a.checked=true;
+    const dd=document.querySelector('input[name="ddir"][value="'+v.direction+'"]');if(dd)dd.checked=true;
+  }
   populatePartyDropdown(v.partyId,v.counterpartyId||'');
   recalc();
 }
@@ -462,8 +479,9 @@ function buildVoucherPrint(){
   const rows=[];
   if(d.vtype==='dual'){
     rows.push(['ক্যাটাগরি',CAT_LABEL[d.category]||'—']);
-    rows.push(['গ্রাহক (বাকি কমবে)',d.partyName]);
-    rows.push(['সরবরাহকারী (দেয় কমবে)',d.counterpartyName||'']);
+    rows.push(['গ্রাহক',d.partyName]);
+    rows.push(['সরবরাহকারী',d.counterpartyName||'']);
+    rows.push(['ধরন',d.direction==='debit'?'দুই পক্ষের বাকি বৃদ্ধি (ডেবিট)':'দুই পক্ষের বাকি হ্রাস (ক্রেডিট)']);
     rows.push(['পরিমাণ',d.amount]);
   }else{
   if(d.cash)rows.push(['নগদ (Cash)',d.cash]);
@@ -499,7 +517,7 @@ function renderList(){
     const partyCell=v.vtype==='dual'
       ? `<strong>${v.partyName}</strong> <span style="color:var(--ink3)">⇄</span> <strong>${v.counterpartyName||''}</strong>`
       : `<strong>${v.partyName}</strong>`;
-    const badgeExtra=v.vtype==='adjust'?(' · '+(v.direction==='debit'?'Debit':'Credit')):(v.vtype==='dual'?(' · '+(CAT_LABEL[v.category]||'')):'');
+    const badgeExtra=v.vtype==='adjust'?(' · '+(v.direction==='debit'?'Debit':'Credit')):(v.vtype==='dual'?(' · '+(CAT_LABEL[v.category]||'')+' · '+(v.direction==='debit'?'বাকি↑':'বাকি↓')):'');
     return `<tr>
       <td><strong style="color:var(--accent)">${v.vno}</strong></td>
       <td style="font-size:12px">${fmt.dmy(v.date)}</td>
