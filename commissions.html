@@ -207,7 +207,16 @@ function openModal(id=null){
   document.querySelector(`input[name="cbasis"][value="${c?.basis||'percent'}"]`).checked=true;
   document.getElementById('c-rate').value=c?.rate||'';
   document.getElementById('c-amount').value=c?.amount||'';
-  document.getElementById('c-date').value=c?.date||fmt.dateInput();
+  document.getElementById('c-date').value=(function(d){
+    if(!d)return fmt.dateInput();
+    const s=String(d);
+    let m=s.match(/^(\d{4}-\d{2}-\d{2})/);
+    if(m)return m[1];
+    const t=new Date(s);
+    if(isNaN(t.getTime()))return fmt.dateInput();
+    const p=n=>String(n).padStart(2,'0');
+    return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate());
+  })(c?.date);
   document.getElementById('c-note').value=c?.note||'';
   document.getElementById('c-volume').textContent=c?fmt.currency(c.salesVolume||0):'—';
   document.getElementById('c-volume-sub').textContent='';
