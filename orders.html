@@ -49,7 +49,9 @@
     .oi-alloc:hover{border-color:#d97706}
     .oi-compli:hover{border-color:#059669}
     .oi-alloc.has-alloc{border-color:#d97706;background:#fef3c7}
+    .oi-compli.has-compli{border-color:#059669;background:#dcfce7}
     .oi-alloc .alloc-n{position:absolute;top:-6px;right:-6px;background:#d97706;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;line-height:1.3}
+    .oi-compli .compli-n{position:absolute;top:-6px;right:-6px;background:#059669;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;line-height:1.3}
     /* allocation modal rows */
     .al-row{display:grid;grid-template-columns:1fr 70px 62px 30px;gap:8px;align-items:center;margin-bottom:8px}
     .al-row select,.al-row input{border:1.5px solid var(--border);border-radius:8px;padding:9px 8px;font-family:inherit;font-size:13px;outline:none;width:100%}
@@ -588,7 +590,7 @@ function voucherAdjForParty(partyId, excludeId){
     const amt=parseFloat(v.amount||0);
     const isParty=v.partyId===partyId, isCounter=v.counterpartyId===partyId;
     if(!isParty && !isCounter) return;
-    if(v.vtype==='dual'){ adj+=amt; return; }   // triangle voucher credits both sides
+    if(v.vtype==='dual'){ adj+=(v.direction==='debit'?-amt:amt); return; }   // credit lowers due, debit raises it
     if(!isParty) return;
     if(v.vtype==='receipt'||v.vtype==='payment') adj+=amt;
     else if(v.vtype==='adjust') adj+=(v.direction==='debit'?-amt:amt);
@@ -622,7 +624,7 @@ function setPrevDue(amount){
 }
 function getPrevDue(){return parseFloat(document.getElementById('f-prev-due-sum').textContent.replace(/[^\d.-]/g,''))||0;}
 
-function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',productId='',savedPrice='',allocData=null){
+function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',productId='',savedPrice='',allocData=null,compliData=null){
   itemCount++;
   const row=document.createElement('div');
   row.className='order-item-row';
@@ -710,6 +712,10 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
   if(allocData&&Array.isArray(allocData)&&allocData.length){
     row.dataset.alloc=JSON.stringify(allocData);
     updateAllocBadge(row);
+  }
+  if(compliData&&Array.isArray(compliData)&&compliData.length){
+    row.dataset.compli=JSON.stringify(compliData);
+    updateCompliBadge(row);
   }
   document.getElementById('order-items-container').appendChild(row);
   recalcRow(row);
@@ -913,6 +919,15 @@ function qtyDisp(pieces,cs){
   return `${Math.round(pieces*100)/100} পিস`;
 }
 
+function updateCompliBadge(row){
+  const btn=row.querySelector('.oi-compli');if(!btn)return;
+  let list=[];try{list=JSON.parse(row.dataset.compli||'[]');}catch(e){}
+  const n=list.length;
+  btn.classList.toggle('has-compli',n>0);
+  btn.innerHTML='🎁'+(n?`<span class="compli-n">${n}</span>`:'');
+  btn.title=n?('কমপ্লিমেন্টারি: '+list.map(x=>x.cartons+' কার্টন '+x.productName).join(', ')):'এই পণ্যের সাথে কমপ্লিমেন্টারি';
+}
+
 function updateAllocBadge(row){
   const btn=row.querySelector('.oi-alloc');if(!btn)return;
   let a=[];try{a=JSON.parse(row.dataset.alloc||'[]');}catch(e){}
@@ -1051,11 +1066,12 @@ function compliEffCarton(p){
   return {effPiece,cs,perCarton:effPiece*cs};
 }
 let compliSrcName='';   // the product (A) whose row opened the modal
+let compliSrcRow=null;  // the actual row element, to badge it
 function openCompliModal(btn){
-  compliSrcName='';
+  compliSrcName='';compliSrcRow=null;
   if(btn&&btn.closest){
-    const row=btn.closest('.order-item-row');
-    const ps=row&&row.querySelector('.oi-product');
+    compliSrcRow=btn.closest('.order-item-row');
+    const ps=compliSrcRow&&compliSrcRow.querySelector('.oi-product');
     if(ps&&ps.value)compliSrcName=ps.options[ps.selectedIndex]?.dataset?.name||'';
   }
   document.getElementById('cp-src').textContent=compliSrcName?('মূল পণ্য: '+compliSrcName):'';
@@ -1141,6 +1157,14 @@ function applyCompli(){
 
   recalc();
   buildPrintInvoice();
+  // mark the source row's 🎁 and STORE the complementary detail so it
+  // survives save → reopen (like allocations do)
+  if(compliSrcRow){
+    let list=[];try{list=JSON.parse(compliSrcRow.dataset.compli||'[]');}catch(e){}
+    list.push({productId:p.id,productName:p.name,cartons:compli,perCarton:perCarton,value:val});
+    compliSrcRow.dataset.compli=JSON.stringify(list);
+    updateCompliBadge(compliSrcRow);
+  }
   closeCompliModal();
   toast(`✓ ${received>0?received+' কার্টন লাইন যোগ হয়েছে, ':''}ছাড়ে ${fmt.currency(val)} যুক্ত হয়েছে`,'success');
 }
@@ -1335,7 +1359,8 @@ function collectFormData(){
         return {partyId:x.partyId,partyName:x.partyName||'',ctn:parseFloat(x.ctn)||0,pcs:parseFloat(x.pcs)||0,pieces,amount:Math.round(pieces*perPiece*100)/100};
       }).filter(x=>x.partyId&&x.pieces>0);
     })();
-    items.push({productId:ps.value,productName:ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'',code:row.querySelector('.oi-code').value,qtyCtn:parseFloat(row.querySelector('.oi-qtyctn').value)||0,qtyPcs:parseFloat(row.querySelector('.oi-qtypcs').value)||0,freeCtn:parseFloat(row.querySelector('.oi-freectn').value)||0,freePcs:parseFloat(row.querySelector('.oi-freepcs').value)||0,qtyPieces,freePieces:parseFloat(row.dataset.freePieces)||0,totalPieces:parseFloat(row.dataset.totalPieces)||0,cartonSize:parseFloat(row.dataset.cSize)||0,usedPrice:parseFloat(row.dataset.usedPrice)||0,qty:qtyPieces,price:parseFloat(row.dataset.usedPrice)||0,total:parseFloat(row.querySelector('.oi-total').value)||0,alloc:rowAlloc});
+    const rowCompli=(function(){let a=[];try{a=JSON.parse(row.dataset.compli||'[]');}catch(e){}return a;})();
+    items.push({productId:ps.value,productName:ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'',code:row.querySelector('.oi-code').value,qtyCtn:parseFloat(row.querySelector('.oi-qtyctn').value)||0,qtyPcs:parseFloat(row.querySelector('.oi-qtypcs').value)||0,freeCtn:parseFloat(row.querySelector('.oi-freectn').value)||0,freePcs:parseFloat(row.querySelector('.oi-freepcs').value)||0,qtyPieces,freePieces:parseFloat(row.dataset.freePieces)||0,totalPieces:parseFloat(row.dataset.totalPieces)||0,cartonSize:parseFloat(row.dataset.cSize)||0,usedPrice:parseFloat(row.dataset.usedPrice)||0,qty:qtyPieces,price:parseFloat(row.dataset.usedPrice)||0,total:parseFloat(row.querySelector('.oi-total').value)||0,alloc:rowAlloc,compli:rowCompli});
   });
   const subtotal=items.reduce((s,i)=>s+i.total,0);
   const discount=parseFloat(document.getElementById('f-discount').value)||0;
@@ -1443,7 +1468,7 @@ function populateForm(o){
     let alloc=it.alloc||null;
     // legacy single "কার জন্য" items → convert to a full allocation
     if(!alloc&&it.forPartyId){alloc=[{partyId:it.forPartyId,partyName:it.forPartyName||'',ctn:it.qtyCtn||0,pcs:it.qtyPcs||0}];}
-    addOrderItem(it.productName,it.code,it.qtyCtn,it.qtyPcs,it.freeCtn,it.freePcs,it.productId,(it.usedPrice!==undefined?it.usedPrice:(it.price!==undefined?it.price:'')),alloc);
+    addOrderItem(it.productName,it.code,it.qtyCtn,it.qtyPcs,it.freeCtn,it.freePcs,it.productId,(it.usedPrice!==undefined?it.usedPrice:(it.price!==undefined?it.price:'')),alloc,(it.compli||null));
   });
   recalc();buildPrintInvoice();
 }
