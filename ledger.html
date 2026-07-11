@@ -218,7 +218,8 @@ function populatePartySelect() {
 /* ── BUILD LEDGER FROM LOCAL ORDERS ── */
 function buildLedgerForParty(partyId) {
   const partyOrders = orders.filter(o => o.partyId === partyId);
-  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]').filter(v => v.partyId === partyId);
+  const payments = JSON.parse(localStorage.getItem('bf_payments')||'[]')
+    .filter(v => v.partyId === partyId || v.counterpartyId === partyId);
 
   // Build a unified event list, then sort by actual date (oldest first)
   const events = [];
@@ -305,7 +306,15 @@ function buildLedgerForParty(partyId) {
       const detail = methods.length?' ('+methods.join(', ')+')':'';
 
       let label, isDebit;
-      if (v.vtype==='receipt'){ label='রিসিট'; isDebit=false; }
+      if (v.vtype==='dual'){
+        const CAT={direct:'সরাসরি পেমেন্ট',commission:'কমিশন',claim:'দাবি',adjust:'সমন্বয়'};
+        const cat=CAT[v.category]||'সরাসরি/কমিশন';
+        label = (v.partyId===partyId)
+          ? cat+' (সরবরাহকারী: '+(v.counterpartyName||'')+')'
+          : cat+' (গ্রাহক: '+(v.partyName||'')+')';
+        isDebit=false;   // both sides credit — reduces due
+      }
+      else if (v.vtype==='receipt'){ label='রিসিট'; isDebit=false; }
       else if (v.vtype==='payment'){ label='পেমেন্ট'; isDebit=false; }
       else { label='সমন্বয়'; isDebit=(v.direction==='debit'); }
 
@@ -314,7 +323,7 @@ function buildLedgerForParty(partyId) {
 
       entries.push({
         date:v.date,
-        description:`${label} — ${v.vno}${detail}`,
+        description:`${label} — ${v.vno}${v.vtype==='dual'?'':detail}`,
         debit:  isDebit?amt:0,
         credit: isDebit?0:amt,
         balance:runningBalance,
@@ -343,11 +352,14 @@ function renderAllPartiesSummary() {
     const partyOrders = orders.filter(o => o.partyId === p.id);
     const totalInvoiced = partyOrders.reduce((s,o) => s+parseFloat(o.grandTotal||0), 0);
     const paidInOrders  = partyOrders.reduce((s,o) => s+parseFloat(o.totalPaid||0),  0);
-    // standalone vouchers for this party
-    const pv = allPayments.filter(v => v.partyId === p.id);
+    // standalone vouchers for this party — dual vouchers credit BOTH sides
     let voucherCredit = 0;
-    pv.forEach(v => {
+    allPayments.forEach(v => {
       const amt = parseFloat(v.amount||0);
+      const isParty = v.partyId === p.id, isCounter = v.counterpartyId === p.id;
+      if (!isParty && !isCounter) return;
+      if (v.vtype==='dual') { voucherCredit += amt; return; }
+      if (!isParty) return;
       if (v.vtype==='receipt' || v.vtype==='payment') voucherCredit += amt;
       else if (v.vtype==='adjust') voucherCredit += (v.direction==='debit' ? -amt : amt);
     });
@@ -363,9 +375,7 @@ function renderAllPartiesSummary() {
       <td style="font-size:12px">${p.phone||'—'}</td>
       <td style="text-align:right">${fmt.currency(totalInvoiced)}</td>
       <td style="text-align:right;color:var(--success)">${fmt.currency(totalPaid)}</td>
-      <td style="text-align:right">
-        <span style="font-weight:700;color:${balance>0?'var(--danger)':balance<0?'var(--success)':'var(--ink3)'}">${fmt.currency(balance)}</span>
-      </td>
+      <td style="text-align:right">${dueChip(balance, p.type)}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="loadLedger('${p.id}')">স্টেটমেন্ট</button>
       </td>
@@ -410,11 +420,11 @@ function loadLedger(partyId) {
 
   document.getElementById('sm-total').textContent = fmt.currency(totalInvoiced);
   document.getElementById('sm-paid').textContent  = fmt.currency(totalPaid);
-  document.getElementById('sm-due').textContent   = fmt.currency(balance);
+  document.getElementById('sm-due').innerHTML     = dueChip(balance, selectedParty ? selectedParty.type : 'customer');
 
   const balEl = document.getElementById('lp-balance');
-  balEl.textContent = fmt.currency(balance);
-  balEl.className   = 'party-balance-val ' + (balance>0?'balance-pos':balance<0?'balance-neg':'balance-zero');
+  balEl.innerHTML = dueChip(balance, selectedParty ? selectedParty.type : 'customer');
+  balEl.className   = 'party-balance-val';
 
   // Show/hide sections
   document.getElementById('party-selector-card').style.display = 'none';
