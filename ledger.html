@@ -271,7 +271,7 @@ function buildLedgerForParty(partyId) {
         date:        o.date,
         description: (o.orderType==='sales'?'বিক্রয় — ':'ক্রয় — ')+o.orderId+((parseFloat(o.discount)||0)>0?` (ছাড় ${fmt.currency(o.discount)} সমন্বিত)`:''),
         debit:       grand, credit:0, balance:runningBalance,
-        reference:   o.orderId, type:o.orderType,
+        reference:   o.orderId, type:o.orderType, note:(o.notes||'').split('\n').filter(l=>!l.trim().startsWith('🎁')).join(' | ').trim(),
       });
       if (totalPaid > 0) {
         runningBalance -= totalPaid;
@@ -312,7 +312,7 @@ function buildLedgerForParty(partyId) {
         label = (v.partyId===partyId)
           ? cat+' (সরবরাহকারী: '+(v.counterpartyName||'')+')'
           : cat+' (গ্রাহক: '+(v.partyName||'')+')';
-        isDebit=false;   // both sides credit — reduces due
+        isDebit=(v.direction==='debit');   // debit-both raises due; credit-both lowers it
       }
       else if (v.vtype==='receipt'){ label='রিসিট'; isDebit=false; }
       else if (v.vtype==='payment'){ label='পেমেন্ট'; isDebit=false; }
@@ -327,7 +327,7 @@ function buildLedgerForParty(partyId) {
         debit:  isDebit?amt:0,
         credit: isDebit?0:amt,
         balance:runningBalance,
-        reference:v.vno, type:'voucher',
+        reference:v.vno, type:'voucher', note:(v.note||'').trim(),
       });
     }
   });
@@ -358,7 +358,7 @@ function renderAllPartiesSummary() {
       const amt = parseFloat(v.amount||0);
       const isParty = v.partyId === p.id, isCounter = v.counterpartyId === p.id;
       if (!isParty && !isCounter) return;
-      if (v.vtype==='dual') { voucherCredit += amt; return; }
+      if (v.vtype==='dual') { voucherCredit += (v.direction==='debit' ? -amt : amt); return; }
       if (!isParty) return;
       if (v.vtype==='receipt' || v.vtype==='payment') voucherCredit += amt;
       else if (v.vtype==='adjust') voucherCredit += (v.direction==='debit' ? -amt : amt);
@@ -475,7 +475,7 @@ function renderLedgerTable(entries) {
     const balClass = e.balance>0 ? 'balance-pos' : e.balance<0 ? 'balance-neg' : 'balance-zero';
     return `<tr style="${rowBg}">
       <td style="font-size:12px;white-space:nowrap">${fmtDMY(e.date)}</td>
-      <td style="font-size:13px">${e.description}</td>
+      <td style="font-size:13px">${e.description}${e.note?`<br><span style="font-size:11px;color:var(--ink3);font-style:italic">✎ ${e.note}</span>`:''}</td>
       <td style="text-align:right" class="${e.debit>0?'ledger-debit':''}">${e.debit>0?fmt.currency(e.debit):'—'}</td>
       <td style="text-align:right" class="${e.credit>0?'ledger-credit':''}">${e.credit>0?fmt.currency(e.credit):'—'}</td>
       <td style="text-align:right" class="${balClass}">${fmt.currency(e.balance)}</td>
