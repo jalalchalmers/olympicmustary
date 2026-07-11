@@ -457,7 +457,7 @@ function buildVoucherPrint(){
   document.getElementById('vp-party-sub').textContent=d.vtype==='dual'
     ? ('গ্রাহক: '+d.partyName+' | সরবরাহকারী: '+(d.counterpartyName||''))
     : [party.address,party.area,d.partyPhone].filter(Boolean).join(' | ');
-  document.getElementById('vp-date').textContent='তারিখ: '+(d.date?new Date(d.date).toLocaleDateString('en-CA'):'');
+  document.getElementById('vp-date').textContent='তারিখ: '+fmt.dmy(d.date);
   // rows: only non-zero methods
   const rows=[];
   if(d.vtype==='dual'){
@@ -502,7 +502,7 @@ function renderList(){
     const badgeExtra=v.vtype==='adjust'?(' · '+(v.direction==='debit'?'Debit':'Credit')):(v.vtype==='dual'?(' · '+(CAT_LABEL[v.category]||'')):'');
     return `<tr>
       <td><strong style="color:var(--accent)">${v.vno}</strong></td>
-      <td style="font-size:12px">${v.date}</td>
+      <td style="font-size:12px">${fmt.dmy(v.date)}</td>
       <td>${partyCell}</td>
       <td><span class="badge ${TYPE_BADGE[v.vtype]}">${TYPE_LABEL[v.vtype]}${badgeExtra}</span></td>
       <td style="font-size:12px">${m}</td>
