@@ -277,7 +277,7 @@ function render(){
           <button class="btn btn-danger btn-sm btn-icon" onclick="del('${f.id}')" title="মুছুন">🗑️</button>
         </div>`;
       return `<tr>
-        <td style="font-size:12px">${f.date||''}</td>
+        <td style="font-size:12px">${fmt.dmy(f.date)}</td>
         <td><span class="cf-type-badge ${inc?'inc':'exp'}">${inc?'আয়':'ব্যয়'}</span></td>
         <td><span class="cf-cat ${inc?'inc':'exp'}">${f.category||'—'}</span></td>
         <td style="text-align:right;font-weight:600;color:${inc?'var(--success)':'var(--danger)'}">${inc?'+':'−'}${fmt.currency(f.amount)}</td>
