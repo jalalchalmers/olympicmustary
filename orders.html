@@ -560,10 +560,21 @@ function initNewForm(){
   document.getElementById('btn-rate-now').style.display='none';
   document.getElementById('f-date').value=fmt.dateInput();
   document.getElementById('f-order-id').value=generateOrderId();
+  refreshOrderId();
   document.getElementById('form-title').textContent=`নতুন ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার`;
   populatePartyDropdown(); addOrderItem(); recalc(); buildPrintInvoice();
 }
 
+/* Confirm the next order number from the Sheet (device-safe), keeping the
+   instant local guess as fallback. Skipped when editing. */
+async function refreshOrderId(){
+  if(!BF.sheetUrl||editOrderId)return;
+  const myType=currentType;
+  try{
+    const r=await API.fetch('getNextOrderId',{orderType:myType});
+    if(r&&r.orderId&&currentType===myType&&!editOrderId)document.getElementById('f-order-id').value=r.orderId;
+  }catch(e){}
+}
 function generateOrderId(){
   const prefix=currentType==='sales'?'INV':'PO';
   const existing=orders.filter(o=>o.orderType===currentType);
@@ -1386,7 +1397,10 @@ async function saveOrder(){
   if(!data.partyId){toast('পার্টি নির্বাচন করুন','error');return;}
   if(!data.date){toast('তারিখ দিন','error');return;}
   if(!JSON.parse(data.items).length){toast('কমপক্ষে একটি পণ্য যোগ করুন','error');return;}
-  const btn=document.getElementById('btn-save-order');spinBtn(btn,true);
+  const btn=document.getElementById('btn-save-order');
+  const btn2=document.getElementById('btn-save-order-2');
+  spinBtn(btn,true); if(btn2)spinBtn(btn2,true);
+  const unspin=()=>{unspin();if(btn2)spinBtn(btn2,false);};
 
   // FIFO stock guard: for a SALE, ask the server first (cors mode reads the
   // response). If the server blocks it (would oversell), do NOT save locally.
@@ -1394,7 +1408,7 @@ async function saveOrder(){
     try{
       const res=await API.fetch('saveOrder',data);
       if(res && res.status==='blocked'){
-        spinBtn(btn,false);
+        unspin();
         const first=(res.shortages||[])[0];
         const extra=(res.shortages||[]).length>1?` (+${res.shortages.length-1} আরও)`:'';
         const msg=first?`পর্যাপ্ত স্টক নেই — ${first.name}: আছে ${first.have}, প্রয়োজন ${first.need}${extra} — আগে ক্রয় অর্ডার তৈরি করুন`:'পর্যাপ্ত স্টক নেই — আগে ক্রয় অর্ডার তৈরি করুন';
@@ -1410,7 +1424,7 @@ async function saveOrder(){
       if(res && Array.isArray(res.salesAutoUpdated) && res.salesAutoUpdated.length){
         setTimeout(()=>toast(`ℹ️ ${res.salesAutoUpdated.length}টি পণ্যের পুরনো স্টক শেষ — বিক্রয় মূল্য স্বয়ংক্রিয়ভাবে আপডেট হয়েছে`,'success'),900);
       }
-      spinBtn(btn,false);showList();
+      unspin();showList();
       return;
     }catch(e){
       // server unreachable → fall back to local save + fire-and-forget post
@@ -1424,7 +1438,7 @@ async function saveOrder(){
   updatePartyBalance(data.partyId);
   toast(editOrderId?'অর্ডার আপডেট হয়েছে ✓':'অর্ডার সেভ হয়েছে ✓','success');
   if(BF.sheetUrl){try{await API.post({action:'saveOrder',...data});}catch(e){toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error');}}
-  spinBtn(btn,false);showList();
+  unspin();showList();
 }
 
 function updatePartyBalance(partyId){
