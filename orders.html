@@ -1402,9 +1402,10 @@ async function saveOrder(){
   spinBtn(btn,true); if(btn2)spinBtn(btn2,true);
   const unspin=()=>{unspin();if(btn2)spinBtn(btn2,false);};
 
-  // FIFO stock guard: for a SALE, ask the server first (cors mode reads the
-  // response). If the server blocks it (would oversell), do NOT save locally.
-  if(BF.sheetUrl && data.orderType==='sales'){
+  // CONFIRMED-FIRST for ALL order types: wait for the server's response
+  // (stock guard for sales; write confirmation for everything). Only if the
+  // server is unreachable do we fall back to local-save + fire-and-forget.
+  if(BF.sheetUrl){
     try{
       const res=await API.fetch('saveOrder',data);
       if(res && res.status==='blocked'){
@@ -1415,30 +1416,61 @@ async function saveOrder(){
         toast(msg,'error');
         return;
       }
-      // accepted by server (already written server-side) → update local cache
-      if(editOrderId){const idx=orders.findIndex(o=>o.orderId===editOrderId);if(idx>-1)orders[idx]=data;else orders.unshift(data);}else orders.unshift(data);
-      localStorage.setItem('bf_orders',JSON.stringify(orders));
-      updatePartyBalance(data.partyId);
-      toast(editOrderId?'অর্ডার আপডেট হয়েছে ✓':'অর্ডার সেভ হয়েছে ✓','success');
-      // Rule C step 4 notification: old stock cleared → sales price auto-updated
-      if(res && Array.isArray(res.salesAutoUpdated) && res.salesAutoUpdated.length){
-        setTimeout(()=>toast(`ℹ️ ${res.salesAutoUpdated.length}টি পণ্যের পুরনো স্টক শেষ — বিক্রয় মূল্য স্বয়ংক্রিয়ভাবে আপডেট হয়েছে`,'success'),900);
+      if(res && (res.status==='inserted'||res.status==='updated')){
+        data._sync='synced';   // server CONFIRMED the write
+        if(editOrderId){const idx=orders.findIndex(o=>o.orderId===editOrderId);if(idx>-1)orders[idx]=data;else orders.unshift(data);}else orders.unshift(data);
+        localStorage.setItem('bf_orders',JSON.stringify(orders));
+        updatePartyBalance(data.partyId);
+        toast(`${data.orderId} ${editOrderId?'আপডেট':'সেভ'} হয়েছে ✓ (সার্ভার নিশ্চিত)`,'success');
+        if(res && Array.isArray(res.salesAutoUpdated) && res.salesAutoUpdated.length){
+          setTimeout(()=>toast(`ℹ️ ${res.salesAutoUpdated.length}টি পণ্যের পুরনো স্টক শেষ — বিক্রয় মূল্য স্বয়ংক্রিয়ভাবে আপডেট হয়েছে`,'success'),900);
+        }
+        unspin();showList();
+        return;
       }
-      unspin();showList();
-      return;
+      // unexpected response shape → fall through to the fallback path
     }catch(e){
-      // server unreachable → fall back to local save + fire-and-forget post
-      // (block can't be enforced offline; sale is saved locally to avoid data loss)
+      // server unreachable/timeout → fall back below (data saved locally so
+      // nothing is lost; the sync chip will show ⏳ until confirmed)
     }
   }
 
-  // Purchases, edits, or offline: save locally then post.
+  // Offline / unconfirmed fallback: save locally, then post fire-and-forget.
+  data._sync=BF.sheetUrl?'sent':'local';
   if(editOrderId){const idx=orders.findIndex(o=>o.orderId===editOrderId);if(idx>-1)orders[idx]=data;else orders.unshift(data);}else orders.unshift(data);
   localStorage.setItem('bf_orders',JSON.stringify(orders));
   updatePartyBalance(data.partyId);
-  toast(editOrderId?'অর্ডার আপডেট হয়েছে ✓':'অর্ডার সেভ হয়েছে ✓','success');
+  toast(BF.sheetUrl?`${data.orderId} লোকালে সেভ হয়েছে ⏳ — সার্ভার নিশ্চিত হয়নি, পরে 🔎 যাচাই করুন`:`${data.orderId} লোকালে সেভ হয়েছে 📴 (অফলাইন)`,'success');
   if(BF.sheetUrl){try{await API.post({action:'saveOrder',...data});}catch(e){toast('Sheet সিঙ্ক ব্যর্থ — স্থানীয়ভাবে সেভ হয়েছে','error');}}
   unspin();showList();
+}
+
+/* যাচাই: fetch the Sheet's copy of this order and compare key figures. */
+async function verifyOrderRow(orderId,btn){
+  const o=orders.find(x=>x.orderId===orderId);if(!o)return;
+  if(!BF.sheetUrl){toast('Sheet সংযোগ নেই','error');return;}
+  if(btn)spinBtn(btn,true);
+  try{
+    const r=await API.fetch('verifyOrder',{orderId,orderType:o.orderType});
+    if(!r||r.found===undefined){toast('যাচাই ব্যর্থ','error');}
+    else if(!r.found){
+      o._sync=BF.sheetUrl?'sent':'local';
+      localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();
+      toast(`⚠ ${orderId} সার্ভারে পাওয়া যায়নি — আবার সেভ করুন (এডিট খুলে সেভ)`,'error');
+    }else{
+      const localItems=(()=>{try{return JSON.parse(o.items||'[]').length;}catch(e){return -1;}})();
+      const gtOk=Math.abs((parseFloat(o.grandTotal)||0)-(r.grandTotal||0))<0.01;
+      const itOk=localItems===r.itemCount;
+      if(gtOk&&itOk){
+        o._sync='synced';
+        localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();
+        toast(`✓ ${orderId} সার্ভারের সাথে মিলেছে (মোট ${fmt.currency(r.grandTotal)}, ${r.itemCount}টি পণ্য)`,'success');
+      }else{
+        toast(`⚠ ${orderId} মিলছে না — সার্ভার: ${fmt.currency(r.grandTotal)}/${r.itemCount} পণ্য, লোকাল: ${fmt.currency(o.grandTotal)}/${localItems} পণ্য — এডিট খুলে আবার সেভ করুন`,'error');
+      }
+    }
+  }catch(e){toast('যাচাই ব্যর্থ: '+e.message,'error');}
+  if(btn)spinBtn(btn,false);
 }
 
 function updatePartyBalance(partyId){
@@ -1522,7 +1554,13 @@ function renderOrderList(){
   const tbody=document.getElementById('orders-body');const list=getFilteredOrders();
   if(!list.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">${currentType==='sales'?'🟢':'🔵'}</div><p>কোনো ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার নেই।</p></div></td></tr>`;return;}
   const sl={paid:'পরিশোধিত',partial:'আংশিক',due:'বাকি'};const sb={paid:'badge-paid',partial:'badge-partial',due:'badge-due'};
-  tbody.innerHTML=list.map(o=>`<tr><td><strong style="color:var(--accent)">${o.orderId}</strong></td><td style="font-size:12px">${fmtOrderDate(o.date)}</td><td><strong>${o.partyName}</strong>${o.partyPhone?`<br><span style="font-size:11px;color:var(--ink3)">${o.partyPhone}</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt.currency(o.grandTotal)}</td><td style="text-align:right;color:var(--success)">${fmt.currency(o.totalPaid)}</td><td style="text-align:right;font-weight:600;color:${parseFloat(o.balance)>0?'var(--danger)':'var(--success)'}">${fmt.currency(o.balance)}</td><td style="text-align:center"><span class="badge ${sb[o.status]||''}">${sl[o.status]||o.status}</span></td><td><div class="td-actions"><button class="btn btn-outline btn-sm btn-icon" onclick="viewOrder('${o.orderId}')" title="দেখুন">👁</button><button class="btn btn-outline btn-sm btn-icon" onclick="editOrder('${o.orderId}')" title="সম্পাদনা">✏️</button><button class="btn btn-outline btn-sm btn-icon" onclick="printOrder('${o.orderId}')" title="প্রিন্ট">🖨</button><button class="btn btn-danger btn-sm btn-icon" onclick="deleteOrder('${o.orderId}')" title="মুছুন">🗑️</button></div></td></tr>`).join('');
+  tbody.innerHTML=list.map(o=>{
+    const sy=o._sync;
+    const chip=sy==='sent'?'<span title="সার্ভার নিশ্চিত হয়নি — 🔎 যাচাই করুন" style="font-size:11px">⏳</span>'
+             :sy==='local'?'<span title="শুধু এই ডিভাইসে আছে (অফলাইন সেভ)" style="font-size:11px">📴</span>'
+             :'<span title="সার্ভারে নিশ্চিত" style="font-size:11px;color:var(--success)">✓</span>';
+    return `<tr><td><strong style="color:var(--accent)">${o.orderId}</strong> ${chip}</td><td style="font-size:12px">${fmtOrderDate(o.date)}</td><td><strong>${o.partyName}</strong>${o.partyPhone?`<br><span style="font-size:11px;color:var(--ink3)">${o.partyPhone}</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt.currency(o.grandTotal)}</td><td style="text-align:right;color:var(--success)">${fmt.currency(o.totalPaid)}</td><td style="text-align:right;font-weight:600;color:${parseFloat(o.balance)>0?'var(--danger)':'var(--success)'}">${fmt.currency(o.balance)}</td><td style="text-align:center"><span class="badge ${sb[o.status]||''}">${sl[o.status]||o.status}</span></td><td><div class="td-actions"><button class="btn btn-outline btn-sm btn-icon" onclick="viewOrder('${o.orderId}')" title="দেখুন">👁</button><button class="btn btn-outline btn-sm btn-icon" onclick="editOrder('${o.orderId}')" title="সম্পাদনা">✏️</button><button class="btn btn-outline btn-sm btn-icon" onclick="verifyOrderRow('${o.orderId}',this)" title="সার্ভারের সাথে যাচাই">🔎</button><button class="btn btn-outline btn-sm btn-icon" onclick="printOrder('${o.orderId}')" title="প্রিন্ট">🖨</button><button class="btn btn-danger btn-sm btn-icon" onclick="deleteOrder('${o.orderId}')" title="মুছুন">🗑️</button></div></td></tr>`;
+  }).join('');
 }
 function updateListStats(){
   const list=orders.filter(o=>o.orderType===currentType);
