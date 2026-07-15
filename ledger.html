@@ -352,19 +352,10 @@ function renderAllPartiesSummary() {
     const partyOrders = orders.filter(o => o.partyId === p.id);
     const totalInvoiced = partyOrders.reduce((s,o) => s+parseFloat(o.grandTotal||0), 0);
     const paidInOrders  = partyOrders.reduce((s,o) => s+parseFloat(o.totalPaid||0),  0);
-    // standalone vouchers for this party — dual vouchers credit BOTH sides
-    let voucherCredit = 0;
-    allPayments.forEach(v => {
-      const amt = parseFloat(v.amount||0);
-      const isParty = v.partyId === p.id, isCounter = v.counterpartyId === p.id;
-      if (!isParty && !isCounter) return;
-      if (v.vtype==='dual') { voucherCredit += (v.direction==='debit' ? -amt : amt); return; }
-      if (!isParty) return;
-      if (v.vtype==='receipt' || v.vtype==='payment') voucherCredit += amt;
-      else if (v.vtype==='adjust') voucherCredit += (v.direction==='debit' ? -amt : amt);
-    });
+    // canonical helpers (shared.js) — identical to dashboard/payments/orders
+    const voucherCredit = voucherAdjCalc(p.id, allPayments);
     const totalPaid = paidInOrders + voucherCredit;
-    const balance   = parseFloat(p.balance||0) + totalInvoiced - totalPaid;
+    const balance   = partyDueCalc(p.id, p.balance||0, orders, allPayments);
 
     return `<tr>
       <td>
