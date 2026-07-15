@@ -1381,6 +1381,7 @@ function collectFormData(){
 }
 
 async function saveOrder(){
+  if(Auth.guardWrite())return;
   const data=collectFormData();
   if(!data.partyId){toast('পার্টি নির্বাচন করুন','error');return;}
   if(!data.date){toast('তারিখ দিন','error');return;}
@@ -1562,6 +1563,7 @@ function updateListStats(){
 }
 function viewOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);document.getElementById('btn-save-order').style.display='none';document.getElementById('btn-save-order-2').style.display='none';}
 function editOrder(id){
+  if(Auth.guardWrite())return;
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_edit_orders')==='off')){
     toast('অ্যাডমিনের সম্পাদনা অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
   }
@@ -1569,6 +1571,7 @@ function editOrder(id){
 }
 function printOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);setTimeout(()=>{printOrderInvoice();},600);}
 function deleteOrder(id){
+  if(Auth.guardWrite())return;
   if(BF.session&&BF.session.role==='admin'){
     const o=orders.find(x=>x.orderId===id);
     const isSale=(o&&o.orderType==='sales');
@@ -1598,7 +1601,8 @@ function exportOrders(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+[h.join(','),...rows].join('\n'));a.download=`${currentType}_${fmt.dateInput()}.csv`;a.click();
 }
 
-document.getElementById('btn-new-order').addEventListener('click',()=>showForm());
+document.getElementById('btn-new-order').addEventListener('click',()=>{if(Auth.guardWrite())return;showForm();});
+if(Auth.isViewer())document.getElementById('btn-new-order').style.display='none';
 document.getElementById('btn-back-list').addEventListener('click',showList);
 document.getElementById('btn-back-list-2').addEventListener('click',showList);
 document.getElementById('btn-save-order').addEventListener('click',saveOrder);
@@ -1653,7 +1657,7 @@ if(urlType==='purchase'||urlType==='sales'){currentType=urlType;setOrderType(url
 else if(urlNew==='purchase'||urlNew==='sales'){currentType=urlNew;setOrderType(urlNew);}
 else setOrderType('sales');
 updateListStats();renderOrderList();
-if(urlNew==='1'||urlNew==='purchase'||urlNew==='sales')showForm();
+if((urlNew==='1'||urlNew==='purchase'||urlNew==='sales')&&!Auth.isViewer())showForm();
 </script>
 </body>
 </html>
