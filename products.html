@@ -223,6 +223,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('products');
+if(Auth.isViewer()){const b=document.getElementById('btn-new-product');if(b)b.style.display='none';}
 
 /* ── STATE ── */
 let products     = JSON.parse(localStorage.getItem('bf_products')      || '[]');
@@ -430,6 +431,7 @@ function calcEffectivePrice() {
 
 /* ── SAVE PRODUCT ── */
 async function saveProduct() {
+  if(Auth.guardWrite())return;
   const name  = document.getElementById('pr-name').value.trim();
   const code  = document.getElementById('pr-code').value.trim();
   const price = parseFloat(document.getElementById('pr-price').value);
@@ -514,6 +516,7 @@ async function saveProduct() {
 
 /* ── DELETE ── */
 function deleteProduct(id) {
+  if(Auth.guardWrite())return;
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_products')==='off')){
     toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
   }
@@ -721,6 +724,7 @@ function phPrompt(opts){
 
 /* ── the new save handler that wraps the original saveProduct ── */
 async function saveProductWithHistory(){
+  if(Auth.guardWrite())return;
   // Validate the same way saveProduct does (name/code/price) before prompting.
   const name  = document.getElementById('pr-name').value.trim();
   const code  = document.getElementById('pr-code').value.trim();
