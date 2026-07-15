@@ -236,7 +236,7 @@ function buildNav(activePage) {
 
   html += `
     <div class="bf-nav-bottom">
-      <div class="bf-role-badge">${Auth.isSuper() ? '👑 Super User' : '🔑 Admin'}</div>
+      <div class="bf-role-badge">${Auth.isSuper() ? '👑 Super User' : Auth.isViewer() ? '👁 ভিউয়ার' : '🔑 Admin'}</div>
       <a class="bf-nav-item" onclick="Auth.logout()" style="cursor:pointer">
         <span class="nav-icon">🚪</span>লগআউট
       </a>
