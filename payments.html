@@ -248,6 +248,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('payments');
+if(Auth.isViewer()){const b=document.getElementById('btn-new');if(b)b.style.display='none';}
 (function(){const d=localStorage.getItem('bf_depo_text');const el=document.getElementById('vp-depo');if(d&&el)el.textContent=d;})();
 
 let vouchers=JSON.parse(localStorage.getItem('bf_payments')||'[]');
@@ -403,6 +404,7 @@ function collectData(){
 }
 
 async function save(){
+  if(Auth.guardWrite())return;
   const d=collectData();
   if(!d.partyId){toast(vType==='dual'?'গ্রাহক নির্বাচন করুন':'পার্টি নির্বাচন করুন','error');return;}
   if(vType==='dual'&&!d.counterpartyId){toast('সরবরাহকারী নির্বাচন করুন','error');return;}
@@ -526,7 +528,7 @@ function updateStats(){
   document.getElementById('s-adjust').textContent=fmt.currency(sum('adjust')+sum('dual'));
 }
 
-function editV(id){showForm(id);}
+function editV(id){if(Auth.guardWrite())return;showForm(id);}
 /* Print / Save as PDF — same output from the list 🖨 button and the in-form
    button; document.title becomes the PDF filename (PartyName_VNO_Date). */
 function doPrintVoucher(){
@@ -544,6 +546,7 @@ function doPrintVoucher(){
 }
 function printV(id){const v=vouchers.find(x=>x.id===id);if(!v)return;showForm(id);setTimeout(doPrintVoucher,500);}
 function delV(id){
+  if(Auth.guardWrite())return;
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;}
   const v=vouchers.find(x=>x.id===id); if(!v) return;
   bfConfirm(`ভাউচার ${v.vno} (${v.partyName} — ${fmt.currency(v.amount)}) মুছে দেবেন?`, ()=>{
