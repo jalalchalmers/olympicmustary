@@ -339,23 +339,7 @@ function populatePartyDropdown(selectedId='',selectedCounterId=''){
 function partyDue(partyId){
   const party=parties.find(p=>p.id===partyId)||{};
   const opening=parseFloat(party.balance||party.openingBalance||0)||0;
-  const po=orders.filter(o=>o.partyId===partyId);
-  const billed=po.reduce((s,o)=>s+parseFloat(o.grandTotal||0),0);
-  const paidOrders=po.reduce((s,o)=>s+parseFloat(o.totalPaid||0),0);
-  // standalone vouchers — dual vouchers reduce due on BOTH sides
-  let vAdj=0;
-  vouchers.forEach(v=>{
-    if(v.id===editId) return;
-    const amt=parseFloat(v.amount||0);
-    const isParty=v.partyId===partyId, isCounter=v.counterpartyId===partyId;
-    if(!isParty && !isCounter) return;
-    if(v.vtype==='dual'){ vAdj+=(v.direction==='debit'?-amt:amt); return; }   // credit lowers due, debit raises it
-    if(!isParty) return;
-    if(v.vtype==='receipt')vAdj+=amt;          // received → reduces due
-    else if(v.vtype==='payment')vAdj+=amt;     // we paid supplier → reduces what we owe (their due to us logic mirrored)
-    else if(v.vtype==='adjust')vAdj+=(v.direction==='debit'?-amt:amt); // credit reduces due, debit increases
-  });
-  return opening+billed-paidOrders-vAdj;
+  return partyDueCalc(partyId, opening, orders, vouchers, editId);   // canonical (shared.js)
 }
 
 function onPartyChange(){
