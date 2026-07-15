@@ -594,19 +594,7 @@ function populatePartyDropdown(selectedId=''){
 /* Sum of standalone voucher adjustments for a party (reduces due like a payment).
    receipt + payment → credit (reduces due); adjustment → credit reduces, debit increases. */
 function voucherAdjForParty(partyId, excludeId){
-  const vs=JSON.parse(localStorage.getItem('bf_payments')||'[]');
-  let adj=0;
-  vs.forEach(v=>{
-    if(excludeId && v.id===excludeId) return;
-    const amt=parseFloat(v.amount||0);
-    const isParty=v.partyId===partyId, isCounter=v.counterpartyId===partyId;
-    if(!isParty && !isCounter) return;
-    if(v.vtype==='dual'){ adj+=(v.direction==='debit'?-amt:amt); return; }   // credit lowers due, debit raises it
-    if(!isParty) return;
-    if(v.vtype==='receipt'||v.vtype==='payment') adj+=amt;
-    else if(v.vtype==='adjust') adj+=(v.direction==='debit'?-amt:amt);
-  });
-  return adj;
+  return voucherAdjCalc(partyId, JSON.parse(localStorage.getItem('bf_payments')||'[]'), excludeId);   // canonical (shared.js)
 }
 
 function onPartyChange(){
