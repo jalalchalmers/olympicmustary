@@ -57,6 +57,15 @@ const Auth = {
     return true;
   },
   isSuper()  { return BF.session && BF.session.role === 'super'; },
+  /* Viewer write-block: call at the top of every save/edit/delete entry point.
+     Returns true when the action must be BLOCKED (and shows the toast). */
+  guardWrite() {
+    if (BF.session && BF.session.role === 'viewer') {
+      if (typeof toast === 'function') toast('ভিউয়ার অ্যাকাউন্ট — শুধুমাত্র দেখার অনুমতি আছে', 'error');
+      return true;
+    }
+    return false;
+  },
   isViewer() { return BF.session && BF.session.role === 'viewer'; },
 };
 
