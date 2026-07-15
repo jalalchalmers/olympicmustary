@@ -176,6 +176,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('dashboard');
+if(Auth.isViewer()){document.querySelectorAll('.qa-btn').forEach(a=>{if(/new=|payments/.test(a.getAttribute('href')||''))a.style.display='none';});}
 
 /* ════ data ════ */
 let orders=[], vouchers=[], parties=[], commissions=[], expenses=[];
