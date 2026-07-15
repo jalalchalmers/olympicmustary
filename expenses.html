@@ -163,6 +163,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('expenses');
+if(Auth.isViewer()){const b=document.getElementById('btn-new');if(b)b.style.display='none';}
 
 let flows = JSON.parse(localStorage.getItem('bf_expenses')||'[]');
 let editId = null;
@@ -336,6 +337,7 @@ function openModal(id=null){
 function closeModal(){ document.getElementById('cf-modal').classList.remove('open'); }
 
 async function save(){
+  if(Auth.guardWrite())return;
   const date=document.getElementById('cf-date').value;
   const category=document.getElementById('cf-category').value.trim();
   const amount=parseFloat(document.getElementById('cf-amount').value);
@@ -353,6 +355,7 @@ async function save(){
 }
 
 function del(id){
+  if(Auth.guardWrite())return;
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_cashflow')==='off')){
     toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
   }
