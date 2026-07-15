@@ -227,6 +227,38 @@ const fmt = {
      পাবো (Mustary will receive) → green
      দেবো (Mustary must pay)     → red
 ════════════════════════════════════════ */
+/* ════════════════════════════════════════
+   CANONICAL PARTY-DUE FORMULA — single source of truth
+   Used by dashboard, ledger, payments, and orders pages so they can NEVER
+   disagree. (Code.gs keeps a mirrored server-side copy in rebuildLedgerSheet_ —
+   any semantic change must be applied there too.)
+   Convention: positive = outstanding in the party's natural direction.
+════════════════════════════════════════ */
+/* Total voucher adjustment for a party (positive = reduces due). */
+function voucherAdjCalc(partyId, vouchers, excludeId) {
+  let adj = 0;
+  (vouchers || []).forEach(v => {
+    if (excludeId && v.id === excludeId) return;
+    const amt = parseFloat(v.amount || 0);
+    const isP = v.partyId === partyId, isC = v.counterpartyId === partyId;
+    if (!isP && !isC) return;
+    if (v.vtype === 'dual') { adj += (v.direction === 'debit' ? -amt : amt); return; }  // both sides
+    if (!isP) return;
+    if (v.vtype === 'receipt' || v.vtype === 'payment') adj += amt;
+    else if (v.vtype === 'adjust') adj += (v.direction === 'debit' ? -amt : amt);
+  });
+  return adj;
+}
+/* Current due: opening + Σ(order grandTotal − totalPaid) − voucher adjustments. */
+function partyDueCalc(partyId, opening, orders, vouchers, excludeVoucherId) {
+  let bal = parseFloat(opening) || 0;
+  (orders || []).forEach(o => {
+    if (o.partyId !== partyId) return;
+    bal += (parseFloat(o.grandTotal) || 0) - (parseFloat(o.totalPaid) || 0);
+  });
+  return bal - voucherAdjCalc(partyId, vouchers, excludeVoucherId);
+}
+
 function dueChip(balance, partyType) {
   const b = parseFloat(balance) || 0;
   if (Math.abs(b) < 0.005) return '<span style="font-weight:600;color:var(--ink3)">৳0.00</span>';
