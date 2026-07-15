@@ -140,6 +140,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('commissions');
+if(Auth.isViewer()){const b=document.getElementById('btn-new');if(b)b.style.display='none';}
 
 let commissions=JSON.parse(localStorage.getItem('bf_commissions')||'[]');
 let parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
@@ -197,6 +198,7 @@ function render(){
 function basisVal(){ return document.querySelector('input[name="cbasis"]:checked').value; }
 
 function openModal(id=null){
+  if(Auth.guardWrite())return;
   editId=id;
   const c=id?commissions.find(x=>x.id===id):null;
   lastBasis=null;
@@ -267,6 +269,7 @@ document.getElementById('c-rate').addEventListener('input',autoAmount);
 
 /* ── SAVE ── */
 async function saveCm(){
+  if(Auth.guardWrite())return;
   const month=document.getElementById('c-month').value;
   const sid=document.getElementById('c-supplier').value;
   const sup=parties.find(p=>p.id===sid)||{};
@@ -310,6 +313,7 @@ async function saveCm(){
 
 /* ── DELETE ── */
 function delCm(id){
+  if(Auth.guardWrite())return;
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_payments')==='off')){
     toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error');return;
   }
