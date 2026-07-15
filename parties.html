@@ -134,6 +134,7 @@
 <script src="layout.js"></script>
 <script>
 buildNav('parties');
+if(Auth.isViewer()){const b=document.getElementById('btn-new-party');if(b)b.style.display='none';}
 
 /* ── STATE ── */
 let parties = JSON.parse(localStorage.getItem('bf_parties') || '[]');
@@ -197,6 +198,7 @@ function applyFilters() {
 
 /* ── MODAL ── */
 function openModal(id = null) {
+  if(Auth.guardWrite())return;
   editId = id;
   const p = id ? parties.find(x => x.id === id) : null;
   document.getElementById('modal-title').textContent = p ? 'পার্টি সম্পাদনা করুন' : 'নতুন পার্টি যোগ করুন';
@@ -229,6 +231,7 @@ function closeModal() {
 
 /* ── SAVE ── */
 async function saveParty() {
+  if(Auth.guardWrite())return;
   const name = document.getElementById('p-name').value.trim();
   if (!name) { toast('পার্টির নাম লিখুন', 'error'); document.getElementById('p-name').focus(); return; }
 
@@ -272,6 +275,7 @@ async function saveParty() {
 
 /* ── DELETE ── */
 function deleteParty(id) {
+  if(Auth.guardWrite())return;
   if((BF.session&&BF.session.role==='admin')&&(localStorage.getItem('bf_del_parties')==='off')){
     toast('অ্যাডমিনের ডিলিট অনুমতি বন্ধ আছে — Super User এর সাথে যোগাযোগ করুন','error'); return;
   }
