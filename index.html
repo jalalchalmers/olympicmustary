@@ -138,6 +138,13 @@ function syncData(logEl) {
             localStorage.setItem(step.store, JSON.stringify(
               data.map(function(p){ p.hasOffer = (p.hasOffer==='true'||p.hasOffer===true); return p; })
             ));
+          } else if (step.store==='bf_orders') {
+            // merge — never erase local unsynced orders (helper duplicated here
+            // because index.html does not load shared.js)
+            var local=[]; try{ local=JSON.parse(localStorage.getItem('bf_orders')||'[]'); }catch(e){}
+            var ids={}; data.forEach(function(o){ ids[String(o.orderId)]=1; });
+            var keep=local.filter(function(o){ return (o._sync==='sent'||o._sync==='local') && !ids[String(o.orderId)]; });
+            localStorage.setItem('bf_orders', JSON.stringify(keep.concat(data)));
           } else {
             localStorage.setItem(step.store, JSON.stringify(data));
           }
