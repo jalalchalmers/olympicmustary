@@ -236,6 +236,20 @@ const fmt = {
      পাবো (Mustary will receive) → green
      দেবো (Mustary must pay)     → red
 ════════════════════════════════════════ */
+/* Merge server orders into cache WITHOUT erasing local unsynced saves.
+   Server copy wins for any orderId it has; local entries still marked
+   ⏳/📴 (not yet on the server) are preserved so a pending 29-line invoice
+   can never be silently wiped by a background sync. */
+function mergeOrdersIntoCache(serverList) {
+  if (!Array.isArray(serverList)) return;
+  let local = [];
+  try { local = JSON.parse(localStorage.getItem('bf_orders') || '[]'); } catch (e) {}
+  const serverIds = new Set(serverList.map(o => String(o.orderId)));
+  const keep = local.filter(o =>
+    (o._sync === 'sent' || o._sync === 'local') && !serverIds.has(String(o.orderId)));
+  localStorage.setItem('bf_orders', JSON.stringify([...keep, ...serverList]));
+}
+
 /* ════════════════════════════════════════
    CANONICAL PARTY-DUE FORMULA — single source of truth
    Used by dashboard, ledger, payments, and orders pages so they can NEVER
