@@ -45,6 +45,8 @@
     .oi-plist .pl-item:hover,.oi-plist .pl-item.hl{background:var(--accent-bg)}
     .oi-plist .pl-code{color:var(--ink3);font-size:11px}
     .oi-plist .pl-none{color:var(--ink3);cursor:default}
+    .oi-plist .pl-stock{float:right;font-size:10.5px;color:var(--ink3);margin-left:8px}
+    .order-item-row.stock-warn input.oi-qtyctn,.order-item-row.stock-warn input.oi-qtypcs{border-color:var(--danger);background:#fef2f2}
     @media(max-width:820px){.oi-psearch{font-size:16px}}
     .oi-alloc:hover{border-color:#d97706}
     .oi-compli:hover{border-color:#059669}
@@ -557,6 +559,7 @@ function showForm(orderId=null){
 
 function initNewForm(){
   applyCartonMode();
+  _stockMap=computeStockMap('');
   document.getElementById('btn-rate-now').style.display='none';
   document.getElementById('f-date').value=fmt.dateInput();
   document.getElementById('f-order-id').value=generateOrderId();
@@ -676,7 +679,7 @@ function addOrderItem(name='',code='',qtyCtn='',qtyPcs='',freeCtn='',freePcs='',
     visible=optData.filter(p=>!q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q)).slice(0,60);
     hl=visible.length?0:-1;
     plist.innerHTML=visible.length
-      ? visible.map((p,i)=>`<div class="pl-item${i===0?' hl':''}" data-id="${p.id}">${p.code?`<span class="pl-code">[${p.code}]</span> `:''}${p.name}</div>`).join('')
+      ? visible.map((p,i)=>`<div class="pl-item${i===0?' hl':''}" data-id="${p.id}">${p.code?`<span class="pl-code">[${p.code}]</span> `:''}${p.name}<span class="pl-stock">${stockDisp_(p.id)}</span></div>`).join('')
       : '<div class="pl-item pl-none">কোনো পণ্য মেলেনি</div>';
     plist.classList.add('open');
   }
@@ -871,6 +874,11 @@ function recalcRow(row){
   row.querySelector('.oi-price').value=priceDisp;
   row.querySelector('.oi-total').value=amount.toFixed(2);
   row.dataset.qtyPieces=qtyPieces;row.dataset.freePieces=freePieces;row.dataset.totalPieces=totalPieces;row.dataset.usedPrice=usedPiecePrice;row.dataset.cSize=cSize;row.dataset.cPrice=cPrice;
+  // stock hint (sales only, cache-based ≈): red inputs when qty exceeds estimate
+  if(currentType==='sales'){
+    const est=_stockMap[ps.value]||0;
+    row.classList.toggle('stock-warn', totalPieces>est+0.0001);
+  }else row.classList.remove('stock-warn');
   // Rule F: red note when purchase & sales effective prices differ (sales orders only)
   let noteEl=row.querySelector('.oi-price-note');
   if(currentType==='sales' && opt && opt.value){
@@ -1389,11 +1397,73 @@ async function saveOrder(){
   const btn=document.getElementById('btn-save-order');
   const btn2=document.getElementById('btn-save-order-2');
   spinBtn(btn,true); if(btn2)spinBtn(btn2,true);
-  const unspin=()=>{unspin();if(btn2)spinBtn(btn2,false);};
+  const unspin=()=>{spinBtn(btn,false);if(btn2)spinBtn(btn2,false);};
+  try{ await saveOrderFlow_(data,unspin); } finally { unspin(); }   // spinner can NEVER stick
+}
+
+/* aggregate requested pieces per product for checkStock */
+function stockRequestOf_(data){
+  const agg={};
+  try{JSON.parse(data.items||'[]').forEach(it=>{
+    if(!it.productId)return;
+    const tot=parseFloat(it.totalPieces)||((parseFloat(it.qtyPieces)||0)+(parseFloat(it.freePieces)||0));
+    if(tot>0)agg[it.productId]=(agg[it.productId]||0)+tot;
+  });}catch(e){}
+  return Object.entries(agg).map(([productId,pieces])=>({productId,pieces}));
+}
+function shortageToast_(shortages){
+  const first=(shortages||[])[0];
+  const extra=(shortages||[]).length>1?` (+${shortages.length-1} আরও)`:'';
+  toast(first?`পর্যাপ্ত স্টক নেই — ${first.name}: আছে ${first.have}, প্রয়োজন ${first.need}${extra} — আগে ক্রয় অর্ডার তৈরি করুন`:'পর্যাপ্ত স্টক নেই','error');
+}
+
+async function saveOrderFlow_(data,unspin){
 
   // CONFIRMED-FIRST for ALL order types: wait for the server's response
   // (stock guard for sales; write confirmation for everything). Only if the
   // server is unreachable do we fall back to local-save + fire-and-forget.
+  // JSONP carries the whole order in the URL; Apps Script rejects very long
+  // URLs (~8KB). Large orders (many items / alloc / compli) must go by POST.
+  const payloadSize=encodeURIComponent(JSON.stringify(data)).length;
+  const JSONP_SAFE=1500;   // conservative — leaves room for base URL + params
+
+  if(BF.sheetUrl && payloadSize>JSONP_SAFE){
+    // LARGE ORDER path.
+    // Sales pre-check: the POST can't return the stock-guard verdict, so ask
+    // first with a tiny checkStock call. If the check itself fails (offline),
+    // proceed on the honest-⏳ path — the server guard remains final.
+    if(data.orderType==='sales'){
+      try{
+        const chk=await API.fetch('checkStock',{items:JSON.stringify(stockRequestOf_(data)),excludeOrderId:editOrderId||''});
+        if(chk&&chk.ok===false){shortageToast_(chk.shortages);return;}
+      }catch(e){}
+    }
+    toast('বড় অর্ডার — সার্ভারে পাঠানো হচ্ছে, নিশ্চিতকরণ চলছে…','success');
+    if(editOrderId){const idx=orders.findIndex(o=>o.orderId===editOrderId);if(idx>-1)orders[idx]=data;else orders.unshift(data);}else orders.unshift(data);
+    data._sync='sent';
+    localStorage.setItem('bf_orders',JSON.stringify(orders));
+    updatePartyBalance(data.partyId);
+    try{await API.post({action:'saveOrder',...data});}catch(e){}
+    // poll verify: ~3s then ~8s (gives the lock + rebuild chain time to finish)
+    let confirmed=false;
+    for(const wait of [3000,5000]){
+      await new Promise(r=>setTimeout(r,wait));
+      try{
+        const v=await API.fetch('verifyOrder',{orderId:data.orderId,orderType:data.orderType});
+        if(v&&v.found&&Math.abs((v.grandTotal||0)-(parseFloat(data.grandTotal)||0))<0.01){confirmed=true;break;}
+      }catch(e){}
+    }
+    if(confirmed){
+      data._sync='synced';
+      localStorage.setItem('bf_orders',JSON.stringify(orders));
+      toast(`${data.orderId} ${editOrderId?'আপডেট':'সেভ'} হয়েছে ✓ (সার্ভার নিশ্চিত)`,'success');
+    }else{
+      toast(`${data.orderId} পাঠানো হয়েছে ⏳ — সার্ভার এখনো নিশ্চিত করেনি, একটু পরে 🔎 যাচাই করুন${data.orderType==='sales'?' (স্টক ঘাটতি থাকলে সেভ হবে না)':''}`,'success');
+    }
+    showList();
+    return;
+  }
+
   if(BF.sheetUrl){
     try{
       const res=await API.fetch('saveOrder',data);
@@ -1443,9 +1513,30 @@ async function verifyOrderRow(orderId,btn){
     const r=await API.fetch('verifyOrder',{orderId,orderType:o.orderType});
     if(!r||r.found===undefined){toast('যাচাই ব্যর্থ','error');}
     else if(!r.found){
-      o._sync=BF.sheetUrl?'sent':'local';
-      localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();
-      toast(`⚠ ${orderId} সার্ভারে পাওয়া যায়নি — আবার সেভ করুন (এডিট খুলে সেভ)`,'error');
+      if(Auth.isViewer()){
+        toast(`⚠ ${orderId} সার্ভারে পাওয়া যায়নি`,'error');
+      }else{
+        // WHY is it missing? sales → stock check first; then heal by resending.
+        if(o.orderType==='sales'){
+          try{
+            const chk=await API.fetch('checkStock',{items:JSON.stringify(stockRequestOf_(o)),excludeOrderId:''});
+            if(chk&&chk.ok===false){shortageToast_(chk.shortages);if(btn)spinBtn(btn,false);return;}
+          }catch(e){}
+        }
+        toast(`${orderId} সার্ভারে নেই — আবার পাঠানো হচ্ছে…`,'success');
+        o._retries=(o._retries||0)+1;
+        try{await API.post({action:'saveOrder',...o});}catch(e){}
+        await new Promise(r2=>setTimeout(r2,3000));
+        let healed=false;
+        try{
+          const v2=await API.fetch('verifyOrder',{orderId,orderType:o.orderType});
+          healed=!!(v2&&v2.found&&Math.abs((v2.grandTotal||0)-(parseFloat(o.grandTotal)||0))<0.01);
+        }catch(e){}
+        o._sync=healed?'synced':(BF.sheetUrl?'sent':'local');
+        localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();
+        if(window.bfUpdateUnsyncedBadge)bfUpdateUnsyncedBadge();
+        toast(healed?`✓ ${orderId} সেভ ও নিশ্চিত হয়েছে`:`⚠ ${orderId} এখনো নিশ্চিত হয়নি — একটু পরে আবার 🔎 চাপুন`,healed?'success':'error');
+      }
     }else{
       const localItems=(()=>{try{return JSON.parse(o.items||'[]').length;}catch(e){return -1;}})();
       const gtOk=Math.abs((parseFloat(o.grandTotal)||0)-(r.grandTotal||0))<0.01;
@@ -1475,8 +1566,33 @@ function updatePartyBalance(partyId){
   if(idx>-1){parties[idx].currentBalance=balance;localStorage.setItem('bf_parties',JSON.stringify(parties));}
 }
 
+/* local stock estimate per product (pieces) from cached orders; when editing,
+   the edited order's own consumption is added back. Display-only (≈). */
+let _stockMap={};
+function computeStockMap(excludeOrderId){
+  const m={};
+  orders.forEach(o=>{
+    let its=[];try{its=JSON.parse(o.items||'[]');}catch(e){return;}
+    const sign=(o.orderType==='purchase')?1:-1;
+    const excl=(excludeOrderId&&o.orderId===excludeOrderId&&o.orderType==='sales');
+    its.forEach(it=>{
+      if(!it.productId)return;
+      const tot=parseFloat(it.totalPieces)||((parseFloat(it.qtyPieces)||0)+(parseFloat(it.freePieces)||0));
+      m[it.productId]=(m[it.productId]||0)+(excl?0:sign*tot);
+    });
+  });
+  return m;
+}
+function stockDisp_(pid){
+  const p=products.find(x=>x.id===pid);
+  const pieces=_stockMap[pid]||0;
+  const cs=p?(parseFloat(p.cartonSize)||0):0;
+  if(cs>0){const c=Math.floor(pieces/cs),r=Math.round((pieces%cs)*100)/100;return '≈'+c+'ক'+(r?('+'+r+'পি'):'');}
+  return '≈'+Math.round(pieces)+'পি';
+}
 function populateForm(o){
   currentType=o.orderType;setOrderType(currentType);
+  _stockMap=computeStockMap(o.orderId);
   document.getElementById('btn-rate-now').style.display=canRateUpdate()?'':'none';
   cartonMode=o.cartonMode==='yes';
   document.getElementById('ctn-mode-toggle').checked=cartonMode;
@@ -1657,6 +1773,24 @@ if(urlType==='purchase'||urlType==='sales'){currentType=urlType;setOrderType(url
 else if(urlNew==='purchase'||urlNew==='sales'){currentType=urlNew;setOrderType(urlNew);}
 else setOrderType('sales');
 updateListStats();renderOrderList();
+/* auto-retry: re-post orders still ⏳/📴 (bounded: ≤3 orders per load, ≤3 lifetime attempts each) */
+(async function retryUnsynced(){
+  if(!BF.sheetUrl)return;
+  const pending=orders.filter(o=>(o._sync==='sent'||o._sync==='local')&&(o._retries||0)<3).slice(0,3);
+  for(const o of pending){
+    o._retries=(o._retries||0)+1;
+    try{await API.post({action:'saveOrder',...o});}catch(e){}
+    await new Promise(r=>setTimeout(r,2500));
+    try{
+      const v=await API.fetch('verifyOrder',{orderId:o.orderId,orderType:o.orderType});
+      if(v&&v.found&&Math.abs((v.grandTotal||0)-(parseFloat(o.grandTotal)||0))<0.01){
+        o._sync='synced';
+        toast(`✓ ${o.orderId} সার্ভারে নিশ্চিত হয়েছে`,'success');
+      }
+    }catch(e){}
+  }
+  if(pending.length){localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();if(window.bfUpdateUnsyncedBadge)bfUpdateUnsyncedBadge();}
+})();
 if((urlNew==='1'||urlNew==='purchase'||urlNew==='sales')&&!Auth.isViewer())showForm();
 </script>
 </body>
