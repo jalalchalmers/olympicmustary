@@ -248,6 +248,25 @@ function buildNav(activePage) {
   navEl.querySelectorAll('a.bf-nav-item').forEach(a =>
     a.addEventListener('click', () => navEl.classList.remove('open')));
 
+  // Unsynced-orders badge on the অর্ডার nav item
+  window.bfUpdateUnsyncedBadge = function(){
+    try{
+      const os=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+      const n=os.filter(o=>o._sync==='sent'||o._sync==='local').length;
+      const link=navEl.querySelector('a[href="orders.html"]');
+      if(!link)return;
+      let b=link.querySelector('.bf-unsync-badge');
+      if(n>0){
+        if(!b){b=document.createElement('span');b.className='bf-unsync-badge';
+          b.style.cssText='margin-left:auto;background:#f59e0b;color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:1px 7px;';
+          link.appendChild(b);}
+        b.textContent=n;
+        b.title=n+'টি অর্ডার সার্ভারে নিশ্চিত হয়নি';
+      }else if(b)b.remove();
+    }catch(e){}
+  };
+  bfUpdateUnsyncedBadge();
+
   // Print stamp — the browser's own date/time header is suppressed (@page margin:0),
   // so we place it inside the printed content, top-right.
   const bodyEl = document.querySelector('.bf-body');
