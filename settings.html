@@ -398,9 +398,22 @@ function initSettings() {
 
   // ── Clear cache ──
   document.getElementById('btn-clear-cache').addEventListener('click', () => {
-    const keep = ['bf_sheet_url','bf_pw_super','bf_pw_admin','bf_biz_name','bf_biz_phone','bf_biz_address'];
-    Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
-    toast('ক্যাশ পরিষ্কার হয়েছে ✓', 'success');
+    // SAFETY: unsynced orders live ONLY in this cache — warn before wiping them
+    let unsynced=[];
+    try{
+      unsynced=JSON.parse(localStorage.getItem('bf_orders')||'[]')
+        .filter(o=>o._sync==='sent'||o._sync==='local').map(o=>o.orderId);
+    }catch(e){}
+    const doClear=()=>{
+      const keep = ['bf_sheet_url','bf_pw_super','bf_pw_admin','bf_pw_viewer','bf_biz_name','bf_biz_phone','bf_biz_address'];
+      Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
+      toast('ক্যাশ পরিষ্কার হয়েছে ✓', 'success');
+    };
+    if(unsynced.length){
+      const list=unsynced.slice(0,5).join(', ')+(unsynced.length>5?` (+${unsynced.length-5} আরও)`:'');
+      if(!window.confirm(`⚠ সাবধান!\n${unsynced.length}টি অর্ডার এখনো সার্ভারে নিশ্চিত হয়নি:\n${list}\n\nক্যাশ মুছলে এগুলো চিরতরে হারিয়ে যাবে। আগে অর্ডার পেজে গিয়ে 🔎 যাচাই করুন।\n\nতবুও মুছবেন?`))return;
+    }
+    doClear();
   });
 
   // ── Full reset ──
