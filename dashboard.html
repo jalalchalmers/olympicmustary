@@ -401,7 +401,10 @@ async function refresh(showBar){
     try{
       document.getElementById('sync-bar-msg').textContent=action+' লোড হচ্ছে…';
       const d=await API.fetch(action);
-      if(Array.isArray(d))localStorage.setItem(key,JSON.stringify(d));
+      if(Array.isArray(d)){
+        if(key==='bf_orders')mergeOrdersIntoCache(d);   // never erase unsynced local saves
+        else localStorage.setItem(key,JSON.stringify(d));
+      }
     }catch(e){}
   }
   bar.style.display='none';
