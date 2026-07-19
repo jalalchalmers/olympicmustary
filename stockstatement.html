@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — স্টক স্টেটমেন্ট</title>
+  <title>hFlow — স্টক স্টেটমেন্ট</title>
   <style>
     table.ss{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
     table.ss th,table.ss td{padding:9px 11px;border-bottom:1px solid var(--border)}
@@ -229,6 +229,8 @@ function render(){
   const cur=fn.value;
   fn.innerHTML='<option value="">সব নাম</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
   fn.value=cur;
+  makeSearchable(fn,'🔍 নাম খুঁজুন…');
+  bfpSync(fn);
 
   statementRows = buildStatement();
 
