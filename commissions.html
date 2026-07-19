@@ -418,7 +418,7 @@ function cmComputeReport(c){
   const partiesL=JSON.parse(localStorage.getItem('bf_parties')||'[]');
   const ordersL=JSON.parse(localStorage.getItem('bf_orders')||'[]');
   const mine={};prods.forEach(p=>{if(String(p.supplierId||'')===String(c.supplierId))mine[p.id]={name:p.name||p.code||p.id,code:p.code||'',cs:parseFloat(p.cartonSize)||0};});
-  const areaOf={},nameOf={};partiesL.forEach(p=>{areaOf[p.id]=(p.area||'').trim()||'এলাকা নেই';nameOf[p.id]=p.name||'';});
+  const zoneOf={},nameOf={};partiesL.forEach(p=>{zoneOf[p.id]=(p.zone||'').trim()||'জোন নেই';nameOf[p.id]=p.name||'';});
   const mOf=d=>{const k=fmt.dkey(d);return k?k.slice(0,7):'';};
   const perProd={},perCust={};let vol=0;
   ordersL.forEach(o=>{
@@ -433,7 +433,7 @@ function cmComputeReport(c){
       if(!perProd[it.productId])perProd[it.productId]={...m,pcs:0,amt:0};
       perProd[it.productId].pcs+=pcs;perProd[it.productId].amt+=amt;
       const cn=nameOf[o.partyId]||o.partyName||'অজানা';
-      const ar=areaOf[o.partyId]||'এলাকা নেই';
+      const ar=zoneOf[o.partyId]||'জোন নেই';
       if(!perCust[o.partyId])perCust[o.partyId]={name:cn,area:ar,amt:0};
       perCust[o.partyId].amt+=amt;
     });
@@ -483,8 +483,8 @@ function buildCmSegments(c){
   segs.push({tableEnd:true});
 
   // combined customer+area table
-  const caHead='<thead><tr><th>এলাকা</th><th>গ্রাহক</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>';
-  add('<div class="cr-sec">গ্রাহক ও এলাকা অনুযায়ী বিক্রয়</div>');
+  const caHead='<thead><tr><th>জোন</th><th>গ্রাহক</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>';
+  add('<div class="cr-sec">গ্রাহক ও জোন অনুযায়ী বিক্রয়</div>');
   segs.push({tableStart:true,key:'ca',head:caHead});
   if(areaList.length){
     areaList.forEach(([area,g])=>{
