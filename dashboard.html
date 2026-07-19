@@ -140,7 +140,7 @@
           </div>
           <div style="display:flex;gap:6px">
             <button class="sv-key active" id="sv-daily" onclick="setSalesView('daily')">📅 দৈনিক</button>
-            <button class="sv-key" id="sv-area" onclick="setSalesView('area')">📍 এলাকা</button>
+            <button class="sv-key" id="sv-area" onclick="setSalesView('area')">📍 জোন</button>
             <button class="sv-key" id="sv-party" onclick="setSalesView('party')">👤 পার্টি</button>
           </div>
         </div>
@@ -341,19 +341,19 @@ function renderSalesCard(){
 
   // month-based grouped views
   barsEl.style.display='none';hEl.style.display='';
-  const areaOf={},nameOf={};
-  parties.forEach(p=>{areaOf[p.id]=(p.area||'').trim();nameOf[p.id]=p.name||'';});
+  const zoneOf={},nameOf={};
+  parties.forEach(p=>{zoneOf[p.id]=(p.zone||'').trim();nameOf[p.id]=p.name||'';});
   const groups={};let month=0;
   sales.forEach(o=>{
     if(dKey(o.date).slice(0,7)!==mk)return;
     const amt=parseFloat(o.grandTotal)||0;if(amt<=0)return;
     month+=amt;
     const key=salesView==='area'
-      ?(areaOf[o.partyId]||'এলাকা নেই')
+      ?(zoneOf[o.partyId]||'জোন নেই')
       :(nameOf[o.partyId]||o.partyName||'অজানা');
     groups[key]=(groups[key]||0)+amt;
   });
-  title.textContent=salesView==='area'?'📍 এ মাসের বিক্রয় — এলাকা অনুযায়ী':'👤 এ মাসের বিক্রয় — পার্টি অনুযায়ী';
+  title.textContent=salesView==='area'?'📍 এ মাসের বিক্রয় — জোন অনুযায়ী':'👤 এ মাসের বিক্রয় — পার্টি অনুযায়ী';
   totalEl.textContent='মোট: '+fmt.currency(month);
   let rows=Object.entries(groups).sort((a,b)=>b[1]-a[1]);
   let other=0;
