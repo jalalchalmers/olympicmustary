@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — পণ্য তালিকা</title>
+  <title>hFlow — পণ্য তালিকা</title>
   <style>
     .offer-fields{display:none;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:12px}
     .offer-fields.visible{display:grid}
@@ -362,6 +362,8 @@ function openProductModal(id = null) {
   const sups = bfParties.filter(x => x.type==='supplier' || x.type==='both');
   supSel.innerHTML = '<option value="">— নির্বাচন করুন —</option>'
     + sups.map(s => `<option value="${s.id}" ${p?.supplierId===s.id?'selected':''}>${s.name}</option>`).join('');
+  makeSearchable(supSel,'🔍 সরবরাহকারী…');
+  bfpSync(supSel);
   document.getElementById('pr-not-for-sale').checked = (p?.notForSale==='yes'||p?.notForSale===true);
 
   const hasOffer = p?.hasOffer===true || p?.hasOffer==='true';
