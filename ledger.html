@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — পার্টি লেজার</title>
+  <title>hFlow — পার্টি লেজার</title>
   <style>
     .ledger-debit  { color:var(--danger);  font-weight:600; }
     .ledger-credit { color:var(--success); font-weight:600; }
@@ -213,6 +213,8 @@ function populatePartySelect() {
   const sel = document.getElementById('party-select');
   sel.innerHTML = '<option value="">— পার্টি নির্বাচন করুন —</option>' +
     parties.map(p => `<option value="${p.id}">${p.name}${p.area?' — '+p.area:''}</option>`).join('');
+  makeSearchable(sel,'🔍 পার্টি খুঁজুন…');
+  bfpSync(sel);
 }
 
 /* ── BUILD LEDGER FROM LOCAL ORDERS ── */
