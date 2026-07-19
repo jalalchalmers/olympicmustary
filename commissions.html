@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — কমিশন</title>
+  <title>hFlow — কমিশন</title>
   <style>
     .cm-basis-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px}
     .cm-basis-box .big{font-size:18px;font-weight:800;color:var(--accent)}
@@ -206,6 +206,8 @@ function openModal(id=null){
   document.getElementById('c-month').value=c?.month||new Date().toISOString().slice(0,7);
   const sel=document.getElementById('c-supplier');
   sel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+suppliers().map(s=>`<option value="${s.id}" ${c?.supplierId===s.id?'selected':''}>${s.name}</option>`).join('');
+  makeSearchable(sel,'🔍 সরবরাহকারী…');
+  bfpSync(sel);
   document.querySelector(`input[name="cbasis"][value="${c?.basis||'percent'}"]`).checked=true;
   document.getElementById('c-rate').value=c?.rate||'';
   document.getElementById('c-amount').value=c?.amount||'';
