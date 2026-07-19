@@ -115,6 +115,9 @@
             <select id="lg-area" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff">
               <option value="">সব এলাকা</option>
             </select>
+            <select id="lg-zone" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff">
+              <option value="">সব জোন</option>
+            </select>
             <select id="lg-due" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:#fff">
               <option value="">সব অবস্থা</option>
               <option value="recv">পাবো (বাকি আছে)</option>
@@ -244,8 +247,15 @@ function populatePartySelect() {
     la.innerHTML='<option value="">সব এলাকা</option>'+areas.map(a=>`<option value="${a}">${a}</option>`).join('');
     la.value=cur;
   }
+  const lz=document.getElementById('lg-zone');
+  if(lz){
+    const cur=lz.value;
+    const zones=[...new Set(parties.map(p=>(p.zone||'').trim()).filter(Boolean))].sort();
+    lz.innerHTML='<option value="">সব জোন</option>'+zones.map(z=>`<option value="${z}">${z}</option>`).join('');
+    lz.value=cur;
+  }
 }
-['lg-q','lg-type','lg-area','lg-due'].forEach(id=>{
+['lg-q','lg-type','lg-area','lg-zone','lg-due'].forEach(id=>{
   const el=document.getElementById(id);
   if(el)el.addEventListener(id==='lg-q'?'input':'change',renderAllPartiesSummary);
 });
@@ -389,9 +399,11 @@ function renderAllPartiesSummary() {
   const fa=document.getElementById('lg-area')?.value||'';
   const fd=document.getElementById('lg-due')?.value||'';
   const shown = parties.filter(p=>{
-    if(q && !(`${p.name||''} ${p.area||''} ${p.phone||''}`.toLowerCase().includes(q))) return false;
+    if(q && !(`${p.name||''} ${p.area||''} ${p.zone||''} ${p.phone||''}`.toLowerCase().includes(q))) return false;
     if(ft && p.type!==ft) return false;
     if(fa && (p.area||'').trim()!==fa) return false;
+    const fz=document.getElementById('lg-zone')?.value||'';
+    if(fz && (p.zone||'').trim()!==fz) return false;
     if(fd){
       const b=partyDueCalc(p.id,p.balance||0,orders,allPayments);
       const recv=(p.type==='supplier')?(b<-0.005):(b>0.005);
