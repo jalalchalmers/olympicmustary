@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   BizFlow — Layout CSS + Navigation Builder v1.2
+   hFlow — Layout CSS + Navigation Builder v1.2
 ═══════════════════════════════════════════════════ */
 
 const LAYOUT_CSS = `
@@ -21,7 +21,7 @@ const LAYOUT_CSS = `
   /* ── SIDEBAR ── */
   .bf-nav { width:var(--nav-w); flex-shrink:0; background:var(--ink); display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:50; transition:transform .25s; overflow-y:auto; }
   .bf-nav-logo { padding:20px 20px 16px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; gap:10px; }
-  .bf-nav-logo-icon { width:36px; height:36px; border-radius:9px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+  .bf-nav-logo-icon { width:36px; height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .bf-nav-logo-text { font-family:'Syne',sans-serif; font-size:17px; font-weight:800; color:#fff; letter-spacing:-.3px; }
   .bf-nav-logo-text span { color:#a5b4fc; }
   .bf-nav-section { padding:16px 12px 4px; font-size:10px; font-weight:700; letter-spacing:1.2px; color:rgba(255,255,255,.3); text-transform:uppercase; }
@@ -221,8 +221,8 @@ function buildNav(activePage) {
 
   let html = `
     <div class="bf-nav-logo">
-      <div class="bf-nav-logo-icon">📦</div>
-      <div class="bf-nav-logo-text">Biz<span>Flow</span></div>
+      <div class="bf-nav-logo-icon"><svg width="36" height="36" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="hfg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><rect width="48" height="48" rx="13" fill="url(#hfg2)"/><path d="M15 11 V34 M15 23 C15 17 29 17 29 23 V30 C29 35 36 35 38 30" stroke="#fff" stroke-width="4.6" stroke-linecap="round" fill="none"/><path d="M11 40 C18 44 26 36 37 40" stroke="#a5b4fc" stroke-width="3" stroke-linecap="round" fill="none" opacity=".9"/></svg></div>
+      <div class="bf-nav-logo-text">h<span>Flow</span></div>
     </div>`;
 
   items.forEach(item => {
