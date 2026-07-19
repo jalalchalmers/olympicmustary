@@ -247,8 +247,9 @@ function getFiltered(){
   const flow=document.getElementById('f-flow').value;
   const cat=document.getElementById('f-category').value;
   return combined().filter(f=>{
-    if(from && (f.date||'')<from) return false;
-    if(to && (f.date||'')>to) return false;
+    const fk=fmt.dkey(f.date);
+    if(from && fk<from) return false;
+    if(to && fk>to) return false;
     if(flow && f.type!==flow) return false;
     if(cat && f.category!==cat) return false;
     return true;
