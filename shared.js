@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   BizFlow — Shared Utilities v1.2
+   hFlow — Shared Utilities v1.2
    KEY CHANGE: API.fetch() now uses JSONP to bypass CORS.
    GitHub Pages cannot do GET to Apps Script due to CORS.
    All data fetching goes through script tags which works fine.
@@ -7,7 +7,7 @@
 
 const BF = {
   version:  '1.2.0',
-  appName:  'BizFlow',
+  appName:  'hFlow',
   // Hardcoded Web App URL — so any new browser connects automatically.
   // Super admin can still override it in Settings if redeployed.
   sheetUrl: localStorage.getItem('bf_sheet_url') || 'https://script.google.com/macros/s/AKfycbxsEntAKVTsaWOA6QBhpUdsCx5r5cSCSbRPKbrNk3PV0umv94efsKTEJH5Z3iToj71hOQ/exec',
@@ -249,6 +249,89 @@ function mergeOrdersIntoCache(serverList) {
     (o._sync === 'sent' || o._sync === 'local') && !serverIds.has(String(o.orderId)));
   localStorage.setItem('bf_orders', JSON.stringify([...keep, ...serverList]));
 }
+
+/* ════════════════════════════════════════
+   SEARCHABLE DROPDOWN — generic enhancer
+   Wraps any <select> with a type-to-filter box. The select stays hidden as
+   the source of truth; choosing fires its normal 'change' event. Options are
+   read fresh each time the list opens, so later repopulation is safe.
+   Usage: makeSearchable(selectEl, 'placeholder'); bfpSync(selectEl) after
+   programmatic repopulation/selection to refresh the visible text.
+════════════════════════════════════════ */
+(function injectBfpCss(){
+  if (document.getElementById('bfp-css')) return;
+  const st = document.createElement('style');
+  st.id = 'bfp-css';
+  st.textContent = `
+    .bfp-wrap{position:relative}
+    .bfp-wrap>select{display:none!important}
+    .bfp-input{width:100%;border:1.5px solid var(--border,#d1d5db);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;outline:none;background:#fff}
+    .bfp-input:focus{border-color:var(--accent,#4f46e5)}
+    .bfp-list{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;min-width:220px;z-index:90;background:#fff;border:1.5px solid var(--border,#d1d5db);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.16);max-height:250px;overflow:auto}
+    .bfp-list.open{display:block}
+    .bfp-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6}
+    .bfp-item:last-child{border-bottom:none}
+    .bfp-item:hover,.bfp-item.hl{background:var(--accent-bg,#eef2ff)}
+    .bfp-none{color:#9ca3af;cursor:default}
+    @media(max-width:768px){.bfp-input{font-size:16px;min-height:44px}}
+  `;
+  document.head.appendChild(st);
+})();
+
+function makeSearchable(sel, placeholder) {
+  if (!sel || sel._bfp) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'bfp-wrap';
+  sel.parentNode.insertBefore(wrap, sel);
+  const input = document.createElement('input');
+  input.type = 'text'; input.className = 'bfp-input';
+  input.placeholder = placeholder || '🔍 খুঁজুন…';
+  input.autocomplete = 'off';
+  const list = document.createElement('div');
+  list.className = 'bfp-list';
+  wrap.appendChild(input); wrap.appendChild(list); wrap.appendChild(sel);
+
+  const optsOf = () => [...sel.options].filter(o => o.value)
+    .map(o => ({ id: o.value, label: o.textContent.trim() }));
+  let visible = [], hl = -1;
+  const paint = () => { [...list.children].forEach((el,i)=>el.classList.toggle('hl',i===hl));
+    if (hl>-1 && list.children[hl]) list.children[hl].scrollIntoView({block:'nearest'}); };
+  const render = q => {
+    q = (q||'').trim().toLowerCase();
+    visible = optsOf().filter(p => !q || p.label.toLowerCase().includes(q)).slice(0,80);
+    hl = visible.length ? 0 : -1;
+    list.innerHTML = visible.length
+      ? visible.map((p,i)=>`<div class="bfp-item${i===0?' hl':''}" data-id="${p.id}">${p.label}</div>`).join('')
+      : '<div class="bfp-item bfp-none">কিছু পাওয়া যায়নি</div>';
+    list.classList.add('open');
+  };
+  const sync = () => {
+    const o = sel.options[sel.selectedIndex];
+    input.value = (o && o.value) ? o.textContent.trim() : '';
+  };
+  const choose = id => {
+    sel.value = id; list.classList.remove('open'); sync();
+    sel.dispatchEvent(new Event('change'));
+  };
+  input.addEventListener('focus', () => { input.select(); render(''); });
+  input.addEventListener('input', () => render(input.value));
+  input.addEventListener('keydown', e => {
+    if (!list.classList.contains('open')) return;
+    if (e.key==='ArrowDown'){ e.preventDefault(); if(visible.length){hl=Math.min(hl+1,visible.length-1);paint();} }
+    else if (e.key==='ArrowUp'){ e.preventDefault(); if(visible.length){hl=Math.max(hl-1,0);paint();} }
+    else if (e.key==='Enter'){ e.preventDefault(); if(hl>-1&&visible[hl])choose(visible[hl].id); }
+    else if (e.key==='Escape'){ list.classList.remove('open'); }
+  });
+  list.addEventListener('mousedown', e => {
+    const it = e.target.closest('.bfp-item');
+    if (it && it.dataset.id){ e.preventDefault(); choose(it.dataset.id); }
+  });
+  input.addEventListener('blur', () => setTimeout(()=>{ list.classList.remove('open'); sync(); },150));
+  sel.addEventListener('change', sync);
+  sel._bfp = { sync };
+  sync();
+}
+function bfpSync(sel){ if (sel && sel._bfp) sel._bfp.sync(); }
 
 /* ════════════════════════════════════════
    CANONICAL PARTY-DUE FORMULA — single source of truth
