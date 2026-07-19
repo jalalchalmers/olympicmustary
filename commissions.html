@@ -12,8 +12,11 @@
       /* ── Commission report (print only) ── */
     #cm-report{display:none}
     @media print{
-      .bf-body>*:not(#cm-report){display:none!important}
+      .bf-main{display:none!important}
       #cm-report{display:block!important;font-family:Arial,sans-serif;color:#000;padding:6px 4px}
+      .cr-table thead{display:table-header-group}
+      .cr-table tr{page-break-inside:avoid}
+      .cr-area-total td{font-weight:800;background:#efefef;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .cr-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
       .cr-brand{font-size:22px;font-weight:800}
       .cr-bizinfo{font-size:10.5px;color:#444;margin-top:3px;line-height:1.5;max-width:300px}
@@ -404,7 +407,7 @@ function buildCmReport(c){
   const areaOf={},nameOf={};partiesL.forEach(p=>{areaOf[p.id]=(p.area||'').trim()||'এলাকা নেই';nameOf[p.id]=p.name||'';});
   const mOf=d=>{const k=fmt.dkey(d);return k?k.slice(0,7):'';};
 
-  const perProd={},perCust={},perArea={};let vol=0;
+  const perProd={},perCust={};let vol=0;
   ordersL.forEach(o=>{
     if(o.orderType!=='sales')return;
     if(mOf(o.date)!==month)return;
@@ -417,9 +420,9 @@ function buildCmReport(c){
       if(!perProd[it.productId])perProd[it.productId]={...m,pcs:0,amt:0};
       perProd[it.productId].pcs+=pcs;perProd[it.productId].amt+=amt;
       const cn=nameOf[o.partyId]||o.partyName||'অজানা';
-      perCust[cn]=(perCust[cn]||0)+amt;
       const ar=areaOf[o.partyId]||'এলাকা নেই';
-      perArea[ar]=(perArea[ar]||0)+amt;
+      if(!perCust[o.partyId])perCust[o.partyId]={name:cn,area:ar,amt:0};
+      perCust[o.partyId].amt+=amt;
     });
   });
   const ctnDisp=(pcs,cs)=>cs>0?(Math.floor(pcs/cs)+(pcs%cs?(' কার্টন + '+Math.round((pcs%cs)*100)/100+' পিস'):' কার্টন')):(Math.round(pcs*100)/100+' পিস');
@@ -431,8 +434,14 @@ function buildCmReport(c){
   const basisTxt=c.basis==='percent'?(`বিক্রয়ের ${c.rate}% হারে`):'ম্যানুয়াল নির্ধারিত';
 
   const prodRows=Object.values(perProd).sort((a,b)=>b.amt-a.amt);
-  const custRows=Object.entries(perCust).sort((a,b)=>b[1]-a[1]);
-  const areaRows=Object.entries(perArea).sort((a,b)=>b[1]-a[1]);
+  // group customers by area; areas sorted by total desc, customers desc inside
+  const areaGroups={};
+  Object.values(perCust).forEach(c=>{
+    if(!areaGroups[c.area])areaGroups[c.area]={total:0,rows:[]};
+    areaGroups[c.area].total+=c.amt;areaGroups[c.area].rows.push(c);
+  });
+  const areaList=Object.entries(areaGroups).sort((a,b)=>b[1].total-a[1].total);
+  areaList.forEach(([,g])=>g.rows.sort((a,b)=>b.amt-a.amt));
 
   document.getElementById('cm-report').innerHTML=`
     <div class="cr-top">
@@ -458,16 +467,14 @@ function buildCmReport(c){
       <tfoot><tr><td colspan="3">মোট</td><td class="r">${fmt.currency(vol)}</td></tr></tfoot>
     </table>
 
-    <div class="cr-sec">গ্রাহক অনুযায়ী বিক্রয়</div>
+    <div class="cr-sec">গ্রাহক ও এলাকা অনুযায়ী বিক্রয়</div>
     <table class="cr-table">
-      <thead><tr><th>গ্রাহক</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>
-      <tbody>${custRows.map(([k,v])=>`<tr><td>${k}</td><td class="r">${fmt.currency(v)}</td><td class="r">${vol>0?(v/vol*100).toFixed(1):'0'}%</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}</tbody>
-    </table>
-
-    <div class="cr-sec">এলাকা অনুযায়ী বিক্রয়</div>
-    <table class="cr-table">
-      <thead><tr><th>এলাকা</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>
-      <tbody>${areaRows.map(([k,v])=>`<tr><td>${k}</td><td class="r">${fmt.currency(v)}</td><td class="r">${vol>0?(v/vol*100).toFixed(1):'0'}%</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}</tbody>
+      <thead><tr><th>এলাকা</th><th>গ্রাহক</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>
+      <tbody>${areaList.map(([area,g])=>
+        g.rows.map((c,i)=>`<tr><td>${i===0?area:''}</td><td>${c.name}</td><td class="r">${fmt.currency(c.amt)}</td><td class="r">${vol>0?(c.amt/vol*100).toFixed(1):'0'}%</td></tr>`).join('')
+        +`<tr class="cr-area-total"><td></td><td>মোট — ${area} (${g.rows.length}টি পার্টি)</td><td class="r">${fmt.currency(g.total)}</td><td class="r">${vol>0?(g.total/vol*100).toFixed(1):'0'}%</td></tr>`
+      ).join('')||'<tr><td colspan="4">—</td></tr>'}</tbody>
+      <tfoot><tr><td colspan="2">সর্বমোট</td><td class="r">${fmt.currency(vol)}</td><td class="r">100%</td></tr></tfoot>
     </table>
 
     <div class="cr-sign"><div class="s">প্রস্তুতকারক</div><div class="s">সরবরাহকারীর গ্রহণ ও স্বাক্ষর</div></div>
@@ -476,9 +483,18 @@ function buildCmReport(c){
 function printCmReport(id){
   const c=commissions.find(x=>x.id===id);if(!c)return;
   buildCmReport(c);
+  // page numbers: bottom margin-box counters, injected only for THIS print so
+  // the global @page{margin:0} convention on other pages stays untouched
+  const pgStyle=document.createElement('style');
+  pgStyle.id='cm-page-style';
+  pgStyle.textContent='@page{margin:0 0 12mm 0;} @page{ @bottom-right{ content:"পৃষ্ঠা " counter(page) " / " counter(pages); font-family:Arial,sans-serif; font-size:9.5px; color:#555; margin-right:10mm; } }';
+  document.head.appendChild(pgStyle);
+  const cleanup=()=>{const el=document.getElementById('cm-page-style');if(el)el.remove();window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
   const clean=s=>String(s||'').replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'').trim();
   const fname=[clean(c.supplierName),normMonth(c.month),'Commission'].filter(Boolean).join('_')||'commission_report';
-  const prev=document.title;document.title=fname;window.print();setTimeout(()=>{document.title=prev;},1000);
+  const prev=document.title;document.title=fname;window.print();
+  setTimeout(()=>{document.title=prev;cleanup();},1500);
 }
 
 function normMonth(m){
