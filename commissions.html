@@ -114,6 +114,20 @@
 <div id="cm-report" class="cr-root"></div>
 <div id="cm-measure" class="cr-root"></div>
 
+<div class="modal-overlay" id="cm-rpt-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">রিপোর্টের ধরন নির্বাচন করুন</div>
+      <button class="modal-close" onclick="closeRptModal()">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;padding:6px 0 2px">
+      <button class="btn btn-outline" style="justify-content:flex-start;text-align:left" onclick="doPrintCmReport('prod')">📦 শুধু পণ্য অনুযায়ী রিপোর্ট</button>
+      <button class="btn btn-outline" style="justify-content:flex-start;text-align:left" onclick="doPrintCmReport('zone')">📍 শুধু জোন/গ্রাহক অনুযায়ী রিপোর্ট</button>
+      <button class="btn btn-primary" style="justify-content:flex-start;text-align:left" onclick="doPrintCmReport('both')">🧾 উভয় একসাথে (সম্পূর্ণ রিপোর্ট)</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="cm-modal">
   <div class="modal" style="max-width:520px">
     <div class="modal-header">
@@ -449,7 +463,8 @@ function cmComputeReport(c){
   return {month,vol,prodRows,areaList};
 }
 
-function buildCmSegments(c){
+function buildCmSegments(c,mode){
+  mode=mode||'both';
   const {month,vol,prodRows,areaList}=cmComputeReport(c);
   const ctnDisp=(pcs,cs)=>cs>0?(Math.floor(pcs/cs)+(pcs%cs?(' কার্টন + '+Math.round((pcs%cs)*100)/100+' পিস'):' কার্টন')):(Math.round(pcs*100)/100+' পিস');
   const bizName=localStorage.getItem('bf_biz_name')||'hFlow';
@@ -475,15 +490,18 @@ function buildCmSegments(c){
 
   // product table (row-granular for pagination)
   const prodHead='<thead><tr><th>কোড</th><th>পণ্য</th><th class="r">পরিমাণ</th><th class="r">বিক্রয় মূল্য</th></tr></thead>';
+  if(mode!=='zone'){
   add('<div class="cr-sec">পণ্য অনুযায়ী বিক্রয়</div>');
   segs.push({tableStart:true,key:'prod',head:prodHead});
   if(prodRows.length)prodRows.forEach(p=>segs.push({row:'<tr><td>'+p.code+'</td><td>'+p.name+'</td><td class="r">'+ctnDisp(p.pcs,p.cs)+'</td><td class="r">'+fmt.currency(p.amt)+'</td></tr>',key:'prod',head:prodHead}));
   else segs.push({row:'<tr><td colspan="4">—</td></tr>',key:'prod',head:prodHead});
   segs.push({row:'<tr class="tot"><td colspan="3">মোট</td><td class="r">'+fmt.currency(vol)+'</td></tr>',key:'prod',head:prodHead});
   segs.push({tableEnd:true});
+  }
 
   // combined customer+area table
   const caHead='<thead><tr><th>জোন</th><th>গ্রাহক</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>';
+  if(mode!=='prod'){
   add('<div class="cr-sec">গ্রাহক ও জোন অনুযায়ী বিক্রয়</div>');
   segs.push({tableStart:true,key:'ca',head:caHead});
   if(areaList.length){
@@ -494,6 +512,7 @@ function buildCmSegments(c){
   }else segs.push({row:'<tr><td colspan="4">—</td></tr>',key:'ca',head:caHead});
   segs.push({row:'<tr class="tot"><td colspan="2">সর্বমোট</td><td class="r">'+fmt.currency(vol)+'</td><td class="r">100%</td></tr>',key:'ca',head:caHead});
   segs.push({tableEnd:true});
+  }
 
   add('<div class="cr-sign"><div class="s">প্রস্তুতকারক</div><div class="s">সরবরাহকারীর গ্রহণ ও স্বাক্ষর</div></div>');
   return {segs,contHeader,month,vol};
@@ -508,8 +527,8 @@ function cmMeasure(html){
   return h;
 }
 
-function buildCmReport(c){
-  const {segs,contHeader,month}=buildCmSegments(c);
+function buildCmReport(c,mode){
+  const {segs,contHeader,month}=buildCmSegments(c,mode);
   const MM=96/25.4;                       // CSS px per mm
   const USABLE=(296-10-12-8)*MM;          // page height − padding − footer zone
   const contH=cmMeasure(contHeader)+4;
@@ -552,11 +571,19 @@ function buildCmReport(c){
     pages.map((p,i)=>'<div class="cr-page">'+p+foot(i+1)+'</div>').join('');
 }
 
+let _rptPendingId=null;
 function printCmReport(id){
-  const c=commissions.find(x=>x.id===id);if(!c)return;
-  buildCmReport(c);
+  _rptPendingId=id;
+  document.getElementById('cm-rpt-modal').classList.add('open');
+}
+function closeRptModal(){document.getElementById('cm-rpt-modal').classList.remove('open');}
+function doPrintCmReport(mode){
+  closeRptModal();
+  const c=commissions.find(x=>x.id===_rptPendingId);if(!c)return;
+  buildCmReport(c,mode);
   const clean=s=>String(s||'').replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'').trim();
-  const fname=[clean(c.supplierName),normMonth(c.month),'Commission'].filter(Boolean).join('_')||'commission_report';
+  const suffix=mode==='prod'?'_Products':mode==='zone'?'_Zones':'';
+  const fname=([clean(c.supplierName),normMonth(c.month),'Commission'].filter(Boolean).join('_')||'commission_report')+suffix;
   const prev=document.title;document.title=fname;window.print();
   setTimeout(()=>{document.title=prev;},1500);
 }
