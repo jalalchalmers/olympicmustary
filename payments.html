@@ -498,7 +498,7 @@ function renderList(){
   const t=document.getElementById('list-type').value;
   const from=document.getElementById('list-from').value;
   const to=document.getElementById('list-to').value;
-  const list=vouchers.filter(v=>(!q||(v.vno||'').toLowerCase().includes(q)||(v.partyName||'').toLowerCase().includes(q)||(v.counterpartyName||'').toLowerCase().includes(q))&&(!t||v.vtype===t)&&(!from||v.date>=from)&&(!to||v.date<=to));
+  const list=vouchers.filter(v=>(!q||(v.vno||'').toLowerCase().includes(q)||(v.partyName||'').toLowerCase().includes(q)||(v.counterpartyName||'').toLowerCase().includes(q))&&(!t||v.vtype===t)&&(!from||fmt.dkey(v.date)>=from)&&(!to||fmt.dkey(v.date)<=to));
   if(!list.length){tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="empty-icon">🧾</div><p>কোনো ভাউচার নেই।</p></div></td></tr>';return;}
   tbody.innerHTML=list.map(v=>{
     const methods=[];if(v.cash)methods.push('নগদ');if(v.bank)methods.push('ব্যাংক');if(v.mobile)methods.push('মোবাইল');
