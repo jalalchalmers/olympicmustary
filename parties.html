@@ -108,6 +108,10 @@
         <input type="text" id="p-area" placeholder="যেমন: ঢাকা, চট্টগ্রাম"/>
       </div>
       <div class="field">
+        <label>জোন</label>
+        <input type="text" id="p-zone" placeholder="যেমন: কক্সবাজার জোন"/>
+      </div>
+      <div class="field">
         <label>প্রারম্ভিক ব্যালেন্স (৳)</label>
         <input type="number" id="p-balance" placeholder="0.00" value="0"/>
         <p style="font-size:11px;color:var(--ink3);margin-top:3px;line-height:1.5">গ্রাহক: (+) হলে গ্রাহকের কাছে <strong>পাবো</strong> · সরবরাহকারী: (+) হলে সরবরাহকারীকে <strong>দেবো</strong> · উল্টো হলে (−) দিন</p>
@@ -170,7 +174,7 @@ function renderTable(list) {
       <td style="color:var(--ink3);font-size:12px">${i+1}</td>
       <td>
         <strong>${p.name}</strong>
-        ${p.area ? `<br><span style="font-size:11px;color:var(--ink3)">${p.area}</span>` : ''}
+        ${p.area||p.zone ? `<br><span style="font-size:11px;color:var(--ink3)">${[p.area,p.zone].filter(Boolean).join(' · ')}</span>` : ''}
       </td>
       <td><span class="badge ${typeBadge[p.type]||''}">${typeLabel[p.type]||p.type}</span></td>
       <td>${p.phone||'—'}</td>
@@ -189,7 +193,7 @@ function applyFilters() {
   const q    = document.getElementById('search-input').value.toLowerCase();
   const type = document.getElementById('filter-type').value;
   const list = parties.filter(p => {
-    const mQ = !q || p.name.toLowerCase().includes(q) || (p.phone||'').includes(q) || (p.area||'').toLowerCase().includes(q);
+    const mQ = !q || p.name.toLowerCase().includes(q) || (p.phone||'').includes(q) || (p.area||'').toLowerCase().includes(q) || (p.zone||'').toLowerCase().includes(q);
     const mT = !type || p.type === type;
     return mQ && mT;
   });
@@ -214,6 +218,7 @@ function openModal(id = null) {
   document.getElementById('p-email').value   = p?.email   || '';
   document.getElementById('p-address').value = p?.address || '';
   document.getElementById('p-area').value    = p?.area    || '';
+  document.getElementById('p-zone').value    = p?.zone    || '';
   document.getElementById('p-balance').value = p?.balance || '0';
   document.getElementById('p-notes').value   = p?.notes   || '';
   // supplier network dropdown (suppliers + both, excluding the party being edited)
@@ -246,6 +251,7 @@ async function saveParty() {
     email:   document.getElementById('p-email').value.trim(),
     address: document.getElementById('p-address').value.trim(),
     area:    document.getElementById('p-area').value.trim(),
+    zone:    document.getElementById('p-zone').value.trim(),
     balance: parseFloat(document.getElementById('p-balance').value) || 0,
     notes:   document.getElementById('p-notes').value.trim(),
     linkedSupplierId: document.getElementById('p-supplier').value || '',
@@ -318,9 +324,9 @@ async function syncFromSheet() {
 /* ── EXPORT CSV ── */
 function exportCSV() {
   if (!parties.length) { toast('কোনো ডেটা নেই', 'error'); return; }
-  const header = ['ID','নাম','ধরন','ফোন','ইমেইল','ঠিকানা','এলাকা','ব্যালেন্স','নোট'];
+  const header = ['ID','নাম','ধরন','ফোন','ইমেইল','ঠিকানা','এলাকা','জোন','ব্যালেন্স','নোট'];
   const rows   = parties.map(p =>
-    [p.id,p.name,p.type,p.phone,p.email,p.address,p.area,p.balance,p.notes]
+    [p.id,p.name,p.type,p.phone,p.email,p.address,p.area,p.zone,p.balance,p.notes]
     .map(v => `"${v||''}"`).join(',')
   );
   const a = document.createElement('a');
