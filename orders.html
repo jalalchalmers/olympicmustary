@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — ক্রয় / বিক্রয়</title>
+  <title>hFlow — ক্রয় / বিক্রয়</title>
   <style>
     .order-type-tabs{display:flex;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);width:fit-content}
     .order-tab{padding:8px 22px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--surface);color:var(--ink2);transition:all .15s}
@@ -216,7 +216,7 @@
         <div id="print-invoice" class="print-only">
           <div class="pi-top">
             <div>
-              <div class="pi-brand" id="pi-brand">BizFlow</div>
+              <div class="pi-brand" id="pi-brand">hFlow</div>
               <div class="pi-bizinfo" id="pi-bizinfo"></div>
             </div>
             <div class="pi-invlabel"><div class="lbl" id="pi-invtype">INVOICE</div><div class="num" id="pi-invno"></div><div class="num" id="pi-date"></div></div>
@@ -592,6 +592,8 @@ function populatePartyDropdown(selectedId=''){
   sel.innerHTML=`<option value="">${ph}</option>`+rel.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''}>${p.name}${p.area?' — '+p.area:''}</option>`).join('');
   document.getElementById('f-party-label').textContent=currentType==='sales'?'গ্রাহক *':'সরবরাহকারী *';
   if(selectedId)onPartyChange();
+  makeSearchable(document.getElementById('f-party'),'🔍 পার্টি খুঁজুন…');
+  bfpSync(document.getElementById('f-party'));
 }
 
 /* Sum of standalone voucher adjustments for a party (reduces due like a payment).
@@ -971,6 +973,7 @@ function allocAddRow(partyId='',ctn='',pcs=''){
     <input type="number" class="al-pcs" placeholder="0" min="0" step="any" inputmode="decimal" value="${pcs||''}"/>
     <button type="button" class="al-del" onclick="this.parentElement.remove();allocRecalc()">×</button>`;
   div.querySelectorAll('select,input').forEach(el=>el.addEventListener('input',allocRecalc));
+  makeSearchable(div.querySelector('.al-party'),'🔍 গ্রাহক…');
   document.getElementById('al-rows').appendChild(div);
 }
 
@@ -1266,7 +1269,7 @@ function updateSticky(){
 }
 
 function buildPrintInvoice(){
-  const bizName=localStorage.getItem('bf_biz_name')||'BizFlow';
+  const bizName=localStorage.getItem('bf_biz_name')||'hFlow';
   const orderId=document.getElementById('f-order-id').value;
   const date=document.getElementById('f-date').value;
   const partySel=document.getElementById('f-party');
