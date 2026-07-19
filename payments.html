@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>BizFlow — পেমেন্ট / সমন্বয়</title>
+  <title>hFlow — পেমেন্ট / সমন্বয়</title>
   <style>
     .vtype-tabs{display:flex;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);width:fit-content}
     .vtype-tab{padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--surface);color:var(--ink2);transition:all .15s}
@@ -222,7 +222,7 @@
       <div id="voucher-print" class="print-only">
         <div class="vp-top">
           <div>
-            <div class="vp-brand" id="vp-brand">BizFlow</div>
+            <div class="vp-brand" id="vp-brand">hFlow</div>
             <div class="vp-bizinfo" id="vp-bizinfo"></div>
           </div>
           <div class="vp-title"><div class="lbl" id="vp-type">MONEY RECEIPT</div><div class="num" id="vp-no"></div></div>
@@ -335,6 +335,10 @@ function populatePartyDropdown(selectedId='',selectedCounterId=''){
   const sup=parties.filter(p=>p.type==='supplier'||p.type==='both');
   csel.innerHTML='<option value="">— নির্বাচন করুন —</option>'+sup.map(p=>`<option value="${p.id}" ${p.id===selectedCounterId?'selected':''}>${p.name}${p.area?' — '+p.area:''}</option>`).join('');
   if(selectedId)onPartyChange();
+  makeSearchable(document.getElementById('f-party'),'🔍 পার্টি খুঁজুন…');
+  makeSearchable(document.getElementById('f-counterparty'),'🔍 সরবরাহকারী খুঁজুন…');
+  bfpSync(document.getElementById('f-party'));
+  bfpSync(document.getElementById('f-counterparty'));
 }
 
 function partyDue(partyId){
@@ -447,7 +451,7 @@ function populateForm(v){
 function buildVoucherPrint(){
   const d=collectData();
   const party=parties.find(p=>p.id===d.partyId)||{};
-  document.getElementById('vp-brand').textContent=localStorage.getItem('bf_biz_name')||'BizFlow';
+  document.getElementById('vp-brand').textContent=localStorage.getItem('bf_biz_name')||'hFlow';
   const vpPhone=localStorage.getItem('bf_biz_phone')||'';
   document.getElementById('vp-bizinfo').textContent=[localStorage.getItem('bf_biz_address')||'',vpPhone?('ফোন: '+vpPhone):''].filter(Boolean).join(' · ');
   const vpDepo=localStorage.getItem('bf_depo_text');
