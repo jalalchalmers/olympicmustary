@@ -9,6 +9,34 @@
     .cm-basis-box .big{font-size:18px;font-weight:800;color:var(--accent)}
     .cm-break{max-height:180px;overflow:auto;margin-top:8px;border-top:1px dashed var(--border);padding-top:8px}
     .cm-break div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:var(--ink2)}
+      /* ── Commission report (print only) ── */
+    #cm-report{display:none}
+    @media print{
+      .bf-body>*:not(#cm-report){display:none!important}
+      #cm-report{display:block!important;font-family:Arial,sans-serif;color:#000;padding:6px 4px}
+      .cr-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+      .cr-brand{font-size:22px;font-weight:800}
+      .cr-bizinfo{font-size:10.5px;color:#444;margin-top:3px;line-height:1.5;max-width:300px}
+      .cr-title{text-align:right}
+      .cr-title .t{font-size:18px;font-weight:800;letter-spacing:1px}
+      .cr-title .m{font-size:12px;margin-top:3px}
+      .cr-line{border:none;border-top:2px solid #000;margin:4px 0 10px}
+      .cr-meta{display:flex;justify-content:space-between;font-size:12px;margin-bottom:10px}
+      .cr-sum{display:flex;gap:14px;margin-bottom:14px}
+      .cr-sum .b{flex:1;border:1px solid #000;border-radius:5px;padding:8px 12px;text-align:center}
+      .cr-sum .l{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#555}
+      .cr-sum .v{font-size:15px;font-weight:800;margin-top:3px}
+      .cr-sec{font-size:12px;font-weight:800;margin:14px 0 5px;text-transform:uppercase;letter-spacing:.5px}
+      .cr-table{width:100%;border-collapse:collapse;margin-bottom:6px}
+      .cr-table th{background:#e8e8e8;border:1px solid #000;padding:5px 6px;font-size:11px;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .cr-table td{border:1px solid #000;padding:4px 6px;font-size:11px}
+      .cr-table .r{text-align:right}
+      .cr-table tfoot td{font-weight:800;background:#f4f4f4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .cr-warn{font-size:11px;color:#b45309;margin:6px 0}
+      .cr-sign{display:flex;justify-content:space-between;margin-top:52px;font-size:11px;text-align:center;page-break-inside:avoid}
+      .cr-sign .s{width:190px;border-top:1px solid #000;padding-top:5px}
+      .cr-foot{text-align:center;font-size:10px;color:#555;margin-top:16px;border-top:1px dashed #999;padding-top:6px}
+    }
   </style>
 </head>
 <body>
@@ -72,6 +100,8 @@
 </div>
 
 <!-- ADD / EDIT MODAL -->
+<div id="cm-report"></div>
+
 <div class="modal-overlay" id="cm-modal">
   <div class="modal" style="max-width:520px">
     <div class="modal-header">
@@ -180,6 +210,7 @@ function render(){
       <td style="text-align:right;font-weight:700;color:var(--success)">${fmt.currency(c.amount||0)}</td>
       <td style="font-size:12px;color:var(--accent);font-weight:600">${c.vno||'—'}</td>
       <td><div class="td-actions">
+        <button class="btn btn-outline btn-sm btn-icon" onclick="printCmReport('${c.id}')" title="সরবরাহকারীর জন্য রিপোর্ট (PDF)">📄</button>
         <button class="btn btn-outline btn-sm btn-icon" onclick="openModal('${c.id}')" title="সম্পাদনা">✏️</button>
         <button class="btn btn-danger btn-sm btn-icon" onclick="delCm('${c.id}')" title="মুছুন">🗑️</button>
       </div></td>
@@ -358,6 +389,98 @@ document.getElementById('cm-modal').addEventListener('click',e=>{if(e.target.id=
 /* ── LOAD ── */
 /* Sheets auto-converts "2026-07" into a Date → it returns as a long
    "Wed Jul 01 2026 …" string. Coerce any month-ish value back to YYYY-MM. */
+/* ════ SUPPLIER COMMISSION REPORT (print/PDF) ════
+   Built entirely from local caches: the month's sales lines of THIS
+   supplier's products, grouped per product / per customer / per area.
+   The saved commission record stays authoritative for rate & amount; if the
+   live volume differs from the saved volume (invoices edited later), the
+   report says so explicitly. */
+function buildCmReport(c){
+  const month=normMonth(c.month);
+  const prods=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const partiesL=JSON.parse(localStorage.getItem('bf_parties')||'[]');
+  const ordersL=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+  const mine={};prods.forEach(p=>{if(String(p.supplierId||'')===String(c.supplierId))mine[p.id]={name:p.name||p.code||p.id,code:p.code||'',cs:parseFloat(p.cartonSize)||0};});
+  const areaOf={},nameOf={};partiesL.forEach(p=>{areaOf[p.id]=(p.area||'').trim()||'এলাকা নেই';nameOf[p.id]=p.name||'';});
+  const mOf=d=>{const k=fmt.dkey(d);return k?k.slice(0,7):'';};
+
+  const perProd={},perCust={},perArea={};let vol=0;
+  ordersL.forEach(o=>{
+    if(o.orderType!=='sales')return;
+    if(mOf(o.date)!==month)return;
+    let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){return;}
+    items.forEach(it=>{
+      const m=mine[it.productId];if(!m)return;
+      let amt=parseFloat(it.total);if(!amt&&amt!==0)amt=(parseFloat(it.qty)||0)*(parseFloat(it.price)||0);amt=amt||0;
+      const pcs=parseFloat(it.totalPieces)||((parseFloat(it.qtyPieces)||parseFloat(it.qty)||0)+(parseFloat(it.freePieces)||0));
+      vol+=amt;
+      if(!perProd[it.productId])perProd[it.productId]={...m,pcs:0,amt:0};
+      perProd[it.productId].pcs+=pcs;perProd[it.productId].amt+=amt;
+      const cn=nameOf[o.partyId]||o.partyName||'অজানা';
+      perCust[cn]=(perCust[cn]||0)+amt;
+      const ar=areaOf[o.partyId]||'এলাকা নেই';
+      perArea[ar]=(perArea[ar]||0)+amt;
+    });
+  });
+  const ctnDisp=(pcs,cs)=>cs>0?(Math.floor(pcs/cs)+(pcs%cs?(' কার্টন + '+Math.round((pcs%cs)*100)/100+' পিস'):' কার্টন')):(Math.round(pcs*100)/100+' পিস');
+  const bizName=localStorage.getItem('bf_biz_name')||'hFlow';
+  const bizPhone=localStorage.getItem('bf_biz_phone')||'';
+  const bizInfo=[localStorage.getItem('bf_biz_address')||'',bizPhone?('ফোন: '+bizPhone):''].filter(Boolean).join(' · ');
+  const savedVol=parseFloat(c.salesVolume)||0;
+  const mismatch=Math.abs(vol-savedVol)>0.01;
+  const basisTxt=c.basis==='percent'?(`বিক্রয়ের ${c.rate}% হারে`):'ম্যানুয়াল নির্ধারিত';
+
+  const prodRows=Object.values(perProd).sort((a,b)=>b.amt-a.amt);
+  const custRows=Object.entries(perCust).sort((a,b)=>b[1]-a[1]);
+  const areaRows=Object.entries(perArea).sort((a,b)=>b[1]-a[1]);
+
+  document.getElementById('cm-report').innerHTML=`
+    <div class="cr-top">
+      <div><div class="cr-brand">${bizName}</div><div class="cr-bizinfo">${bizInfo}</div></div>
+      <div class="cr-title"><div class="t">কমিশন রিপোর্ট</div><div class="m">মাস: ${month}</div><div class="m">${c.vno||''}</div></div>
+    </div>
+    <hr class="cr-line"/>
+    <div class="cr-meta">
+      <div><b>সরবরাহকারী:</b> ${c.supplierName||''}</div>
+      <div><b>তারিখ:</b> ${fmt.dmy(c.date)||''}</div>
+    </div>
+    <div class="cr-sum">
+      <div class="b"><div class="l">মোট বিক্রয় ভলিউম</div><div class="v">${fmt.currency(savedVol)}</div></div>
+      <div class="b"><div class="l">কমিশনের ভিত্তি</div><div class="v" style="font-size:12px">${basisTxt}</div></div>
+      <div class="b"><div class="l">প্রাপ্য কমিশন</div><div class="v">${fmt.currency(c.amount||0)}</div></div>
+    </div>
+    ${mismatch?`<div class="cr-warn">⚠ নোট: বর্তমান হিসাবকৃত ভলিউম ${fmt.currency(vol)} — সংরক্ষিত ভলিউম থেকে ভিন্ন (পরবর্তীতে ইনভয়েস পরিবর্তিত হয়ে থাকতে পারে)।</div>`:''}
+
+    <div class="cr-sec">পণ্য অনুযায়ী বিক্রয়</div>
+    <table class="cr-table">
+      <thead><tr><th>কোড</th><th>পণ্য</th><th class="r">পরিমাণ</th><th class="r">বিক্রয় মূল্য</th></tr></thead>
+      <tbody>${prodRows.map(p=>`<tr><td>${p.code}</td><td>${p.name}</td><td class="r">${ctnDisp(p.pcs,p.cs)}</td><td class="r">${fmt.currency(p.amt)}</td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>'}</tbody>
+      <tfoot><tr><td colspan="3">মোট</td><td class="r">${fmt.currency(vol)}</td></tr></tfoot>
+    </table>
+
+    <div class="cr-sec">গ্রাহক অনুযায়ী বিক্রয়</div>
+    <table class="cr-table">
+      <thead><tr><th>গ্রাহক</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>
+      <tbody>${custRows.map(([k,v])=>`<tr><td>${k}</td><td class="r">${fmt.currency(v)}</td><td class="r">${vol>0?(v/vol*100).toFixed(1):'0'}%</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}</tbody>
+    </table>
+
+    <div class="cr-sec">এলাকা অনুযায়ী বিক্রয়</div>
+    <table class="cr-table">
+      <thead><tr><th>এলাকা</th><th class="r">বিক্রয় মূল্য</th><th class="r">শতাংশ</th></tr></thead>
+      <tbody>${areaRows.map(([k,v])=>`<tr><td>${k}</td><td class="r">${fmt.currency(v)}</td><td class="r">${vol>0?(v/vol*100).toFixed(1):'0'}%</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}</tbody>
+    </table>
+
+    <div class="cr-sign"><div class="s">প্রস্তুতকারক</div><div class="s">সরবরাহকারীর গ্রহণ ও স্বাক্ষর</div></div>
+    <div class="cr-foot">${bizName} · কমিশন রিপোর্ট — ${month}${bizPhone?(' · যোগাযোগ: '+bizPhone):''}</div>`;
+}
+function printCmReport(id){
+  const c=commissions.find(x=>x.id===id);if(!c)return;
+  buildCmReport(c);
+  const clean=s=>String(s||'').replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'').trim();
+  const fname=[clean(c.supplierName),normMonth(c.month),'Commission'].filter(Boolean).join('_')||'commission_report';
+  const prev=document.title;document.title=fname;window.print();setTimeout(()=>{document.title=prev;},1000);
+}
+
 function normMonth(m){
   if(!m)return '';
   let s=String(m).replace(/^'/,'');
