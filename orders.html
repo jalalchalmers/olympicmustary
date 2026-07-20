@@ -467,6 +467,24 @@
   </div>
 </div>
 
+<!-- COMPLEMENTARY MANAGER (list + remove entries on a row) -->
+<div class="modal-overlay" id="compli-mgr-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🎁 কমপ্লিমেন্টারি ব্যবস্থাপনা</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px" id="cm-mgr-src"></div>
+      </div>
+      <button class="modal-close" onclick="closeCompliMgr()">×</button>
+    </div>
+    <div id="cm-mgr-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCompliMgr()">বন্ধ</button>
+      <button class="btn btn-primary" onclick="compliMgrAddNew()">+ নতুন কমপ্লিমেন্টারি</button>
+    </div>
+  </div>
+</div>
+
 <script src="shared.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="layout.js"></script>
@@ -1077,10 +1095,88 @@ function compliEffCarton(p){
 }
 let compliSrcName='';   // the product (A) whose row opened the modal
 let compliSrcRow=null;  // the actual row element, to badge it
+/* 🎁 dispatcher: rows that already carry complementaries open the MANAGER
+   (list + remove); otherwise straight to the add form. */
 function openCompliModal(btn){
+  const row=btn&&btn.closest?btn.closest('.order-item-row'):null;
+  let list=[];try{list=JSON.parse((row&&row.dataset.compli)||'[]');}catch(e){}
+  if(row&&list.length){openCompliManager(row);return;}
+  openCompliAdd(row);
+}
+
+let mgrRow=null;
+function openCompliManager(row){
+  mgrRow=row;
+  const ps=row.querySelector('.oi-product');
+  const nm=ps&&ps.value?(ps.options[ps.selectedIndex]?.dataset?.name||''):'';
+  document.getElementById('cm-mgr-src').textContent=nm?('মূল পণ্য: '+nm):'';
+  renderCompliMgr();
+  document.getElementById('compli-mgr-modal').classList.add('open');
+}
+function closeCompliMgr(){document.getElementById('compli-mgr-modal').classList.remove('open');mgrRow=null;}
+function renderCompliMgr(){
+  if(!mgrRow)return;
+  let list=[];try{list=JSON.parse(mgrRow.dataset.compli||'[]');}catch(e){}
+  const box=document.getElementById('cm-mgr-list');
+  box.innerHTML=list.length?list.map((x,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div>
+        <div style="font-size:13px;font-weight:700">${x.cartons} কার্টন ${x.productName}</div>
+        <div style="font-size:11.5px;color:var(--ink3)">ছাড়ে যুক্ত: ${fmt.currency(x.value)} (১ কার্টন = ${fmt.currency(x.perCarton)})</div>
+      </div>
+      <button class="btn btn-danger btn-sm btn-icon" onclick="removeCompliEntry(${i})" title="এই কমপ্লিমেন্টারি বাতিল">✕</button>
+    </div>`).join('')
+    :'<div style="text-align:center;color:var(--ink3);font-size:13px;padding:14px">কোনো কমপ্লিমেন্টারি নেই</div>';
+}
+function compliMgrAddNew(){
+  const row=mgrRow;
+  closeCompliMgr();
+  openCompliAdd(row);
+}
+/* Atomic reversal: discount − stored value, matching 🎁 note line removed,
+   entry dropped from the row, badge updated. The B product line (if it was
+   added and still matches product+cartons) is offered for removal too —
+   never removed blindly, since it may have been hand-edited since. */
+function removeCompliEntry(idx){
+  if(Auth.guardWrite())return;
+  if(!mgrRow)return;
+  let list=[];try{list=JSON.parse(mgrRow.dataset.compli||'[]');}catch(e){}
+  const x=list[idx];if(!x)return;
+  bfConfirm(`"${x.cartons} কার্টন ${x.productName}" কমপ্লিমেন্টারি বাতিল হবে — ছাড় থেকে ${fmt.currency(x.value)} বাদ যাবে এবং নোট লাইনটি মুছে যাবে। নিশ্চিত?`,()=>{
+    // 1) discount
+    const dEl=document.getElementById('f-discount');
+    dEl.value=Math.max(0,Math.round(((parseFloat(dEl.value)||0)-x.value)*100)/100);
+    // 2) note line (first 🎁 line mentioning this product+cartons+value)
+    const nEl=document.getElementById('f-notes');
+    const lines=nEl.value.split('\n');
+    const li=lines.findIndex(l=>l.trim().startsWith('🎁 কমপ্লি')&&l.includes(`${x.cartons} কার্টন ${x.productName}`)&&l.includes(fmt.currency(x.value)));
+    if(li>-1){lines.splice(li,1);nEl.value=lines.join('\n');}
+    // 3) row data + badge
+    list.splice(idx,1);
+    if(list.length)mgrRow.dataset.compli=JSON.stringify(list);else delete mgrRow.dataset.compli;
+    updateCompliBadge(mgrRow);
+    recalc();buildPrintInvoice();renderCompliMgr();
+    toast(`✓ কমপ্লিমেন্টারি বাতিল — ছাড় থেকে ${fmt.currency(x.value)} বাদ গেছে`,'success');
+    // 4) offer to remove the matching B line
+    const cand=[...document.querySelectorAll('.order-item-row')].find(r=>{
+      const psel=r.querySelector('.oi-product');
+      return psel&&psel.value===x.productId&&Math.abs((parseFloat(r.querySelector('.oi-qtyctn').value)||0)-x.cartons)<0.0001;
+    });
+    if(cand){
+      bfConfirm(`পণ্য তালিকায় "${x.cartons} কার্টন ${x.productName}" লাইনটিও কি মুছে দেবেন? (কমপ্লিমেন্টারির সাথে যোগ হয়েছিল)`,()=>{
+        cand.remove();recalc();buildPrintInvoice();
+        toast('✓ পণ্য লাইনটিও মুছে ফেলা হয়েছে','success');
+      },'লাইন মুছুন');
+    }else{
+      toast('ℹ️ মিলে যাওয়া পণ্য লাইন পাওয়া যায়নি — প্রয়োজনে তালিকা থেকে নিজে মুছুন','info');
+    }
+  },'কমপ্লিমেন্টারি বাতিল');
+}
+
+function openCompliAdd(row){
   compliSrcName='';compliSrcRow=null;
-  if(btn&&btn.closest){
-    compliSrcRow=btn.closest('.order-item-row');
+  if(row){
+    compliSrcRow=row;
     const ps=compliSrcRow&&compliSrcRow.querySelector('.oi-product');
     if(ps&&ps.value)compliSrcName=ps.options[ps.selectedIndex]?.dataset?.name||'';
   }
