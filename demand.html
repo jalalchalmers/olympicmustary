@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>hFlow — ডিমান্ড</title>
+<!-- STANDALONE page for sales officers. Deliberately does NOT load shared.js
+     (which carries the main app URL). It talks ONLY to the read-only stock
+     feed. Paste your Stock Feed /exec URL on the FEED_URL line below. -->
+<style>
+  :root{--accent:#4f46e5;--accent2:#7c3aed;--ink:#111827;--ink2:#374151;--ink3:#9ca3af;--border:#e5e7eb;--bg:#f6f7fb;--danger:#dc2626;--success:#16a34a;--warn:#b45309}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:92px}
+  .top{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5}
+  .top h1{font-size:17px;font-weight:800}
+  .top .sub{font-size:11.5px;opacity:.9;margin-top:2px}
+  .wrap{padding:12px;max-width:720px;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:4px}
+  .field input{width:100%;border:1.5px solid var(--border);border-radius:9px;padding:10px 12px;font-size:16px;outline:none}
+  .field input:focus{border-color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #q{width:100%;border:1.5px solid var(--border);border-radius:9px;padding:10px 12px;font-size:16px;outline:none;margin-bottom:10px}
+  .p-item{display:grid;grid-template-columns:1fr 74px 74px;gap:8px;align-items:center;border-bottom:1px solid var(--border);padding:9px 2px}
+  .p-item:last-child{border-bottom:none}
+  .p-name{font-size:13.5px;font-weight:700;line-height:1.3}
+  .p-code{font-size:10.5px;color:var(--accent);font-weight:600}
+  .p-meta{font-size:11.5px;color:var(--ink2);margin-top:2px}
+  .p-meta .st0{color:var(--danger);font-weight:700}
+  .p-meta .stok{color:var(--success);font-weight:700}
+  .p-item input{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 6px;font-size:16px;text-align:right;outline:none}
+  .p-item input:focus{border-color:var(--accent)}
+  .p-item.has-qty{background:#f5f3ff}
+  .qlbl{font-size:9.5px;color:var(--ink3);text-align:center;margin-top:2px}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:10px;align-items:center;z-index:6}
+  .bar .info{flex:1;font-size:12.5px;color:var(--ink2);font-weight:600}
+  .btn{border:none;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:800;cursor:pointer}
+  .btn-wa{background:#25D366;color:#fff}
+  .btn-o{background:#fff;border:1.5px solid var(--border);color:var(--ink2);font-weight:700;padding:9px 12px;border-radius:9px;font-size:12.5px;cursor:pointer}
+  .stamp{font-size:10.5px;color:var(--ink3);text-align:center;margin:6px 0 2px}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:12px;font-size:13px;margin-bottom:12px;display:none}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>🛒 hFlow ডিমান্ড</h1>
+  <div class="sub">লাইভ স্টক দেখে চাহিদা দিন — WhatsApp-এ অ্যাডমিনের কাছে পাঠান</div>
+</div>
+<div class="wrap">
+  <div class="err" id="err"></div>
+  <div class="card">
+    <div class="row2">
+      <div class="field"><label>SO নাম (আপনার নাম)</label><input type="text" id="so-name" placeholder="যেমন: করিম"/></div>
+      <div class="field"><label>কাস্টমার নাম</label><input type="text" id="cust-name" placeholder="যেমন: বিলাসী স্টোর"/></div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <input type="text" id="q" placeholder="🔍 পণ্য খুঁজুন…" style="margin:0;flex:1"/>
+      <button class="btn-o" id="btn-refresh">⟳</button>
+    </div>
+    <div id="plist"></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+</div>
+<div class="bar">
+  <div class="info" id="bar-info">কোনো পণ্য নির্বাচিত হয়নি</div>
+  <button class="btn btn-wa" id="btn-wa">📱 WhatsApp-এ পাঠান</button>
+</div>
+
+<script>
+/* ═══ PASTE YOUR STOCK FEED URL BETWEEN THE QUOTES BELOW ═══ */
+const FEED_URL = 'https://script.google.com/macros/s/AKfycbxK1rz8TFQ7pI67jXmphP1j6teIcFJNrmJJcgLn8et1aAz5jm2aYdW_lgEaZdG5yKMG/exec';
+/* ══════════════════════════════════════════════════════════ */
+
+let items = [];        // {code,name,cs,stockPcs,pricePerCtn}
+const demand = {};     // code -> {ctn,pcs}
+
+function feedUrl(){
+  const u = new URLSearchParams(location.search).get('feed');
+  if (u) { localStorage.setItem('dm_feed', u); return u; }
+  if (FEED_URL && FEED_URL.indexOf('PASTE_') !== 0) return FEED_URL;
+  return localStorage.getItem('dm_feed') || '';
+}
+function jsonp(url){
+  return new Promise((res, rej) => {
+    const cb = 'dmcb_' + Date.now();
+    const t = setTimeout(() => { cleanup(); rej(new Error('timeout')); }, 20000);
+    function cleanup(){ clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); res(d); };
+    const s = document.createElement('script');
+    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    s.onerror = () => { cleanup(); rej(new Error('load')); };
+    document.body.appendChild(s);
+  });
+}
+function fmtStock(pcs, cs){
+  if (pcs <= 0) return '<span class="st0">স্টক নেই</span>';
+  if (!cs || cs <= 0) return '<span class="stok">' + r2(pcs) + ' পি</span>';
+  const c = Math.floor(pcs / cs), p = r2(pcs - c * cs);
+  return '<span class="stok">≈ ' + c + 'ক' + (p ? ' ' + p + 'পি' : '') + '</span>';
+}
+function r2(n){ return Math.round(n * 100) / 100; }
+function money(n){ return '৳' + Number(n || 0).toLocaleString('bn-BD'); }
+
+function render(){
+  const q = (document.getElementById('q').value || '').trim().toLowerCase();
+  const list = items.filter(p => !q || p.name.toLowerCase().includes(q) || String(p.code).toLowerCase().includes(q));
+  document.getElementById('plist').innerHTML = list.length ? list.map(p => {
+    const d = demand[p.code] || {};
+    return `<div class="p-item ${d.ctn || d.pcs ? 'has-qty' : ''}" data-code="${p.code}">
+      <div>
+        <div class="p-name"><span class="p-code">[${p.code}]</span> ${p.name}</div>
+        <div class="p-meta">স্টক: ${fmtStock(p.stockPcs, p.cs)} · দাম: <b>${money(p.pricePerCtn)}</b>/কার্টন</div>
+      </div>
+      <div><input type="number" min="0" step="any" inputmode="decimal" placeholder="0" value="${d.ctn || ''}" data-f="ctn"/><div class="qlbl">কার্টন</div></div>
+      <div><input type="number" min="0" step="any" inputmode="decimal" placeholder="0" value="${d.pcs || ''}" data-f="pcs"/><div class="qlbl">পিস</div></div>
+    </div>`;
+  }).join('') : '<div style="text-align:center;color:var(--ink3);padding:18px;font-size:13px">কিছু পাওয়া যায়নি</div>';
+}
+function updBar(){
+  const n = Object.values(demand).filter(d => (parseFloat(d.ctn) || 0) + (parseFloat(d.pcs) || 0) > 0).length;
+  document.getElementById('bar-info').textContent = n ? (n + 'টি পণ্য নির্বাচিত') : 'কোনো পণ্য নির্বাচিত হয়নি';
+}
+document.getElementById('plist').addEventListener('input', e => {
+  const inp = e.target.closest('input'); if (!inp) return;
+  const code = inp.closest('.p-item').dataset.code;
+  if (!demand[code]) demand[code] = {};
+  demand[code][inp.dataset.f] = inp.value;
+  inp.closest('.p-item').classList.toggle('has-qty',
+    (parseFloat(demand[code].ctn) || 0) + (parseFloat(demand[code].pcs) || 0) > 0);
+  updBar();
+});
+document.getElementById('q').addEventListener('input', render);
+
+async function load(showToast){
+  const u = feedUrl();
+  const err = document.getElementById('err');
+  if (!u) { err.style.display = 'block'; err.textContent = 'ফিড URL সেট করা নেই — অ্যাডমিনের সাথে যোগাযোগ করুন।'; return; }
+  try {
+    const d = await jsonp(u);
+    if (!d || !d.ok) throw new Error('bad');
+    items = d.items || [];
+    localStorage.setItem('dm_cache', JSON.stringify({ t: d.generatedAt, items }));
+    document.getElementById('stamp').textContent = 'স্টক হালনাগাদ: ' + new Date(d.generatedAt).toLocaleString('bn-BD');
+    err.style.display = 'none';
+    render();
+  } catch (e) {
+    const c = localStorage.getItem('dm_cache');
+    if (c) {
+      const cc = JSON.parse(c); items = cc.items || []; render();
+      document.getElementById('stamp').textContent = '⚠ পুরনো তথ্য (' + new Date(cc.t).toLocaleString('bn-BD') + ') — ইন্টারনেট চেক করে ⟳ চাপুন';
+    } else {
+      err.style.display = 'block';
+      err.textContent = 'স্টক লোড করা যায়নি — ইন্টারনেট সংযোগ দেখে ⟳ চাপুন।';
+    }
+  }
+}
+document.getElementById('btn-refresh').addEventListener('click', () => load(true));
+
+document.getElementById('btn-wa').addEventListener('click', () => {
+  const so = document.getElementById('so-name').value.trim();
+  const cust = document.getElementById('cust-name').value.trim();
+  if (!so) { alert('আপনার নাম লিখুন'); return; }
+  if (!cust) { alert('কাস্টমার নাম লিখুন'); return; }
+  const picked = [];
+  items.forEach(p => {
+    const d = demand[p.code] || {};
+    const ctn = parseFloat(d.ctn) || 0, pcs = parseFloat(d.pcs) || 0;
+    if (ctn + pcs > 0) picked.push({ p, ctn, pcs });
+  });
+  if (!picked.length) { alert('কমপক্ষে একটি পণ্যের পরিমাণ দিন'); return; }
+  localStorage.setItem('dm_so', so);
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0') + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + today.getFullYear();
+  let msg = '🛒 ডিমান্ড — ' + cust + '\nSO: ' + so + ' · ' + dd + '\n';
+  picked.forEach((x, i) => {
+    msg += (i + 1) + '. ' + x.p.name + ' — ' + (x.ctn ? x.ctn + 'ক ' : '') + (x.pcs ? x.pcs + 'পি' : '') + '\n';
+  });
+  msg += '\n#DEMAND|' + so.replace(/\|/g, ' ') + '|' + cust.replace(/\|/g, ' ') + '|'
+       + picked.map(x => x.p.code + ':' + x.ctn + ':' + x.pcs).join(';');
+  location.href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+});
+
+document.getElementById('so-name').value = localStorage.getItem('dm_so') || '';
+load();
+</script>
+</body>
+</html>
