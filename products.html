@@ -142,6 +142,10 @@
         <input type="text" id="pr-code" placeholder="যেমন: PRD-001"/>
       </div>
       <div class="field">
+        <label>MIS কোড (Olympic রিপোর্ট কলাম)</label>
+        <input type="text" id="pr-mis" placeholder="যেমন: OS, TPC — ফাঁকা হলে সাধারণ কোড"/>
+      </div>
+      <div class="field">
         <label>কার্টন সাইজ (পিস/কার্টন)</label>
         <input type="number" id="pr-carton" placeholder="যেমন: 24" min="1"/>
       </div>
@@ -351,6 +355,7 @@ function openProductModal(id = null) {
   document.getElementById('prod-modal-title').textContent = p ? 'পণ্য সম্পাদনা করুন' : 'নতুন পণ্য যোগ করুন';
   document.getElementById('pr-name').value    = p?.name       || '';
   document.getElementById('pr-code').value    = p?.code       || autoCode();
+  document.getElementById('pr-mis').value    = p?.misCode     || '';
   document.getElementById('pr-carton').value       = p?.cartonSize  || '';
   document.getElementById('pr-carton-price').value = p?.cartonPrice || '';
   document.getElementById('pr-price').value        = p?.price       || '';
@@ -474,6 +479,7 @@ async function saveProduct() {
   const product = {
     id:            editProdId || ('PR' + Date.now()),
     code, name,
+    misCode: document.getElementById('pr-mis').value.trim(),
     cartonSize:    parseFloat(document.getElementById('pr-carton').value)||0,
     cartonPrice:   parseFloat(document.getElementById('pr-carton-price').value)||0,
     price,
