@@ -209,25 +209,47 @@ function downloadXlsx(){
     return a.localeCompare(b,'bn');
   });
   const sm=[];
-  sm.push(['Depo Name: '+depoName,'','','Depo Code: '+depoCode]);
-  sm.push(['Customer wise MIS Summary (Zone grouped)','','','Period: '+period]);
+  sm.push(['Depo Name: '+depoName,'','','','','','Depo Code: '+depoCode]);
+  sm.push(['Customer wise MIS Summary','','','','','','Period: '+period]);
   sm.push([]);
-  sm.push(['SL','Zone','Area','Customer Code','Customer Name','Challans','Delivery Amount']);
+  // Olympic mapping: their Area = our zone; their Point = our area.
+  // Zone & Region left BLANK for manual fill in Excel.
+  sm.push(['SL','Zone','Region','Area','SAP ID','Distributor Name','Point','Challans','Delivery Amount']);
   let gv=0,gc=0,si=1;
   zoneNames.forEach(z=>{
     const list=byZone.get(z).map(g=>({g,v:g.rows.reduce((s,r)=>s+r.value,0)}))
       .sort((a,b)=>b.v-a.v);
     let zv=0,zc=0;
-    list.forEach(({g,v},i)=>{
-      sm.push([si++,i===0?z:'',g.area||'',g.code||'',g.party,g.rows.length,Math.round(v*100)/100]);
+    list.forEach(({g,v})=>{
+      sm.push([si++,'','',z==='জোন নেই'?'':z,g.code||'',g.party,g.area||'',g.rows.length,Math.round(v*100)/100]);
       zv+=v;zc+=g.rows.length;gv+=v;gc+=g.rows.length;
     });
-    sm.push(['','','','','Total — '+z,zc,Math.round(zv*100)/100]);
+    sm.push(['','','','','','Total — '+z,'',zc,Math.round(zv*100)/100]);
   });
-  sm.push(['','','','','GRAND TOTAL',gc,Math.round(gv*100)/100]);
+  sm.push(['','','','','','GRAND TOTAL','',gc,Math.round(gv*100)/100]);
   const ws0=XLSX.utils.aoa_to_sheet(sm);
-  ws0['!cols']=[{wch:4},{wch:14},{wch:14},{wch:13},{wch:26},{wch:9},{wch:15}];
+  ws0['!cols']=[{wch:4},{wch:10},{wch:10},{wch:14},{wch:11},{wch:26},{wch:14},{wch:9},{wch:15}];
   XLSX.utils.book_append_sheet(wb,ws0,'Summary');
+
+  // ── MIS Report sheet: the full matrix exactly like the view page ──
+  const mr=[];
+  mr.push(['Depo Name: '+depoName,'','','Depo Code: '+depoCode]);
+  mr.push(['MIS Report — All Challans','','','Period: '+period]);
+  mr.push([]);
+  mr.push(['','','','Rate:',...rpt.cols.map(c=>c.rate||'')]);
+  mr.push(['SL','Date','Challan No','Customer',...rpt.cols.map(c=>c.col),'Total Value']);
+  const mrQ={};let mrV=0;
+  rpt.rows.forEach((row,i)=>{
+    mr.push([i+1,row.date,row.challan,row.party,...rpt.cols.map(c=>row.qty[c.pid]?Math.round(row.qty[c.pid]*100)/100:''),Math.round(row.value*100)/100]);
+    rpt.cols.forEach(c=>{mrQ[c.pid]=(mrQ[c.pid]||0)+(row.qty[c.pid]||0);});
+    mrV+=row.value;
+  });
+  mr.push(['','','','Total',...rpt.cols.map(c=>Math.round((mrQ[c.pid]||0)*100)/100),Math.round(mrV*100)/100]);
+  const mrMulti=rpt.cols.filter(c=>c.multi);
+  if(mrMulti.length)mr.push(['✱ Multiple rates in range: '+mrMulti.map(c=>c.col+' ('+c.allRates.join('/')+')').join(', ')+' — latest shown']);
+  const wsMr=XLSX.utils.aoa_to_sheet(mr);
+  wsMr['!cols']=[{wch:4},{wch:11},{wch:12},{wch:22},...rpt.cols.map(()=>({wch:7})),{wch:13}];
+  XLSX.utils.book_append_sheet(wb,wsMr,'MIS Report');
 
   // ── Sheet 2: Invoice Summary — every challan of every customer in range
   //    (respects active supplier/zone/area/party filters) ──
