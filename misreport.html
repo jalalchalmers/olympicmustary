@@ -44,8 +44,10 @@
         <div class="field" style="margin:0"><label style="font-size:11px">হতে</label><input type="date" id="m-from"/></div>
         <div class="field" style="margin:0"><label style="font-size:11px">পর্যন্ত</label><input type="date" id="m-to"/></div>
         <div class="field" style="margin:0"><label style="font-size:11px">অথবা মাস</label><input type="month" id="m-month"/></div>
-        <div class="field" style="margin:0;flex:1;min-width:150px"><label style="font-size:11px">পয়েন্ট নাম</label><input type="text" id="m-point" placeholder="যেমন: RAHA"/></div>
-        <div class="field" style="margin:0;min-width:120px"><label style="font-size:11px">ডিস্ট কোড</label><input type="text" id="m-dist" placeholder="516013"/></div>
+        <div class="field" style="margin:0;min-width:170px"><label style="font-size:11px">গ্রাহক</label><select id="m-party"><option value="">সব গ্রাহক</option></select></div>
+        <div class="field" style="margin:0;min-width:170px"><label style="font-size:11px">সরবরাহকারী</label><select id="m-sup"><option value="">সব সরবরাহকারী</option></select></div>
+        <div class="field" style="margin:0;min-width:130px"><label style="font-size:11px">এলাকা</label><select id="m-area"><option value="">সব এলাকা</option></select></div>
+        <div class="field" style="margin:0;min-width:130px"><label style="font-size:11px">জোন</label><select id="m-zone"><option value="">সব জোন</option></select></div>
         <button class="btn btn-outline" id="btn-apply">প্রয়োগ</button>
       </div>
 
@@ -65,45 +67,55 @@ buildNav('misreport');
 
 let rpt=null;   // last computed report
 
+const P_ALL=()=>JSON.parse(localStorage.getItem('bf_parties')||'[]');
+const PR_ALL=()=>JSON.parse(localStorage.getItem('bf_products')||'[]');
+
 function rangeOf(){
   const mo=document.getElementById('m-month').value;
   let from=document.getElementById('m-from').value;
   let to=document.getElementById('m-to').value;
-  if(mo){ // month wins when set
-    from=mo+'-01';
+  if(mo){ from=mo+'-01';
     const d=new Date(parseInt(mo.slice(0,4)),parseInt(mo.slice(5,7)),0);
     to=mo+'-'+String(d.getDate()).padStart(2,'0');
   }
   return {from,to};
 }
 
-/* Build the matrix: one row per sales invoice in range; columns = products
-   actually sold (MIS code, else own code); qty = DELIVERED CARTONS incl. free
-   (totalPieces/cartonSize); Total Value = ACTUAL invoice line amounts (frozen
-   usedPrice), so the report reconciles even if rates changed mid-range.
-   Rate row = latest per-carton sales rate used in range; ✱ = multiple rates. */
+/* Matrix rows = sales invoices in range passing the party/area/zone filters.
+   Supplier filter counts ONLY that supplier's product lines (row dropped if
+   none qualify). Qty = delivered cartons incl. free. Value = actual frozen
+   line amounts. Rate row = latest per-carton rate in range (✱ = multiple). */
 function computeMis(){
   const {from,to}=rangeOf();
-  const products=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const fParty=document.getElementById('m-party').value;
+  const fSup=document.getElementById('m-sup').value;
+  const fArea=document.getElementById('m-area').value;
+  const fZone=document.getElementById('m-zone').value;
+  const partiesL=P_ALL(), products=PR_ALL();
+  const pMeta={};partiesL.forEach(p=>{pMeta[p.id]={name:p.name||'',area:(p.area||'').trim(),zone:(p.zone||'').trim()};});
+  const pInfo={};products.forEach(p=>{pInfo[p.id]={col:(p.misCode||'').trim()||p.code||p.id,name:p.name||'',cs:parseFloat(p.cartonSize)||0,sup:String(p.supplierId||'')};});
   const orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
-  const pInfo={};products.forEach(p=>{pInfo[p.id]={col:(p.misCode||'').trim()||p.code||p.id,name:p.name||'',cs:parseFloat(p.cartonSize)||0};});
 
   const sales=orders.filter(o=>{
     if(o.orderType!=='sales')return false;
     const k=fmt.dkey(o.date);
     if(from&&k<from)return false;
     if(to&&k>to)return false;
+    if(fParty&&String(o.partyId)!==fParty)return false;
+    const pm=pMeta[o.partyId]||{};
+    if(fArea&&pm.area!==fArea)return false;
+    if(fZone&&pm.zone!==fZone)return false;
     return true;
   }).sort((a,b)=>fmt.dkey(a.date)<fmt.dkey(b.date)?-1:1);
 
-  const colSet=new Map();          // productId -> col meta (insertion = first-sold order)
-  const rows=[];                   // {date, challan, qty:{pid:ctn}, value}
-  const rates={};                  // pid -> Map(rate->lastDate) per-carton
+  const colSet=new Map(), rows=[], rates={};
   sales.forEach(o=>{
     let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){return;}
-    const row={date:fmt.dmy(o.date),challan:o.orderId,qty:{},value:0};
+    const pm=pMeta[o.partyId]||{name:o.partyName||'অজানা',area:'',zone:''};
+    const row={date:fmt.dmy(o.date),dkey:fmt.dkey(o.date),challan:o.orderId,partyId:String(o.partyId),party:pm.name,area:pm.area,zone:pm.zone,qty:{},value:0};
     items.forEach(it=>{
       const inf=pInfo[it.productId];if(!inf)return;
+      if(fSup&&inf.sup!==fSup)return;
       const pcs=parseFloat(it.totalPieces)||((parseFloat(it.qtyPieces)||parseFloat(it.qty)||0)+(parseFloat(it.freePieces)||0));
       if(pcs<=0)return;
       const ctn=inf.cs>0?pcs/inf.cs:pcs;
@@ -140,61 +152,119 @@ function renderMis(){
   const tfoot=document.querySelector('#mis-table tfoot');
   if(!r.rows.length){
     thead.innerHTML='';tfoot.innerHTML='';
-    tbody.innerHTML='<tr><td style="padding:24px;text-align:center;color:var(--ink3)">এই সীমায় কোনো বিক্রয় নেই</td></tr>';
+    tbody.innerHTML='<tr><td style="padding:24px;text-align:center;color:var(--ink3)">এই সীমা/ফিল্টারে কোনো বিক্রয় নেই</td></tr>';
     document.getElementById('mis-legend').innerHTML='';return;
   }
   thead.innerHTML=
-    '<tr class="rate"><td colspan="3" class="r">Rate (কার্টন):</td>'+r.cols.map(c=>`<td class="r" title="${c.name}">${fnum(c.rate)}${c.multi?'✱':''}</td>`).join('')+'<td></td></tr>'
-    +'<tr><th>SL</th><th>Date</th><th>Challan No</th>'+r.cols.map(c=>`<th class="r" title="${c.name}">${c.col}</th>`).join('')+'<th class="r">Total Value</th></tr>';
+    '<tr class="rate"><td colspan="4" class="r">Rate (কার্টন):</td>'+r.cols.map(c=>`<td class="r" title="${c.name}">${fnum(c.rate)}${c.multi?'✱':''}</td>`).join('')+'<td></td></tr>'
+    +'<tr><th>SL</th><th>Date</th><th>Challan No</th><th>গ্রাহক</th>'+r.cols.map(c=>`<th class="r" title="${c.name}">${c.col}</th>`).join('')+'<th class="r">Total Value</th></tr>';
   tbody.innerHTML=r.rows.map((row,i)=>
-    `<tr><td>${i+1}</td><td>${row.date}</td><td>${row.challan}</td>`
+    `<tr><td>${i+1}</td><td>${row.date}</td><td>${row.challan}</td><td>${row.party}</td>`
     +r.cols.map(c=>`<td class="r">${row.qty[c.pid]?fnum(row.qty[c.pid]):''}</td>`).join('')
     +`<td class="r">${fmt.currency(row.value)}</td></tr>`).join('');
-  const totQ={},totV=r.rows.reduce((s,row)=>{r.cols.forEach(c=>{totQ[c.pid]=(totQ[c.pid]||0)+(row.qty[c.pid]||0);});return s+row.value;},0);
-  tfoot.innerHTML='<tr><td colspan="3">মোট</td>'+r.cols.map(c=>`<td class="r">${fnum(totQ[c.pid]||0)}</td>`).join('')+`<td class="r">${fmt.currency(totV)}</td></tr>`;
+  const totQ={};let totV=0;
+  r.rows.forEach(row=>{r.cols.forEach(c=>{totQ[c.pid]=(totQ[c.pid]||0)+(row.qty[c.pid]||0);});totV+=row.value;});
+  tfoot.innerHTML='<tr><td colspan="4">মোট</td>'+r.cols.map(c=>`<td class="r">${fnum(totQ[c.pid]||0)}</td>`).join('')+`<td class="r">${fmt.currency(totV)}</td></tr>`;
   const multi=r.cols.filter(c=>c.multi);
   document.getElementById('mis-legend').innerHTML=
-    `${r.rows.length}টি চালান · ${r.cols.length}টি পণ্য কলাম · পরিমাণ = ডেলিভারিকৃত কার্টন (ফ্রি সহ) · Total Value = ইনভয়েসের প্রকৃত মূল্য`
-    +(multi.length?`<br>✱ একাধিক দর ব্যবহৃত: ${multi.map(c=>`${c.col} (${c.allRates.map(fnum).join(' / ')})`).join(', ')} — Rate ঘরে সর্বশেষ দর দেখানো হয়েছে`:'');
+    `${r.rows.length}টি চালান · ${new Set(r.rows.map(x=>x.partyId)).size}টি গ্রাহক · ${r.cols.length}টি পণ্য কলাম · পরিমাণ = ডেলিভারিকৃত কার্টন (ফ্রি সহ) · Total Value = ইনভয়েসের প্রকৃত মূল্য`
+    +(multi.length?`<br>✱ একাধিক দর: ${multi.map(c=>`${c.col} (${c.allRates.map(fnum).join(' / ')})`).join(', ')} — Rate ঘরে সর্বশেষ দর`:'');
 }
 
+/* Workbook: Sheet 1 = per-customer summary; then one sheet per customer with
+   that customer's own challan matrix (own active columns + rates). */
+function sheetNameSafe(name,used){
+  let n=String(name||'Customer').replace(/[\[\]\\\/:*?]/g,'').slice(0,28)||'Customer';
+  let base=n,i=2;
+  while(used.has(n)){n=base.slice(0,25)+'_'+i;i++;}
+  used.add(n);return n;
+}
 function downloadXlsx(){
   if(!rpt||!rpt.rows.length){toast('আগে রিপোর্ট তৈরি করুন','error');return;}
-  const point=document.getElementById('m-point').value.trim();
-  const dist=document.getElementById('m-dist').value.trim();
-  localStorage.setItem('bf_mis_point',point);localStorage.setItem('bf_mis_dist',dist);
   const bizName=localStorage.getItem('bf_biz_name')||'';
-  const aoa=[];
-  aoa.push(['Point Name: '+point,'','','','','Dist Name: '+bizName]);
-  aoa.push(['Depot Name: Chattogram','','','','','Dist Code: '+dist]);
-  aoa.push(['','','Rate:',...rpt.cols.map(c=>c.rate||''),'']);
-  aoa.push(['SL','Date','Challan No',...rpt.cols.map(c=>c.col),'Total Value']);
-  rpt.rows.forEach((row,i)=>{
-    aoa.push([i+1,row.date,row.challan,...rpt.cols.map(c=>row.qty[c.pid]?Math.round(row.qty[c.pid]*100)/100:''),Math.round(row.value*100)/100]);
-  });
-  const totQ={};let totV=0;
-  rpt.rows.forEach(row=>{rpt.cols.forEach(c=>{totQ[c.pid]=(totQ[c.pid]||0)+(row.qty[c.pid]||0);});totV+=row.value;});
-  aoa.push(['','','Total',...rpt.cols.map(c=>Math.round((totQ[c.pid]||0)*100)/100),Math.round(totV*100)/100]);
-  const multi=rpt.cols.filter(c=>c.multi);
-  if(multi.length)aoa.push(['✱ Multiple rates in range: '+multi.map(c=>c.col+' ('+c.allRates.join('/')+')').join(', ')+' — latest rate shown']);
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:4},{wch:11},{wch:12},...rpt.cols.map(()=>({wch:7})),{wch:12}];
+  const period=(rpt.from||'')+' — '+(rpt.to||'');
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,(point||'POINT').slice(0,28));
+  const used=new Set();
+
+  // group rows per customer (order of first appearance)
+  const groups=new Map();
+  rpt.rows.forEach(row=>{
+    if(!groups.has(row.partyId))groups.set(row.partyId,{party:row.party,area:row.area,zone:row.zone,rows:[]});
+    groups.get(row.partyId).rows.push(row);
+  });
+
+  // ── Sheet 1: Summary ──
+  const sm=[];
+  sm.push(['Dist Name: '+bizName]);
+  sm.push(['Customer wise MIS Summary','','Period: '+period]);
+  sm.push([]);
+  sm.push(['SL','Zone','Area','Customer','Challans','Delivery Amount']);
+  let gv=0,gc=0,si=1;
+  groups.forEach(g=>{
+    const v=g.rows.reduce((s,r)=>s+r.value,0);
+    sm.push([si++,g.zone||'',g.area||'',g.party,g.rows.length,Math.round(v*100)/100]);
+    gv+=v;gc+=g.rows.length;
+  });
+  sm.push(['','','','Total',gc,Math.round(gv*100)/100]);
+  const ws0=XLSX.utils.aoa_to_sheet(sm);
+  ws0['!cols']=[{wch:4},{wch:14},{wch:14},{wch:26},{wch:9},{wch:15}];
+  XLSX.utils.book_append_sheet(wb,ws0,'Summary');
+
+  // ── One sheet per customer ──
+  groups.forEach(g=>{
+    const colsUsed=rpt.cols.filter(c=>g.rows.some(r=>r.qty[c.pid]));
+    const aoa=[];
+    aoa.push(['Customer: '+g.party,'','','','Dist Name: '+bizName]);
+    aoa.push(['Zone: '+(g.zone||'—')+'  Area: '+(g.area||'—'),'','','','Period: '+period]);
+    aoa.push(['','','Rate:',...colsUsed.map(c=>c.rate||'')]);
+    aoa.push(['SL','Date','Challan No',...colsUsed.map(c=>c.col),'Total Value']);
+    g.rows.forEach((row,i)=>{
+      aoa.push([i+1,row.date,row.challan,...colsUsed.map(c=>row.qty[c.pid]?Math.round(row.qty[c.pid]*100)/100:''),Math.round(row.value*100)/100]);
+    });
+    const tq={};let tv=0;
+    g.rows.forEach(row=>{colsUsed.forEach(c=>{tq[c.pid]=(tq[c.pid]||0)+(row.qty[c.pid]||0);});tv+=row.value;});
+    aoa.push(['','','Total',...colsUsed.map(c=>Math.round((tq[c.pid]||0)*100)/100),Math.round(tv*100)/100]);
+    const multi=colsUsed.filter(c=>c.multi);
+    if(multi.length)aoa.push(['✱ Multiple rates: '+multi.map(c=>c.col+' ('+c.allRates.join('/')+')').join(', ')+' — latest shown']);
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:4},{wch:11},{wch:12},...colsUsed.map(()=>({wch:7})),{wch:12}];
+    XLSX.utils.book_append_sheet(wb,ws,sheetNameSafe(g.party,used));
+  });
+
   const tag=(rpt.from||'').slice(0,7)||'range';
   XLSX.writeFile(wb,`MIS_Report_${tag}.xlsx`);
 }
 
+function fillFilters(){
+  const parties=P_ALL();
+  const custs=parties.filter(p=>p.type==='customer'||p.type==='both');
+  const sups=parties.filter(p=>p.type==='supplier'||p.type==='both');
+  const sel=(id,list,label)=>{
+    const el=document.getElementById(id);const cur=el.value;
+    el.innerHTML='<option value="">'+label+'</option>'+list.join('');
+    el.value=cur;
+  };
+  sel('m-party',custs.map(p=>`<option value="${p.id}">${p.name}${p.area?' — '+p.area:''}</option>`),'সব গ্রাহক');
+  sel('m-sup',sups.map(p=>`<option value="${p.id}">${p.name}</option>`),'সব সরবরাহকারী');
+  sel('m-area',[...new Set(parties.map(p=>(p.area||'').trim()).filter(Boolean))].sort().map(a=>`<option value="${a}">${a}</option>`),'সব এলাকা');
+  sel('m-zone',[...new Set(parties.map(p=>(p.zone||'').trim()).filter(Boolean))].sort().map(z=>`<option value="${z}">${z}</option>`),'সব জোন');
+  makeSearchable(document.getElementById('m-party'),'🔍 গ্রাহক খুঁজুন…');
+  makeSearchable(document.getElementById('m-sup'),'🔍 সরবরাহকারী…');
+  bfpSync(document.getElementById('m-party'));bfpSync(document.getElementById('m-sup'));
+}
+
 document.getElementById('btn-apply').addEventListener('click',renderMis);
 document.getElementById('btn-xlsx').addEventListener('click',downloadXlsx);
+// month wins → picking dates clears month; picking month clears dates (mutual)
 document.getElementById('m-month').addEventListener('change',()=>{document.getElementById('m-from').value='';document.getElementById('m-to').value='';renderMis();});
+['m-from','m-to'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{document.getElementById('m-month').value='';renderMis();}));
+['m-party','m-sup','m-area','m-zone'].forEach(id=>document.getElementById(id).addEventListener('change',renderMis));
 
-// init: current month, remembered point/dist
+// init: current month
 (function(){
   const now=new Date();
   document.getElementById('m-month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  document.getElementById('m-point').value=localStorage.getItem('bf_mis_point')||'';
-  document.getElementById('m-dist').value=localStorage.getItem('bf_mis_dist')||'';
+  fillFilters();
   renderMis();
 })();
 </script>
