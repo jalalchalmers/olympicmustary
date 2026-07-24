@@ -146,6 +146,8 @@ const API = {
         if (config.biz_name)    localStorage.setItem('bf_biz_name',    config.biz_name);
         if (config.biz_phone)   localStorage.setItem('bf_biz_phone',   config.biz_phone);
         if (config.biz_address) localStorage.setItem('bf_biz_address', config.biz_address);
+        if (config.depo_text)   localStorage.setItem('bf_depo_text',   config.depo_text);
+        if (config.depo_code)   localStorage.setItem('bf_depo_code',   config.depo_code);
       }
 
       onProgress && onProgress('পার্টি লিস্ট লোড হচ্ছে…');
