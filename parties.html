@@ -85,6 +85,10 @@
         <input type="text" id="p-name" placeholder="পার্টির পূর্ণ নাম"/>
       </div>
       <div class="field">
+        <label>কাস্টমার কোড (SAP)</label>
+        <input type="text" id="p-pcode" placeholder="যেমন: 515767 — না থাকলে ফাঁকা রাখুন"/>
+      </div>
+      <div class="field">
         <label>ধরন *</label>
         <select id="p-type">
           <option value="customer">গ্রাহক</option>
@@ -173,7 +177,7 @@ function renderTable(list) {
     <tr>
       <td style="color:var(--ink3);font-size:12px">${i+1}</td>
       <td>
-        <strong>${p.name}</strong>
+        <strong>${p.code?`[${p.code}] `:''}${p.name}</strong>
         ${p.area||p.zone ? `<br><span style="font-size:11px;color:var(--ink3)">${[p.area,p.zone].filter(Boolean).join(' · ')}</span>` : ''}
       </td>
       <td><span class="badge ${typeBadge[p.type]||''}">${typeLabel[p.type]||p.type}</span></td>
@@ -193,7 +197,7 @@ function applyFilters() {
   const q    = document.getElementById('search-input').value.toLowerCase();
   const type = document.getElementById('filter-type').value;
   const list = parties.filter(p => {
-    const mQ = !q || p.name.toLowerCase().includes(q) || (p.phone||'').includes(q) || (p.area||'').toLowerCase().includes(q) || (p.zone||'').toLowerCase().includes(q);
+    const mQ = !q || p.name.toLowerCase().includes(q) || (p.phone||'').includes(q) || (p.area||'').toLowerCase().includes(q) || (p.zone||'').toLowerCase().includes(q) || (p.code||'').toLowerCase().includes(q);
     const mT = !type || p.type === type;
     return mQ && mT;
   });
@@ -207,6 +211,7 @@ function openModal(id = null) {
   const p = id ? parties.find(x => x.id === id) : null;
   document.getElementById('modal-title').textContent = p ? 'পার্টি সম্পাদনা করুন' : 'নতুন পার্টি যোগ করুন';
   document.getElementById('p-name').value    = p?.name    || '';
+  document.getElementById('p-pcode').value   = p?.code    || '';
   // legacy 'both' parties keep their type until deliberately changed
   const typeSel = document.getElementById('p-type');
   const legacyBoth = typeSel.querySelector('option[value="both"]');
@@ -250,6 +255,7 @@ async function saveParty() {
     phone:   document.getElementById('p-phone').value.trim(),
     email:   document.getElementById('p-email').value.trim(),
     address: document.getElementById('p-address').value.trim(),
+    code:    document.getElementById('p-pcode').value.trim(),
     area:    document.getElementById('p-area').value.trim(),
     zone:    document.getElementById('p-zone').value.trim(),
     balance: parseFloat(document.getElementById('p-balance').value) || 0,
@@ -324,9 +330,9 @@ async function syncFromSheet() {
 /* ── EXPORT CSV ── */
 function exportCSV() {
   if (!parties.length) { toast('কোনো ডেটা নেই', 'error'); return; }
-  const header = ['ID','নাম','ধরন','ফোন','ইমেইল','ঠিকানা','এলাকা','জোন','ব্যালেন্স','নোট'];
+  const header = ['ID','কোড','নাম','ধরন','ফোন','ইমেইল','ঠিকানা','এলাকা','জোন','ব্যালেন্স','নোট'];
   const rows   = parties.map(p =>
-    [p.id,p.name,p.type,p.phone,p.email,p.address,p.area,p.zone,p.balance,p.notes]
+    [p.id,p.code,p.name,p.type,p.phone,p.email,p.address,p.area,p.zone,p.balance,p.notes]
     .map(v => `"${v||''}"`).join(',')
   );
   const a = document.createElement('a');
