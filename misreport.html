@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>hFlow — MIS রিপোর্ট</title>
+  <style>
+    .mis-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+    table.mis{border-collapse:collapse;font-size:12px;min-width:100%}
+    table.mis th,table.mis td{padding:6px 8px;border:1px solid var(--border);white-space:nowrap}
+    table.mis thead th{background:var(--bg);font-weight:700;position:sticky;top:0;z-index:2}
+    table.mis .r{text-align:right}
+    table.mis .rate td{background:#f8f7ff;font-size:11px;color:var(--ink2)}
+    table.mis tfoot td{font-weight:800;background:var(--bg)}
+    .mis-legend{font-size:11.5px;color:var(--ink3);margin-top:8px;line-height:1.6}
+    .mis-meta input{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;outline:none}
+    @media(max-width:768px){.mis-meta{flex-direction:column;align-items:stretch}}
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">MIS রিপোর্ট</span>
+      </div>
+      <div class="bf-topbar-right"></div>
+    </div>
+
+    <div class="bf-body">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div>
+          <div style="font-size:17px;font-weight:800">📤 MIS রিপোর্ট (Olympic ডিপো ফরম্যাট)</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:3px">দৈনিক চালান-ভিত্তিক পণ্য পরিমাণ ম্যাট্রিক্স — ফ্রি সহ ডেলিভারিকৃত কার্টন</div>
+        </div>
+        <button class="btn btn-primary" id="btn-xlsx">⬇ Excel ডাউনলোড</button>
+      </div>
+
+      <div class="mis-meta" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px">
+        <div class="field" style="margin:0"><label style="font-size:11px">হতে</label><input type="date" id="m-from"/></div>
+        <div class="field" style="margin:0"><label style="font-size:11px">পর্যন্ত</label><input type="date" id="m-to"/></div>
+        <div class="field" style="margin:0"><label style="font-size:11px">অথবা মাস</label><input type="month" id="m-month"/></div>
+        <div class="field" style="margin:0;flex:1;min-width:150px"><label style="font-size:11px">পয়েন্ট নাম</label><input type="text" id="m-point" placeholder="যেমন: RAHA"/></div>
+        <div class="field" style="margin:0;min-width:120px"><label style="font-size:11px">ডিস্ট কোড</label><input type="text" id="m-dist" placeholder="516013"/></div>
+        <button class="btn btn-outline" id="btn-apply">প্রয়োগ</button>
+      </div>
+
+      <div class="mis-wrap"><table class="mis" id="mis-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+      <div class="mis-legend" id="mis-legend"></div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+if(!Auth.require('misreport.html'))throw new Error('auth');
+buildNav('misreport');
+
+let rpt=null;   // last computed report
+
+function rangeOf(){
+  const mo=document.getElementById('m-month').value;
+  let from=document.getElementById('m-from').value;
+  let to=document.getElementById('m-to').value;
+  if(mo){ // month wins when set
+    from=mo+'-01';
+    const d=new Date(parseInt(mo.slice(0,4)),parseInt(mo.slice(5,7)),0);
+    to=mo+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  return {from,to};
+}
+
+/* Build the matrix: one row per sales invoice in range; columns = products
+   actually sold (MIS code, else own code); qty = DELIVERED CARTONS incl. free
+   (totalPieces/cartonSize); Total Value = ACTUAL invoice line amounts (frozen
+   usedPrice), so the report reconciles even if rates changed mid-range.
+   Rate row = latest per-carton sales rate used in range; ✱ = multiple rates. */
+function computeMis(){
+  const {from,to}=rangeOf();
+  const products=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+  const pInfo={};products.forEach(p=>{pInfo[p.id]={col:(p.misCode||'').trim()||p.code||p.id,name:p.name||'',cs:parseFloat(p.cartonSize)||0};});
+
+  const sales=orders.filter(o=>{
+    if(o.orderType!=='sales')return false;
+    const k=fmt.dkey(o.date);
+    if(from&&k<from)return false;
+    if(to&&k>to)return false;
+    return true;
+  }).sort((a,b)=>fmt.dkey(a.date)<fmt.dkey(b.date)?-1:1);
+
+  const colSet=new Map();          // productId -> col meta (insertion = first-sold order)
+  const rows=[];                   // {date, challan, qty:{pid:ctn}, value}
+  const rates={};                  // pid -> Map(rate->lastDate) per-carton
+  sales.forEach(o=>{
+    let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){return;}
+    const row={date:fmt.dmy(o.date),challan:o.orderId,qty:{},value:0};
+    items.forEach(it=>{
+      const inf=pInfo[it.productId];if(!inf)return;
+      const pcs=parseFloat(it.totalPieces)||((parseFloat(it.qtyPieces)||parseFloat(it.qty)||0)+(parseFloat(it.freePieces)||0));
+      if(pcs<=0)return;
+      const ctn=inf.cs>0?pcs/inf.cs:pcs;
+      if(!colSet.has(it.productId))colSet.set(it.productId,inf);
+      row.qty[it.productId]=(row.qty[it.productId]||0)+ctn;
+      let amt=parseFloat(it.total);if(isNaN(amt))amt=0;
+      row.value+=amt;
+      const up=parseFloat(it.usedPrice);
+      if(!isNaN(up)&&inf.cs>0){
+        const perCtn=Math.round(up*inf.cs*100)/100;
+        if(!rates[it.productId])rates[it.productId]=new Map();
+        rates[it.productId].set(perCtn,fmt.dkey(o.date));
+      }
+    });
+    if(Object.keys(row.qty).length)rows.push(row);
+  });
+
+  const cols=[...colSet.entries()].map(([pid,inf])=>{
+    const rm=rates[pid]||new Map();
+    let latest='',latestKey='',all=[];
+    rm.forEach((dk,rate)=>{all.push(rate);if(dk>=latestKey){latestKey=dk;latest=rate;}});
+    return {pid,col:inf.col,name:inf.name,rate:latest,multi:all.length>1,allRates:all.sort((a,b)=>a-b)};
+  });
+  rpt={from,to,cols,rows};
+  return rpt;
+}
+
+function fnum(n){return Math.abs(n-Math.round(n))<0.005?String(Math.round(n)):n.toFixed(2);}
+
+function renderMis(){
+  const r=computeMis();
+  const thead=document.querySelector('#mis-table thead');
+  const tbody=document.querySelector('#mis-table tbody');
+  const tfoot=document.querySelector('#mis-table tfoot');
+  if(!r.rows.length){
+    thead.innerHTML='';tfoot.innerHTML='';
+    tbody.innerHTML='<tr><td style="padding:24px;text-align:center;color:var(--ink3)">এই সীমায় কোনো বিক্রয় নেই</td></tr>';
+    document.getElementById('mis-legend').innerHTML='';return;
+  }
+  thead.innerHTML=
+    '<tr class="rate"><td colspan="3" class="r">Rate (কার্টন):</td>'+r.cols.map(c=>`<td class="r" title="${c.name}">${fnum(c.rate)}${c.multi?'✱':''}</td>`).join('')+'<td></td></tr>'
+    +'<tr><th>SL</th><th>Date</th><th>Challan No</th>'+r.cols.map(c=>`<th class="r" title="${c.name}">${c.col}</th>`).join('')+'<th class="r">Total Value</th></tr>';
+  tbody.innerHTML=r.rows.map((row,i)=>
+    `<tr><td>${i+1}</td><td>${row.date}</td><td>${row.challan}</td>`
+    +r.cols.map(c=>`<td class="r">${row.qty[c.pid]?fnum(row.qty[c.pid]):''}</td>`).join('')
+    +`<td class="r">${fmt.currency(row.value)}</td></tr>`).join('');
+  const totQ={},totV=r.rows.reduce((s,row)=>{r.cols.forEach(c=>{totQ[c.pid]=(totQ[c.pid]||0)+(row.qty[c.pid]||0);});return s+row.value;},0);
+  tfoot.innerHTML='<tr><td colspan="3">মোট</td>'+r.cols.map(c=>`<td class="r">${fnum(totQ[c.pid]||0)}</td>`).join('')+`<td class="r">${fmt.currency(totV)}</td></tr>`;
+  const multi=r.cols.filter(c=>c.multi);
+  document.getElementById('mis-legend').innerHTML=
+    `${r.rows.length}টি চালান · ${r.cols.length}টি পণ্য কলাম · পরিমাণ = ডেলিভারিকৃত কার্টন (ফ্রি সহ) · Total Value = ইনভয়েসের প্রকৃত মূল্য`
+    +(multi.length?`<br>✱ একাধিক দর ব্যবহৃত: ${multi.map(c=>`${c.col} (${c.allRates.map(fnum).join(' / ')})`).join(', ')} — Rate ঘরে সর্বশেষ দর দেখানো হয়েছে`:'');
+}
+
+function downloadXlsx(){
+  if(!rpt||!rpt.rows.length){toast('আগে রিপোর্ট তৈরি করুন','error');return;}
+  const point=document.getElementById('m-point').value.trim();
+  const dist=document.getElementById('m-dist').value.trim();
+  localStorage.setItem('bf_mis_point',point);localStorage.setItem('bf_mis_dist',dist);
+  const bizName=localStorage.getItem('bf_biz_name')||'';
+  const aoa=[];
+  aoa.push(['Point Name: '+point,'','','','','Dist Name: '+bizName]);
+  aoa.push(['Depot Name: Chattogram','','','','','Dist Code: '+dist]);
+  aoa.push(['','','Rate:',...rpt.cols.map(c=>c.rate||''),'']);
+  aoa.push(['SL','Date','Challan No',...rpt.cols.map(c=>c.col),'Total Value']);
+  rpt.rows.forEach((row,i)=>{
+    aoa.push([i+1,row.date,row.challan,...rpt.cols.map(c=>row.qty[c.pid]?Math.round(row.qty[c.pid]*100)/100:''),Math.round(row.value*100)/100]);
+  });
+  const totQ={};let totV=0;
+  rpt.rows.forEach(row=>{rpt.cols.forEach(c=>{totQ[c.pid]=(totQ[c.pid]||0)+(row.qty[c.pid]||0);});totV+=row.value;});
+  aoa.push(['','','Total',...rpt.cols.map(c=>Math.round((totQ[c.pid]||0)*100)/100),Math.round(totV*100)/100]);
+  const multi=rpt.cols.filter(c=>c.multi);
+  if(multi.length)aoa.push(['✱ Multiple rates in range: '+multi.map(c=>c.col+' ('+c.allRates.join('/')+')').join(', ')+' — latest rate shown']);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:4},{wch:11},{wch:12},...rpt.cols.map(()=>({wch:7})),{wch:12}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,(point||'POINT').slice(0,28));
+  const tag=(rpt.from||'').slice(0,7)||'range';
+  XLSX.writeFile(wb,`MIS_Report_${tag}.xlsx`);
+}
+
+document.getElementById('btn-apply').addEventListener('click',renderMis);
+document.getElementById('btn-xlsx').addEventListener('click',downloadXlsx);
+document.getElementById('m-month').addEventListener('change',()=>{document.getElementById('m-from').value='';document.getElementById('m-to').value='';renderMis();});
+
+// init: current month, remembered point/dist
+(function(){
+  const now=new Date();
+  document.getElementById('m-month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('m-point').value=localStorage.getItem('bf_mis_point')||'';
+  document.getElementById('m-dist').value=localStorage.getItem('bf_mis_dist')||'';
+  renderMis();
+})();
+</script>
+</body>
+</html>
