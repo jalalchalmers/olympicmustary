@@ -58,7 +58,7 @@
   <div class="card">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <input type="text" id="q" placeholder="🔍 পণ্য খুঁজুন…" style="margin:0;flex:1"/>
-      <button class="btn-o" id="btn-refresh">⟳</button>
+      <button class="btn-o" id="btn-refresh">⟳ রিফ্রেশ</button>
     </div>
     <div id="plist"></div>
     <div class="stamp" id="stamp"></div>
@@ -66,12 +66,14 @@
 </div>
 <div class="bar">
   <div class="info" id="bar-info">কোনো পণ্য নির্বাচিত হয়নি</div>
+  <button class="btn-o" id="btn-xl" style="padding:12px 12px">⬇ Excel</button>
   <button class="btn btn-wa" id="btn-wa">📱 WhatsApp-এ পাঠান</button>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 /* ═══ PASTE YOUR STOCK FEED URL BETWEEN THE QUOTES BELOW ═══ */
-const FEED_URL = 'https://script.google.com/macros/s/AKfycbxK1rz8TFQ7pI67jXmphP1j6teIcFJNrmJJcgLn8et1aAz5jm2aYdW_lgEaZdG5yKMG/exec';
+const FEED_URL = 'PASTE_FEED_URL_HERE';
 /* ══════════════════════════════════════════════════════════ */
 
 let items = [];        // {code,name,cs,stockPcs,pricePerCtn}
@@ -159,19 +161,60 @@ async function load(showToast){
 }
 document.getElementById('btn-refresh').addEventListener('click', () => load(true));
 
-document.getElementById('btn-wa').addEventListener('click', () => {
+function collectPicked() {
   const so = document.getElementById('so-name').value.trim();
   const cust = document.getElementById('cust-name').value.trim();
-  if (!so) { alert('আপনার নাম লিখুন'); return; }
-  if (!cust) { alert('কাস্টমার নাম লিখুন'); return; }
+  if (!so) { alert('আপনার নাম লিখুন'); return null; }
+  if (!cust) { alert('কাস্টমার নাম লিখুন'); return null; }
   const picked = [];
   items.forEach(p => {
     const d = demand[p.code] || {};
     const ctn = parseFloat(d.ctn) || 0, pcs = parseFloat(d.pcs) || 0;
     if (ctn + pcs > 0) picked.push({ p, ctn, pcs });
   });
-  if (!picked.length) { alert('কমপক্ষে একটি পণ্যের পরিমাণ দিন'); return; }
+  if (!picked.length) { alert('কমপক্ষে একটি পণ্যের পরিমাণ দিন'); return null; }
   localStorage.setItem('dm_so', so);
+  return { so, cust, picked };
+}
+
+/* Excel export — sheet 1 is EXACTLY what the order form's ফাইল থেকে লোড
+   button expects: header row code|ctn|name, quantities in CARTONS (pieces
+   folded in as fractions via carton size). Sheet 2 is the readable copy. */
+document.getElementById('btn-xl').addEventListener('click', () => {
+  const c = collectPicked(); if (!c) return;
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2,'0') + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + today.getFullYear();
+  const aoa = [['code','ctn','name']];
+  const warn = [];
+  c.picked.forEach(x => {
+    let ctn = x.ctn;
+    if (x.pcs > 0) {
+      if (x.p.cs > 0) ctn = Math.round((x.ctn + x.pcs / x.p.cs) * 10000) / 10000;
+      else warn.push(x.p.name);
+    }
+    aoa.push([String(x.p.code), ctn, x.p.name]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:10},{wch:9},{wch:32}];
+  const info = [
+    ['ডিমান্ড তথ্য'], [],
+    ['SO', c.so], ['কাস্টমার', c.cust], ['তারিখ', dd], [],
+    ['পণ্য','কার্টন','পিস']
+  ];
+  c.picked.forEach(x => info.push([x.p.name, x.ctn || '', x.pcs || '']));
+  const ws2 = XLSX.utils.aoa_to_sheet(info);
+  ws2['!cols'] = [{wch:32},{wch:9},{wch:9}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Demand');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Info');
+  const safe = c.cust.replace(/[\\/:*?"<>|]+/g,'').replace(/\s+/g,'_').slice(0,30) || 'Demand';
+  XLSX.writeFile(wb, 'Demand_' + safe + '_' + dd + '.xlsx');
+  if (warn.length) alert('⚠ কার্টন সাইজ অজানা — পিস রূপান্তর হয়নি: ' + warn.join(', '));
+});
+
+document.getElementById('btn-wa').addEventListener('click', () => {
+  const c0 = collectPicked(); if (!c0) return;
+  const so = c0.so, cust = c0.cust, picked = c0.picked;
   const today = new Date();
   const dd = String(today.getDate()).padStart(2, '0') + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + today.getFullYear();
   let msg = '🛒 ডিমান্ড — ' + cust + '\nSO: ' + so + ' · ' + dd + '\n';
