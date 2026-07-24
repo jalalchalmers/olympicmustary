@@ -92,7 +92,7 @@ function computeMis(){
   const fArea=document.getElementById('m-area').value;
   const fZone=document.getElementById('m-zone').value;
   const partiesL=P_ALL(), products=PR_ALL();
-  const pMeta={};partiesL.forEach(p=>{pMeta[p.id]={name:p.name||'',area:(p.area||'').trim(),zone:(p.zone||'').trim()};});
+  const pMeta={};partiesL.forEach(p=>{pMeta[p.id]={name:p.name||'',area:(p.area||'').trim(),zone:(p.zone||'').trim(),code:(p.code||'').trim()};});
   const pInfo={};products.forEach(p=>{pInfo[p.id]={col:(p.misCode||'').trim()||p.code||p.id,name:p.name||'',cs:parseFloat(p.cartonSize)||0,sup:String(p.supplierId||'')};});
   const orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
 
@@ -108,11 +108,11 @@ function computeMis(){
     return true;
   }).sort((a,b)=>fmt.dkey(a.date)<fmt.dkey(b.date)?-1:1);
 
-  const colSet=new Map(), rows=[], rates={};
+  const colSet=new Map(), rows=[], rates={}, prodTot={};
   sales.forEach(o=>{
     let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){return;}
-    const pm=pMeta[o.partyId]||{name:o.partyName||'অজানা',area:'',zone:''};
-    const row={date:fmt.dmy(o.date),dkey:fmt.dkey(o.date),challan:o.orderId,partyId:String(o.partyId),party:pm.name,area:pm.area,zone:pm.zone,qty:{},value:0};
+    const pm=pMeta[o.partyId]||{name:o.partyName||'অজানা',area:'',zone:'',code:''};
+    const row={date:fmt.dmy(o.date),dkey:fmt.dkey(o.date),challan:o.orderId,partyId:String(o.partyId),party:pm.name,area:pm.area,zone:pm.zone,code:pm.code,qty:{},value:0};
     items.forEach(it=>{
       const inf=pInfo[it.productId];if(!inf)return;
       if(fSup&&inf.sup!==fSup)return;
@@ -123,6 +123,8 @@ function computeMis(){
       row.qty[it.productId]=(row.qty[it.productId]||0)+ctn;
       let amt=parseFloat(it.total);if(isNaN(amt))amt=0;
       row.value+=amt;
+      if(!prodTot[it.productId])prodTot[it.productId]={ctn:0,amt:0};
+      prodTot[it.productId].ctn+=ctn;prodTot[it.productId].amt+=amt;
       const up=parseFloat(it.usedPrice);
       if(!isNaN(up)&&inf.cs>0){
         const perCtn=Math.round(up*inf.cs*100)/100;
@@ -139,7 +141,7 @@ function computeMis(){
     rm.forEach((dk,rate)=>{all.push(rate);if(dk>=latestKey){latestKey=dk;latest=rate;}});
     return {pid,col:inf.col,name:inf.name,rate:latest,multi:all.length>1,allRates:all.sort((a,b)=>a-b)};
   });
-  rpt={from,to,cols,rows};
+  rpt={from,to,cols,rows,prodTot};
   return rpt;
 }
 
@@ -181,41 +183,95 @@ function sheetNameSafe(name,used){
 }
 function downloadXlsx(){
   if(!rpt||!rpt.rows.length){toast('আগে রিপোর্ট তৈরি করুন','error');return;}
-  const bizName=localStorage.getItem('bf_biz_name')||'';
+  const depoName=localStorage.getItem('bf_biz_name')||'';
+  const depoCode=localStorage.getItem('bf_depo_code')||'';
   const period=(rpt.from||'')+' — '+(rpt.to||'');
   const wb=XLSX.utils.book_new();
   const used=new Set();
 
-  // group rows per customer (order of first appearance)
+  // group rows per customer (insertion order preserved)
   const groups=new Map();
   rpt.rows.forEach(row=>{
-    if(!groups.has(row.partyId))groups.set(row.partyId,{party:row.party,area:row.area,zone:row.zone,rows:[]});
+    if(!groups.has(row.partyId))groups.set(row.partyId,{partyId:row.partyId,party:row.party,area:row.area,zone:row.zone,code:row.code||'',rows:[]});
     groups.get(row.partyId).rows.push(row);
   });
 
-  // ── Sheet 1: Summary ──
-  const sm=[];
-  sm.push(['Dist Name: '+bizName]);
-  sm.push(['Customer wise MIS Summary','','Period: '+period]);
-  sm.push([]);
-  sm.push(['SL','Zone','Area','Customer','Challans','Delivery Amount']);
-  let gv=0,gc=0,si=1;
+  // ── Sheet 1: Summary — zone-grouped (zones alphabetical, 'জোন নেই' last;
+  //    customers inside a zone by delivery amount desc; zone subtotal rows) ──
+  const byZone=new Map();
   groups.forEach(g=>{
-    const v=g.rows.reduce((s,r)=>s+r.value,0);
-    sm.push([si++,g.zone||'',g.area||'',g.party,g.rows.length,Math.round(v*100)/100]);
-    gv+=v;gc+=g.rows.length;
+    const z=g.zone||'জোন নেই';
+    if(!byZone.has(z))byZone.set(z,[]);
+    byZone.get(z).push(g);
   });
-  sm.push(['','','','Total',gc,Math.round(gv*100)/100]);
+  const zoneNames=[...byZone.keys()].sort((a,b)=>{
+    if(a==='জোন নেই')return 1;if(b==='জোন নেই')return -1;
+    return a.localeCompare(b,'bn');
+  });
+  const sm=[];
+  sm.push(['Depo Name: '+depoName,'','','Depo Code: '+depoCode]);
+  sm.push(['Customer wise MIS Summary (Zone grouped)','','','Period: '+period]);
+  sm.push([]);
+  sm.push(['SL','Zone','Area','Customer Code','Customer Name','Challans','Delivery Amount']);
+  let gv=0,gc=0,si=1;
+  zoneNames.forEach(z=>{
+    const list=byZone.get(z).map(g=>({g,v:g.rows.reduce((s,r)=>s+r.value,0)}))
+      .sort((a,b)=>b.v-a.v);
+    let zv=0,zc=0;
+    list.forEach(({g,v},i)=>{
+      sm.push([si++,i===0?z:'',g.area||'',g.code||'',g.party,g.rows.length,Math.round(v*100)/100]);
+      zv+=v;zc+=g.rows.length;gv+=v;gc+=g.rows.length;
+    });
+    sm.push(['','','','','Total — '+z,zc,Math.round(zv*100)/100]);
+  });
+  sm.push(['','','','','GRAND TOTAL',gc,Math.round(gv*100)/100]);
   const ws0=XLSX.utils.aoa_to_sheet(sm);
-  ws0['!cols']=[{wch:4},{wch:14},{wch:14},{wch:26},{wch:9},{wch:15}];
+  ws0['!cols']=[{wch:4},{wch:14},{wch:14},{wch:13},{wch:26},{wch:9},{wch:15}];
   XLSX.utils.book_append_sheet(wb,ws0,'Summary');
+
+  // ── Sheet 2: Invoice Summary — every challan of every customer in range
+  //    (respects active supplier/zone/area/party filters) ──
+  const iv=[];
+  iv.push(['Depo Name: '+depoName,'','','','Depo Code: '+depoCode]);
+  iv.push(['All Customers — Invoice Summary','','','','Period: '+period]);
+  iv.push([]);
+  iv.push(['SL','Date','Challan No','Customer Code','Customer Name','Zone','Area','Total Value']);
+  let iv_t=0;
+  rpt.rows.forEach((row,i)=>{
+    iv.push([i+1,row.date,row.challan,row.code||'',row.party,row.zone||'',row.area||'',Math.round(row.value*100)/100]);
+    iv_t+=row.value;
+  });
+  iv.push(['','','','','','','Total',Math.round(iv_t*100)/100]);
+  const wsIv=XLSX.utils.aoa_to_sheet(iv);
+  wsIv['!cols']=[{wch:4},{wch:11},{wch:12},{wch:13},{wch:26},{wch:12},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,wsIv,'Invoice Summary');
+
+  // ── Sheet 3: Product Total — all customers, all products in range ──
+  const pt=[];
+  pt.push(['Depo Name: '+depoName,'','','Depo Code: '+depoCode]);
+  pt.push(['All Customers — Product Total','','','Period: '+period]);
+  pt.push([]);
+  pt.push(['SL','Code','Product Name','Rate','Total Ctn','Total Value']);
+  let pv=0,pc=0;
+  rpt.cols.forEach((c,i)=>{
+    const t=rpt.prodTot[c.pid]||{ctn:0,amt:0};
+    pt.push([i+1,c.col,c.name,(c.rate||'')+(c.multi?'✱':''),Math.round(t.ctn*100)/100,Math.round(t.amt*100)/100]);
+    pv+=t.amt;pc+=t.ctn;
+  });
+  pt.push(['','','Total','',Math.round(pc*100)/100,Math.round(pv*100)/100]);
+  const multiAll=rpt.cols.filter(c=>c.multi);
+  if(multiAll.length)pt.push(['✱ Multiple rates in range: '+multiAll.map(c=>c.col+' ('+c.allRates.join('/')+')').join(', ')+' — latest shown']);
+  const ws1=XLSX.utils.aoa_to_sheet(pt);
+  ws1['!cols']=[{wch:4},{wch:9},{wch:32},{wch:11},{wch:10},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Product Total');
 
   // ── One sheet per customer ──
   groups.forEach(g=>{
     const colsUsed=rpt.cols.filter(c=>g.rows.some(r=>r.qty[c.pid]));
     const aoa=[];
-    aoa.push(['Customer: '+g.party,'','','','Dist Name: '+bizName]);
-    aoa.push(['Zone: '+(g.zone||'—')+'  Area: '+(g.area||'—'),'','','','Period: '+period]);
+    aoa.push(['Customer Name: '+g.party,'','','Depo Name: '+depoName]);
+    aoa.push(['Customer Code: '+(g.code||'—'),'','','Depo Code: '+depoCode]);
+    aoa.push(['Zone: '+(g.zone||'—')+'  Area: '+(g.area||'—'),'','','Period: '+period]);
     aoa.push(['','','Rate:',...colsUsed.map(c=>c.rate||'')]);
     aoa.push(['SL','Date','Challan No',...colsUsed.map(c=>c.col),'Total Value']);
     g.rows.forEach((row,i)=>{
