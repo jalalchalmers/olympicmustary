@@ -311,6 +311,7 @@
           <div class="items-hdr" id="items-hdr"></div>
           <div id="order-items-container" class="mode-mix"></div>
           <button class="btn btn-outline btn-sm" id="btn-add-item" style="margin-top:8px">+ পণ্য যোগ করুন</button>
+          <button class="btn btn-outline btn-sm" id="btn-load-demand" style="margin-top:8px" title="SO-এর WhatsApp ডিমান্ড থেকে পণ্য লোড">📥 ডিমান্ড লোড</button>
           <button class="btn btn-outline btn-sm no-print" id="btn-rate-now" style="margin-top:8px;margin-left:8px;display:none;border-color:#d97706;color:#b45309">⟳ বর্তমান দরে আনুন</button>
           <div id="po-breakdown" class="no-print" style="display:none;margin-top:14px;background:var(--bg2);border:1px dashed var(--border2);border-radius:10px;padding:12px 14px">
             <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px">🧩 গ্রাহক অনুযায়ী বণ্টন (এই PO-তে কার জন্য কত টাকার পণ্য)</div>
@@ -463,6 +464,22 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeCompliModal()">বাতিল</button>
       <button class="btn btn-primary" onclick="applyCompli()">যোগ করুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEMAND LOADER: paste the SO's WhatsApp demand message -->
+<div class="modal-overlay" id="demand-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title">📥 ডিমান্ড লোড</div>
+      <button class="modal-close" onclick="document.getElementById('demand-modal').classList.remove('open')">×</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--ink2);margin-bottom:8px">SO-এর পাঠানো WhatsApp মেসেজটি সম্পূর্ণ কপি করে এখানে পেস্ট করুন — #DEMAND লাইন থেকে পণ্যগুলো স্বয়ংক্রিয় যুক্ত হবে।</div>
+    <textarea id="demand-text" style="width:100%;min-height:150px;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;outline:none;font-family:inherit" placeholder="🛒 ডিমান্ড — …&#10;…&#10;#DEMAND|…"></textarea>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="document.getElementById('demand-modal').classList.remove('open')">বাতিল</button>
+      <button class="btn btn-primary" onclick="applyDemand()">লোড করুন</button>
     </div>
   </div>
 </div>
@@ -1745,7 +1762,7 @@ function getFilteredOrders(){
   const df=document.getElementById('list-date-from').value;
   const dt=document.getElementById('list-date-to').value;
   const st=document.getElementById('list-status').value;
-  return orders.filter(o=>o.orderType===currentType&&(!q||(o.orderId||'').toLowerCase().includes(q)||(o.partyName||'').toLowerCase().includes(q))&&(!df||o.date>=df)&&(!dt||o.date<=dt)&&(!st||o.status===st))
+  return orders.filter(o=>o.orderType===currentType&&(!q||(o.orderId||'').toLowerCase().includes(q)||(o.partyName||'').toLowerCase().includes(q))&&(!df||fmt.dkey(o.date)>=df)&&(!dt||fmt.dkey(o.date)<=dt)&&(!st||o.status===st))
     .sort((a,b)=>{
       const d=orderDateMs(b.date)-orderDateMs(a.date);       // newest date first
       if(d) return d;
@@ -1843,6 +1860,49 @@ function printOrderInvoice(){
 document.getElementById('btn-print-order').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-print-order-2').addEventListener('click',printOrderInvoice);
 document.getElementById('btn-add-item').addEventListener('click',()=>addOrderItem());
+document.getElementById('btn-load-demand').addEventListener('click',()=>{
+  if(Auth.guardWrite())return;
+  if(currentType!=='sales'){toast('ডিমান্ড লোড শুধুমাত্র বিক্রয় ফর্মে','error');return;}
+  document.getElementById('demand-text').value='';
+  document.getElementById('demand-modal').classList.add('open');
+});
+
+/* Parse the SO's WhatsApp demand: the machine line is
+   #DEMAND|so|customer|code:ctn:pcs;code:ctn:pcs;…
+   Products matched by code from the local product cache; prices derive
+   from the master as usual; the stock-guard still rules at save time. */
+function applyDemand(){
+  const txt=document.getElementById('demand-text').value||'';
+  const line=txt.split(/\r?\n/).map(l=>l.trim()).find(l=>l.startsWith('#DEMAND|'));
+  if(!line){toast('#DEMAND লাইন পাওয়া যায়নি — সম্পূর্ণ মেসেজ পেস্ট করুন','error');return;}
+  const parts=line.split('|');
+  if(parts.length<4){toast('ডিমান্ড ফরম্যাট সঠিক নয়','error');return;}
+  const so=parts[1].trim(),cust=parts[2].trim();
+  const prods=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const byCode={};prods.forEach(p=>{byCode[String(p.code||'').trim()]=p;});
+  // clear untouched empty rows so demand lines land clean
+  [...document.querySelectorAll('.order-item-row')].forEach(r=>{
+    const ps=r.querySelector('.oi-product');
+    if(ps&&!ps.value)r.remove();
+  });
+  let added=0;const missing=[];
+  parts[3].split(';').forEach(seg=>{
+    const [code,ctn,pcs]=seg.split(':');
+    if(!code)return;
+    const p=byCode[String(code).trim()];
+    if(!p){missing.push(code);return;}
+    addOrderItem(p.name||'',p.code||'',parseFloat(ctn)||'',parseFloat(pcs)||'','','',p.id,'');
+    added++;
+  });
+  // SO reference into notes
+  const nEl=document.getElementById('f-notes');
+  const tag=`SO ডিমান্ড: ${so} — ${cust}`;
+  if(nEl&&!nEl.value.includes(tag))nEl.value=(nEl.value?nEl.value+'\n':'')+tag;
+  recalc();
+  document.getElementById('demand-modal').classList.remove('open');
+  if(added)toast(`✓ ${added}টি পণ্য লোড হয়েছে${missing.length?` — ${missing.length}টি কোড মেলেনি (${missing.join(', ')})`:''} — পার্টি নির্বাচন করে যাচাই করুন`,missing.length?'error':'success');
+  else toast('কোনো পণ্য মেলেনি — কোডগুলো যাচাই করুন: '+missing.join(', '),'error');
+}
 document.getElementById('btn-rate-now').addEventListener('click',applyPresentRates);
 document.getElementById('cp-product').addEventListener('change',compliRecalc);
 document.getElementById('cp-compli').addEventListener('input',compliRecalc);
