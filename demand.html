@@ -35,6 +35,12 @@
   .qlbl{font-size:9.5px;color:var(--ink3);text-align:center;margin-top:2px}
   .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:10px;align-items:center;z-index:6}
   .bar .info{flex:1;font-size:12.5px;color:var(--ink2);font-weight:600}
+  .bar .info b{color:var(--accent);font-size:14px}
+  .stickybar{position:sticky;top:0;z-index:4;display:none;justify-content:space-between;align-items:center;gap:8px;
+    background:#eef2ff;border-bottom:1px solid #c7d2fe;padding:7px 14px;font-size:12px}
+  .stickybar.show{display:flex}
+  .stickybar .sb-who{color:var(--ink2);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stickybar .sb-tot{color:var(--accent);font-weight:800;white-space:nowrap}
   .btn{border:none;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:800;cursor:pointer}
   .btn-wa{background:#25D366;color:#fff}
   .btn-o{background:#fff;border:1.5px solid var(--border);color:var(--ink2);font-weight:700;padding:9px 12px;border-radius:9px;font-size:12.5px;cursor:pointer}
@@ -46,6 +52,10 @@
 <div class="top">
   <h1>🛒 hFlow ডিমান্ড</h1>
   <div class="sub">লাইভ স্টক দেখে চাহিদা দিন — WhatsApp-এ অ্যাডমিনের কাছে পাঠান</div>
+</div>
+<div class="stickybar" id="stickybar">
+  <div class="sb-who" id="sb-who">—</div>
+  <div class="sb-tot" id="sb-tot">০ কার্টন · ৳০</div>
 </div>
 <div class="wrap">
   <div class="err" id="err"></div>
@@ -121,10 +131,38 @@ function render(){
     </div>`;
   }).join('') : '<div style="text-align:center;color:var(--ink3);padding:18px;font-size:13px">কিছু পাওয়া যায়নি</div>';
 }
-function updBar(){
-  const n = Object.values(demand).filter(d => (parseFloat(d.ctn) || 0) + (parseFloat(d.pcs) || 0) > 0).length;
-  document.getElementById('bar-info').textContent = n ? (n + 'টি পণ্য নির্বাচিত') : 'কোনো পণ্য নির্বাচিত হয়নি';
+function computeTotals(){
+  let lines=0, ctn=0, amount=0;
+  const byCode={}; items.forEach(p=>byCode[p.code]=p);
+  Object.keys(demand).forEach(code=>{
+    const d=demand[code]||{}, p=byCode[code]; if(!p) return;
+    const c=parseFloat(d.ctn)||0, pc=parseFloat(d.pcs)||0;
+    if(c+pc<=0) return;
+    lines++;
+    const effCtn = c + (p.cs>0 ? pc/p.cs : 0);   // pieces → fractional cartons
+    ctn += effCtn;
+    amount += effCtn * (p.pricePerCtn||0);
+  });
+  return {lines, ctn, amount};
 }
+function updBar(){
+  const t=computeTotals();
+  const ctnTxt = (Math.round(t.ctn*100)/100).toLocaleString('bn-BD');
+  document.getElementById('bar-info').innerHTML = t.lines
+    ? `${t.lines}টি পণ্য · ${ctnTxt} কার্টন · <b>${money(t.amount)}</b>`
+    : 'কোনো পণ্য নির্বাচিত হয়নি';
+  // sticky summary
+  const so=(document.getElementById('so-name').value||'').trim();
+  const cust=(document.getElementById('cust-name').value||'').trim();
+  document.getElementById('sb-who').textContent = [cust||'কাস্টমার', so?('SO: '+so):''].filter(Boolean).join(' · ');
+  document.getElementById('sb-tot').textContent = `${ctnTxt} কার্টন · ${money(t.amount)}`;
+}
+// show the sticky strip only after scrolling past the header cards
+window.addEventListener('scroll', ()=>{
+  document.getElementById('stickybar').classList.toggle('show', window.scrollY>150);
+});
+document.getElementById('so-name').addEventListener('input', updBar);
+document.getElementById('cust-name').addEventListener('input', updBar);
 document.getElementById('plist').addEventListener('input', e => {
   const inp = e.target.closest('input'); if (!inp) return;
   const code = inp.closest('.p-item').dataset.code;
