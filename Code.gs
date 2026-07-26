@@ -1,5 +1,5 @@
 /**
- * BizFlow — Google Apps Script Backend v1.4
+ * hFlow — Google Apps Script Backend v1.4
  * ===========================================
  * HOW TO DEPLOY:
  * 1. script.google.com → open your project
@@ -24,9 +24,151 @@ const SHEETS = {
   payments:  'Payments',
   priceHistory: 'PriceHistory',
   expenses:  'Expenses',
+  commissions: 'Commissions',
 };
 
 /* ════════════════════════════════════════ ENTRY POINTS ═══════════════ */
+
+/* ════════════════════════════════════════════════════════════════
+   SECURITY LAYER — API-key gate + server-side login
+   ────────────────────────────────────────────────────────────────
+   • Every request must carry a valid role key (?k=…) EXCEPT action=login.
+   • Keys live in Config (key_super / key_admin / key_viewer), auto-
+     generated on first use, cached via CacheService (<1ms per request).
+   • Viewer keys may only call read actions (READ_OK below).
+   • login verifies the password SERVER-side and returns {role, key} —
+     passwords are never sent to clients anymore.
+   • getConfig strips pw_* and key_* before responding.
+════════════════════════════════════════════════════════════════ */
+var CURRENT_ROLE = '';   // set per-request by the gate
+
+var READ_OK = {
+  ping:1, getConfig:1, getParties:1, getProducts:1, getOrders:1, getSales:1,
+  getPurchases:1, getStock:1, getLedger:1, stats:1, getPayments:1,
+  getNextVoucherNo:1, getNextOrderId:1, verifyOrder:1, checkStock:1,
+  getPriceHistory:1, getExpenses:1, getCommissions:1, getCommissionBasis:1,
+  getLayers:1, getStockValue:1, salesPriceLockStatus:1,
+  getRevaluation:1, getOldStockReport:1
+};
+
+function randKey_() {
+  return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 48);
+}
+
+function readConfigMap_() {
+  const sheet = getSpreadsheet().getSheetByName(SHEETS.config);
+  const cfg = {};
+  if (!sheet) return cfg;
+  sheet.getDataRange().getValues().forEach(function (row) {
+    if (row[0]) cfg[String(row[0]).trim()] = String(row[1] || '');
+  });
+  return cfg;
+}
+
+function stripSecrets_(cfg) {
+  const out = {};
+  Object.keys(cfg).forEach(function (k) {
+    if (k.indexOf('pw_') === 0 || k.indexOf('key_') === 0) return;
+    out[k] = cfg[k];
+  });
+  return out;
+}
+
+function getKeys_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('bf_keys');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const cfg = readConfigMap_();
+    const keys = { super: cfg.key_super || '', admin: cfg.key_admin || '', viewer: cfg.key_viewer || '' };
+    if (!keys.super || !keys.admin || !keys.viewer) {
+      if (!keys.super)  keys.super  = randKey_();
+      if (!keys.admin)  keys.admin  = randKey_();
+      if (!keys.viewer) keys.viewer = randKey_();
+      saveConfigRows_({ key_super: keys.super, key_admin: keys.admin, key_viewer: keys.viewer });
+    }
+    cache.put('bf_keys', JSON.stringify(keys), 21600);
+    return keys;
+  } finally { lock.releaseLock(); }
+}
+
+function saveConfigRows_(map) {
+  const sheet = getOrCreateSheet(SHEETS.config, ['key', 'value', 'updatedAt']);
+  const rows = sheet.getDataRange().getValues();
+  Object.keys(map).forEach(function (key) {
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === key) {
+        sheet.getRange(i + 1, 2, 1, 2).setValues([[map[key], new Date()]]);
+        rows[i][1] = map[key];
+        return;
+      }
+    }
+    sheet.appendRow([key, map[key], new Date()]);
+    rows.push([key, map[key], new Date()]);
+  });
+}
+
+/* Returns null when allowed; an error object when blocked. */
+function keyGate_(k, action) {
+  const keys = getKeys_();
+  var role = '';
+  if (k && k === keys.super)       role = 'super';
+  else if (k && k === keys.admin)  role = 'admin';
+  else if (k && k === keys.viewer) role = 'viewer';
+  if (!role) return { error: 'unauthorized', auth: false };
+  CURRENT_ROLE = role;
+  if (role === 'viewer' && !READ_OK[action]) return { error: 'forbidden — viewer key is read-only', auth: false };
+  return null;
+}
+
+function loginAction(params) {
+  const pw = String(params.pw || '');
+  if (!pw) return { error: 'পাসওয়ার্ড দিন' };
+  const cfg = readConfigMap_();
+  const pws = {
+    super:  cfg.pw_super  || 'super123',
+    admin:  cfg.pw_admin  || 'admin123',
+    viewer: cfg.pw_viewer || 'view123'
+  };
+  var role = '';
+  if (pw === pws.super) role = 'super';
+  else if (pw === pws.admin) role = 'admin';
+  else if (pw === pws.viewer) role = 'viewer';
+  if (!role) return { error: 'ভুল পাসওয়ার্ড' };
+  const keys = getKeys_();
+  return { ok: true, role: role, key: keys[role], config: stripSecrets_(cfg) };
+}
+
+function rotateKeys() {
+  if (CURRENT_ROLE !== 'super') return { error: 'forbidden — super only' };
+  const keys = { super: randKey_(), admin: randKey_(), viewer: randKey_() };
+  saveConfigRows_({ key_super: keys.super, key_admin: keys.admin, key_viewer: keys.viewer });
+  CacheService.getScriptCache().remove('bf_keys');
+  return { ok: true, keys: keys };
+}
+
+/* ── Nightly backup: run setupBackupTrigger() ONCE from the editor ── */
+function nightlyBackup() {
+  const file = DriveApp.getFileById(SPREADSHEET_ID);
+  const folders = DriveApp.getFoldersByName('hFlow Backups');
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('hFlow Backups');
+  const name = 'hFlow_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  file.makeCopy(name, folder);
+  // retention: keep newest 14
+  const all = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) all.push(it.next());
+  all.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+  for (var i = 14; i < all.length; i++) all[i].setTrashed(true);
+}
+function setupBackupTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'nightlyBackup') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('nightlyBackup').timeBased().everyDays(1).atHour(3).create();
+}
 
 function doGet(e) {
   let action = 'ping', params = {}, callback = null;
@@ -38,7 +180,13 @@ function doGet(e) {
     }
   } catch(err) {}
   let result;
-  try { result = handleAction(action, params); }
+  try {
+    if (action === 'login') result = loginAction(params);
+    else {
+      const blocked = keyGate_(params.k || '', action);
+      result = blocked ? blocked : handleAction(action, params);
+    }
+  }
   catch(err) { result = { error: err.message }; }
   return respondJsonp(result, callback);
 }
@@ -51,16 +199,21 @@ function doPost(e) {
     }
     const data   = JSON.parse(e.postData.contents);
     const action = data.action || '';
-    result = handleAction(action, data);
+    if (action === 'login') result = loginAction(data);
+    else {
+      const blocked = keyGate_(data.k || '', action);
+      result = blocked ? blocked : handleAction(action, data);
+    }
   } catch(err) { result = { error: err.message }; }
   return respond(result);
 }
 
 function handleAction(action, data) {
   switch(action) {
-    case 'ping':          return { status:'ok', message:'BizFlow v1.4 running ✓', time: new Date().toISOString() };
+    case 'ping':          return { status:'ok', message:'hFlow v1.4 running ✓', time: new Date().toISOString() };
 
-    case 'getConfig':     return getConfig();
+    case 'getConfig':     return stripSecrets_(readConfigMap_());
+    case 'rotateKeys':    return rotateKeys();
     case 'getParties':    return getSheet(SHEETS.parties);
     case 'getProducts':   return getSheet(SHEETS.products);
     case 'getOrders':     return getAllOrders();
@@ -72,10 +225,10 @@ function handleAction(action, data) {
 
     case 'saveConfig':    return saveConfig(data);
 
-    case 'saveParty':     return saveRow(SHEETS.parties,   data);
-    case 'deleteParty':   return deleteRow(SHEETS.parties,  data.id);
+    case 'saveParty':     return savePartyRow(data);
+    case 'deleteParty':   return deletePartyRow(data.id);
 
-    case 'saveProduct':   return saveRow(SHEETS.products,  data);
+    case 'saveProduct':   return saveProductAndSync(data);
     case 'deleteProduct': return deleteRow(SHEETS.products, data.id);
 
     case 'saveOrder':     return saveOrder(data);
@@ -84,6 +237,11 @@ function handleAction(action, data) {
     case 'getPayments':   return getSheet(SHEETS.payments);
     case 'savePayment':   return savePayment(data);
     case 'deletePayment': return deletePayment(data.id);
+    case 'getNextVoucherNo': return getNextVoucherNo(data.vtype || '');
+    case 'getNextOrderId':   return getNextOrderId(data.orderType || 'sales');
+    case 'verifyOrder':      return verifyOrder(data.orderId || '', data.orderType || '');
+    case 'checkStock':       return checkStock(data.items || '[]', data.excludeOrderId || '');
+    case 'checkStock':       return checkStock(data.items || '[]', data.excludeOrderId || '');
 
     case 'getPriceHistory':     return getPriceHistory();
     case 'savePriceRevision':   return savePriceRevision(data.data || data);
@@ -92,6 +250,15 @@ function handleAction(action, data) {
     case 'getExpenses':   return getSheet(SHEETS.expenses);
     case 'saveExpense':   return saveRow(SHEETS.expenses,  data);
     case 'deleteExpense': return deleteRow(SHEETS.expenses, data.id);
+
+    // ── COMMISSIONS ──
+    case 'getCommissions':     return getSheet(SHEETS.commissions);
+    case 'getCommissionBasis': return getCommissionBasis(data.month || '', data.supplierId || '');
+    case 'saveCommission':     return saveCommission(data);
+    case 'deleteCommission':   return deleteCommission(data.id);
+
+    // ── PRICE PUSH ──
+    case 'forcePushSalesPrices': return forcePushSalesPrices();
 
     // ── FIFO STOCK LAYERS ──
     case 'getLayers':      return getLayers(data.productId||'');
@@ -170,6 +337,7 @@ function getConfig() {
 }
 
 function saveConfig(data) {
+  if (CURRENT_ROLE && CURRENT_ROLE !== 'super') return { error: 'forbidden — super only' };
   const sheet = getOrCreateSheet(SHEETS.config, ['key', 'value', 'updatedAt']);
   const rows  = sheet.getDataRange().getValues();
 
@@ -195,6 +363,7 @@ function saveConfig(data) {
     if (data.biz_phone   !== undefined) upsert('biz_phone',   data.biz_phone);
     if (data.biz_address !== undefined) upsert('biz_address', data.biz_address);
     if (data.depo_text   !== undefined) upsert('depo_text',   data.depo_text);
+    if (data.depo_code   !== undefined) upsert('depo_code',   data.depo_code);
   }
   if (data.key === 'permissions') {
     // delete permissions
@@ -208,6 +377,10 @@ function saveConfig(data) {
     if (data.edit_orders   !== undefined) upsert('edit_orders',   data.edit_orders);
     // price-list access
     if (data.perm_pricelist!== undefined) upsert('perm_pricelist',data.perm_pricelist);
+    // force-push purchase→sales prices
+    if (data.perm_pushprice!== undefined) upsert('perm_pushprice',data.perm_pushprice);
+    // apply present rate to old orders
+    if (data.perm_rateupdate!== undefined) upsert('perm_rateupdate',data.perm_rateupdate);
     // legacy (kept so old clients don't break): mirror sales/purchase into del_orders
     if (data.del_sales !== undefined || data.del_purchases !== undefined) {
       var anyOrderDel = (data.del_sales==='off' && data.del_purchases==='off') ? 'off' : 'on';
@@ -222,6 +395,7 @@ function saveConfig(data) {
 function saveRow(sheetName, data) {
   const headers = getSheetHeaders(sheetName);
   const sheet   = getOrCreateSheet(sheetName, headers);
+  ensureColumns_(sheet, headers);
   const rows    = sheet.getDataRange().getValues();
   const hdrs    = rows[0].map(h => String(h).trim());
   const idCol   = hdrs.indexOf('id');
@@ -238,6 +412,36 @@ function saveRow(sheetName, data) {
   const newRow = headers.map(h => (data[h] !== undefined ? data[h] : ''));
   sheet.appendRow(newRow);
   return { status: 'inserted' };
+}
+
+/* Party save/delete — opening balance lives on Parties, so any change
+   must refresh the passive Ledger sheet. */
+function savePartyRow(data) {
+  const res = saveRow(SHEETS.parties, data);
+  try { rebuildLedgerSheet_(); } catch(e) {}
+  return res;
+}
+function deletePartyRow(id) {
+  const res = deleteRow(SHEETS.parties, id);
+  try { rebuildLedgerSheet_(); } catch(e) {}
+  return res;
+}
+
+/* Product save — ATOMIC zero-stock sync (Rule B, race-free).
+   The row write and the sales=purchase sync happen inside the SAME request,
+   so a separately-posted savePriceRevision can never overwrite the sync,
+   and the sync can never be overwritten by this row write. */
+function saveProductAndSync(data) {
+  const res = saveRow(SHEETS.products, data);
+  let synced = false;
+  try {
+    if (data.id && availablePieces_(data.id) <= 0) {
+      const r = syncSalesToPurchase_(data.id);
+      synced = !!r.changed;
+    }
+  } catch(e) {}
+  res.salesSynced = synced;
+  return res;
 }
 
 function deleteRow(sheetName, id) {
@@ -259,6 +463,7 @@ function deleteRow(sheetName, id) {
 function savePayment(data) {
   const headers = getSheetHeaders(SHEETS.payments);
   const sheet   = getOrCreateSheet(SHEETS.payments, headers);
+  ensureColumns_(sheet, headers);
   const rows    = sheet.getDataRange().getValues();
   const hdrs    = rows[0].map(h => String(h).trim());
   const idCol   = hdrs.indexOf('id');
@@ -268,15 +473,195 @@ function savePayment(data) {
       if (String(rows[i][idCol]) === String(data.id)) {
         const newRow = hdrs.map(h => (data[h] !== undefined ? data[h] : ''));
         sheet.getRange(i + 1, 1, 1, hdrs.length).setValues([newRow]);
-        updateLedgerVoucher(data);
+        rebuildLedgerSheet_();
         return { status: 'updated' };
       }
     }
   }
+
+  // vno collision guard: two devices can generate the same local number.
+  // If this vno already exists on a DIFFERENT voucher, assign the next free one.
+  const vnoCol = hdrs.indexOf('vno');
+  const vtCol  = hdrs.indexOf('vtype');
+  if (vnoCol > -1 && data.vno) {
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][vnoCol]) === String(data.vno) &&
+          String(rows[i][idCol])  !== String(data.id)) {
+        data.vno = getNextVoucherNo(data.vtype || (vtCol > -1 ? String(rows[i][vtCol]) : '')).vno;
+        break;
+      }
+    }
+  }
+
   const newRow = headers.map(h => (data[h] !== undefined ? data[h] : ''));
   sheet.appendRow(newRow);
-  updateLedgerVoucher(data);
-  return { status: 'inserted' };
+  rebuildLedgerSheet_();
+  return { status: 'inserted', vno: data.vno };
+}
+
+/* Next voucher number for a type, computed from the SHEET (device-safe). */
+function getNextVoucherNo(vtype) {
+  const prefixMap = { receipt:'RV', payment:'PV', adjust:'AV', dual:'DV' };
+  const prefix = prefixMap[vtype] || 'XV';
+  const rows = getSheet(SHEETS.payments);
+  let max = 0;
+  rows.forEach(function(v){
+    if (String(v.vtype) !== String(vtype)) return;
+    const n = parseInt(String(v.vno || '').replace(/\D/g, ''), 10) || 0;
+    if (n > max) max = n;
+  });
+  return { vno: prefix + '-' + String(max + 1).padStart(4, '0') };
+}
+
+/* Lightweight stock availability check — same source of truth as the FIFO
+   save guard (open StockLayers remaining). items: JSON [{productId,pieces}].
+   excludeOrderId: when EDITING a sale, that order's already-consumed pieces
+   are added back (the rebuild would free them), so edits are not falsely
+   blocked by their own consumption. Read-only: writes nothing. */
+function checkStock(itemsJson, excludeOrderId) {
+  var req = [];
+  try { req = JSON.parse(itemsJson || '[]'); } catch (e) { return { ok: true }; }
+  if (!req.length) return { ok: true };
+
+  // open-layer availability per product — ONE read
+  var avail = {};
+  var ss = getSpreadsheet();
+  var lsh = ss.getSheetByName(STOCK_LAYERS_SHEET);
+  if (lsh && lsh.getLastRow() > 1) {
+    var lv = lsh.getDataRange().getValues();
+    var LH = lv[0].map(function(h){ return String(h).trim(); });
+    var lPid = LH.indexOf('productId'), lRem = LH.indexOf('qtyRemaining'), lSt = LH.indexOf('status');
+    for (var i = 1; i < lv.length; i++) {
+      if (String(lv[i][lSt]) === 'closed') continue;
+      var q = parseFloat(lv[i][lRem]) || 0;
+      if (q <= 0) continue;
+      var pid = String(lv[i][lPid]);
+      avail[pid] = (avail[pid] || 0) + q;
+    }
+  }
+
+  // edit add-back: free the pieces the order being edited already consumed
+  if (excludeOrderId) {
+    var sales = getSheet(SHEETS.sales);
+    for (var r = 0; r < sales.length; r++) {
+      if (String(sales[r].orderId) !== String(excludeOrderId)) continue;
+      var its = [];
+      try { its = JSON.parse(sales[r].items || '[]'); } catch (e) {}
+      its.forEach(function(it){
+        if (!it.productId) return;
+        var tot = parseFloat(it.totalPieces) || ((parseFloat(it.qtyPieces)||0)+(parseFloat(it.freePieces)||0));
+        avail[String(it.productId)] = (avail[String(it.productId)] || 0) + tot;
+      });
+      break;
+    }
+  }
+
+  // product names for messages
+  var nameOf = {};
+  getSheet(SHEETS.products).forEach(function(p){ nameOf[String(p.id)] = p.name || String(p.id); });
+
+  var shortages = [];
+  req.forEach(function(x){
+    var pid = String(x.productId || ''); if (!pid) return;
+    var need = parseFloat(x.pieces) || 0; if (need <= 0) return;
+    var have = avail[pid] || 0;
+    if (need > have + 0.0001) shortages.push({ productId: pid, name: nameOf[pid] || pid, have: have, need: need });
+  });
+  return shortages.length ? { ok: false, shortages: shortages } : { ok: true };
+}
+
+/* Read-only stock availability check. items = JSON [{productId, pieces}].
+   excludeOrderId: when EDITING a sales order, that order's own saved
+   consumption is added back — otherwise editing would falsely report
+   shortage against itself. Mirrors the FIFO guard's availability math
+   (sum of open layers' qtyRemaining), with ONE layers read. */
+function checkStock(itemsJson, excludeOrderId) {
+  var wants = [];
+  try { wants = JSON.parse(itemsJson); } catch (e) { return { ok: true, shortages: [] }; }  // fail-open: server save-guard stays final
+
+  // availability per product — one read of StockLayers
+  var avail = {};
+  var lsh = getSpreadsheet().getSheetByName(STOCK_LAYERS_SHEET);
+  if (lsh && lsh.getLastRow() > 1) {
+    var lv = lsh.getDataRange().getValues();
+    var LH = lv[0].map(function(h){ return String(h).trim(); });
+    var lPid = LH.indexOf('productId'), lRem = LH.indexOf('qtyRemaining'), lSt = LH.indexOf('status');
+    for (var i = 1; i < lv.length; i++) {
+      if (String(lv[i][lSt]) === 'closed') continue;
+      var q = parseFloat(lv[i][lRem]) || 0;
+      if (q <= 0) continue;
+      var pid = String(lv[i][lPid]);
+      avail[pid] = (avail[pid] || 0) + q;
+    }
+  }
+
+  // add back the edited order's own consumption
+  if (excludeOrderId) {
+    var sales = getSheet(SHEETS.sales);
+    for (var r = 0; r < sales.length; r++) {
+      if (String(sales[r].orderId) !== String(excludeOrderId)) continue;
+      var its = [];
+      try { its = JSON.parse(sales[r].items || '[]'); } catch (e) {}
+      its.forEach(function(it){
+        if (!it.productId) return;
+        var tp = parseFloat(it.totalPieces);
+        if (isNaN(tp)) tp = (parseFloat(it.qtyPieces) || parseFloat(it.qty) || 0) + (parseFloat(it.freePieces) || 0);
+        avail[String(it.productId)] = (avail[String(it.productId)] || 0) + tp;
+      });
+      break;
+    }
+  }
+
+  // product names for messages
+  var nameOf = {};
+  getSheet(SHEETS.products).forEach(function(p){ nameOf[String(p.id)] = p.name || p.code || p.id; });
+
+  var shortages = [];
+  wants.forEach(function(w){
+    var pid = String(w.productId || ''); if (!pid) return;
+    var need = parseFloat(w.pieces) || 0; if (need <= 0) return;
+    var have = avail[pid] || 0;
+    if (need > have + 0.0001) shortages.push({ productId: pid, name: nameOf[pid] || pid, have: have, need: need });
+  });
+  return { ok: shortages.length === 0, shortages: shortages };
+}
+
+/* Verify: does the Sheet contain this order, and with what key figures?
+   Used by the list's যাচাই button to compare server vs local. */
+function verifyOrder(orderId, orderType) {
+  var sheets = orderType === 'purchase' ? [SHEETS.purchases]
+             : orderType === 'sales'    ? [SHEETS.sales]
+             : [SHEETS.sales, SHEETS.purchases];
+  for (var s = 0; s < sheets.length; s++) {
+    var rows = getSheet(sheets[s]);
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i].orderId) === String(orderId)) {
+        var items = [];
+        try { items = JSON.parse(rows[i].items || '[]'); } catch (e) {}
+        return {
+          found: true,
+          orderId: orderId,
+          grandTotal: parseFloat(rows[i].grandTotal) || 0,
+          totalPaid: parseFloat(rows[i].totalPaid) || 0,
+          itemCount: items.length,
+          savedAt: String(rows[i].savedAt || '')
+        };
+      }
+    }
+  }
+  return { found: false, orderId: orderId };
+}
+
+/* Next order number for a type, computed from the SHEET (device-safe). */
+function getNextOrderId(orderType) {
+  const isPO = (orderType === 'purchase');
+  const rows = getSheet(isPO ? SHEETS.purchases : SHEETS.sales);
+  let max = 0;
+  rows.forEach(function(o){
+    const n = parseInt(String(o.orderId || '').replace(/\D/g, ''), 10) || 0;
+    if (n > max) max = n;
+  });
+  return { orderId: (isPO ? 'PO-' : 'INV-') + String(max + 1).padStart(4, '0') };
 }
 
 function deletePayment(id) {
@@ -287,15 +672,172 @@ function deletePayment(id) {
   for (let i = rows.length - 1; i >= 1; i--) {
     if (String(rows[i][idCol]) === String(id)) {
       sheet.deleteRow(i + 1);
+      rebuildLedgerSheet_();
       return { status: 'deleted' };
     }
   }
   return { status: 'not found' };
 }
 
+/* ════════════════════════════════════════ COMMISSIONS ═══════════════ */
+/* Monthly supplier commission. The MONEY effect flows through a linked
+   adjust-credit voucher on the supplier (so every due/ledger/statement
+   path that already understands vouchers is automatically correct).
+   The Commissions sheet stores the analytic record (month, volume, rate)
+   with the linked voucherId for clean edit/delete. */
+
+/* ── Robust date normalizers ──
+   Sheet cells may hold real Date objects (Sheets auto-converts 'YYYY-MM-DD'
+   strings) OR plain text. String(dateObj) gives 'Mon Jul 06 2026 …', so
+   naive slicing breaks. These handle both forms. */
+function dateStr_(d) {
+  if (!d) return '';
+  var s = String(d);
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  var t = new Date(s);
+  if (!isNaN(t.getTime())) return Utilities.formatDate(t, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return s;
+}
+function monthOf_(d) {
+  var s = dateStr_(d);
+  return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : '';
+}
+
+/* Sales volume for a supplier in a month (YYYY-MM): the sum of sale-line
+   amounts of products whose supplierId matches. */
+function getCommissionBasis(month, supplierId) {
+  var products = getSheet(SHEETS.products);
+  var supOf = {};
+  products.forEach(function(p){ supOf[p.id] = String(p.supplierId || ''); });
+
+  var sales = getSheet(SHEETS.sales);
+  var volume = 0, lines = 0;
+  var perProduct = {};
+  sales.forEach(function(o){
+    if (monthOf_(o.date) !== String(month)) return;
+    var items = [];
+    try { items = JSON.parse(o.items || '[]'); } catch(e) { return; }
+    items.forEach(function(it){
+      if (!it.productId) return;
+      if (supOf[it.productId] !== String(supplierId)) return;
+      // legacy items may lack `total` → fall back to qty × price
+      var amt = parseFloat(it.total);
+      if (!amt && amt !== 0) amt = (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0);
+      amt = amt || 0;
+      volume += amt; lines++;
+      if (!perProduct[it.productId]) perProduct[it.productId] = { name: it.productName || '', amount: 0 };
+      perProduct[it.productId].amount += amt;
+    });
+  });
+  var breakdown = Object.keys(perProduct).map(function(k){
+    return { productId: k, name: perProduct[k].name, amount: perProduct[k].amount };
+  }).sort(function(a, b){ return b.amount - a.amount; });
+  return { month: month, supplierId: supplierId, salesVolume: volume, lines: lines, breakdown: breakdown };
+}
+
+function saveCommission(d) {
+  var voucherId = d.voucherId || ('PMT' + Date.now());
+  var vno = d.vno || getNextVoucherNo('adjust').vno;
+  var amount = parseFloat(d.amount) || 0;
+  var voucher = {
+    id: voucherId, vno: vno, vtype: 'adjust',
+    date: d.date || (String(d.month || '') + '-01'),
+    partyId: d.supplierId, partyName: d.supplierName || '', partyPhone: '',
+    cash: 0, bank: 0, mobile: 0, salary: 0, ta: 0, da: 0, damage: 0,
+    other: amount, amount: amount, direction: 'credit',
+    counterpartyId: '', counterpartyName: '', category: 'commission',
+    note: 'কমিশন — ' + (d.month || '') + (d.note ? (' | ' + d.note) : ''),
+    savedAt: new Date().toISOString()
+  };
+  savePayment(voucher);            // writes voucher + rebuilds ledger
+  d.voucherId = voucherId;
+  d.vno = vno;
+  // Prevent Sheets from auto-converting "2026-07" into a Date: store as text.
+  if (d.month && String(d.month).charAt(0) !== "'") d.month = "'" + String(d.month);
+  var res = saveRow(SHEETS.commissions, d);
+  res.voucherId = voucherId;
+  res.vno = vno;
+  return res;
+}
+
+function deleteCommission(id) {
+  var rows = getSheet(SHEETS.commissions);
+  var rec = null;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i].id) === String(id)) { rec = rows[i]; break; }
+  }
+  var res = deleteRow(SHEETS.commissions, id);
+  if (rec && rec.voucherId) deletePayment(rec.voucherId);   // also rebuilds ledger
+  return res;
+}
+
+/* ════════════════════════════════════════ FORCE PUSH ════════════════ */
+/* Copy purchase price + offer → sales price + offer for ALL products
+   (except not-for-sale), in ONE bulk read/write, regardless of stock.
+   Logged to PriceHistory as a sales-side snapshot. */
+function forcePushSalesPrices() {
+  var sheet = getSpreadsheet().getSheetByName(SHEETS.products);
+  if (!sheet) return { status: 'no-products', changed: 0, total: 0 };
+  var rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return { status: 'no-products', changed: 0, total: 0 };
+  var hdrs = rows[0].map(function(h){ return String(h).trim(); });
+  var col = function(n){ return hdrs.indexOf(n); };
+  var cP = col('price'), cHO = col('hasOffer'), cOS = col('offerSize'), cFQ = col('freeQty');
+  var cSP = col('salesPrice'), cSHO = col('salesHasOffer'), cSOS = col('salesOfferSize'), cSFQ = col('salesFreeQty');
+  var cNFS = col('notForSale'), cId = col('id'), cCode = col('code'), cName = col('name');
+  if (cP < 0 || cSP < 0) return { error: 'salesPrice column missing' };
+
+  var changed = 0, total = 0;
+  var snapRows = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][cId]) continue;
+    if (cNFS > -1 && String(rows[i][cNFS]) === 'yes') continue;
+    total++;
+    if (String(rows[i][cSP]) !== String(rows[i][cP]) ||
+        String(rows[i][cSHO]) !== String(rows[i][cHO]) ||
+        String(rows[i][cSOS]) !== String(rows[i][cOS]) ||
+        String(rows[i][cSFQ]) !== String(rows[i][cFQ])) changed++;
+    rows[i][cSP]  = rows[i][cP];
+    rows[i][cSHO] = rows[i][cHO];
+    rows[i][cSOS] = rows[i][cOS];
+    rows[i][cSFQ] = rows[i][cFQ];
+    snapRows.push({
+      productId: rows[i][cId], code: cCode > -1 ? rows[i][cCode] : '', name: cName > -1 ? rows[i][cName] : '',
+      price: rows[i][cP], offerSize: rows[i][cOS] || 0, freeQty: rows[i][cFQ] || 0,
+      hasOffer: String(rows[i][cHO]) === 'true'
+    });
+  }
+  sheet.getRange(1, 1, rows.length, hdrs.length).setValues(rows);
+
+  // PriceHistory: sales-side snapshot so the push is auditable
+  savePriceRevision({
+    revisionId: 'PUSH' + Date.now(),
+    effectiveDate: new Date().toISOString().slice(0, 10),
+    type: 'force-push', side: 'sales',
+    note: 'ক্রয়মূল্য → বিক্রয়মূল্যে ফোর্স পুশ',
+    rows: snapRows
+  });
+  return { status: 'pushed', changed: changed, total: total };
+}
+
 /* ════════════════════════════════════════ ORDERS ════════════════════ */
 
 function saveOrder(data) {
+  // Serialize order saves: two concurrent requests for the same orderId
+  // (JSONP-timeout fallback re-send, or double-tapped save buttons) could
+  // BOTH pass the duplicate check below and BOTH insert. The lock makes the
+  // second request wait, see the first row, and take the UPDATE path.
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(30000); } catch (e) { return { error: 'busy — try again' }; }
+  try {
+    return saveOrderLocked_(data);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function saveOrderLocked_(data) {
   const sheetName = data.orderType === 'purchase' ? SHEETS.purchases : SHEETS.sales;
   const headers   = getSheetHeaders(sheetName);
   const sheet     = getOrCreateSheet(sheetName, headers);
@@ -311,7 +853,7 @@ function saveOrder(data) {
         var oldOrder = { orderId:data.orderId, orderType:data.orderType, date:data.date, items:oldItems };
         const newRow = hdrs.map(h => (data[h] !== undefined ? data[h] : ''));
         sheet.getRange(i + 1, 1, 1, hdrs.length).setValues([newRow]);
-        updateLedger(data);
+        rebuildLedgerSheet_();              // edit → rebuild ledger (no duplicate rows)
         rebuildLayersFromOrders();          // edit changes history → rebuild layers
         rebuildStockSheet_();               // rebuild passive stock record
         // adjustment log: old version removed, new version added
@@ -347,8 +889,13 @@ function saveOrder(data) {
 
   const newRow = headers.map(h => (data[h] !== undefined ? data[h] : ''));
   sheet.appendRow(newRow);
-  rebuildStockSheet_();               // rebuild passive stock record (new order)
-  updateLedger(data);
+  // ONE read of each order sheet, shared by both passive rebuilds
+  var _purch = getSheet(SHEETS.purchases);
+  var _sales = getSheet(SHEETS.sales);
+  rebuildStockSheet_(_purch, _sales);                 // passive stock record
+  rebuildLedgerSheet_(
+    _purch.map(function(o){o.orderType='purchase';return o;})
+      .concat(_sales.map(function(o){o.orderType='sales';return o;})));  // passive ledger record
   return { status: 'inserted', salesAutoUpdated: (fifo.salesAutoUpdated || []), blendNote: blendNote };
 }
 
@@ -383,7 +930,12 @@ function deleteOrderRow(orderId, actor) {
     }
   });
   var rb = rebuildLayersFromOrders();   // deletion changes history → rebuild + reconcile
-  rebuildStockSheet_();                 // rebuild passive stock record
+  var _purch2 = getSheet(SHEETS.purchases);
+  var _sales2 = getSheet(SHEETS.sales);
+  rebuildStockSheet_(_purch2, _sales2);               // passive stock record
+  rebuildLedgerSheet_(
+    _purch2.map(function(o){o.orderType='purchase';return o;})
+      .concat(_sales2.map(function(o){o.orderType='sales';return o;})));  // passive ledger record
   if (deletedOrder) logOrderAdjustments_(deletedOrder, 'delete', -1, actor||'');
   return { status: 'deleted', salesReview: (rb.salesReview||[]), salesSynced: (rb.salesSynced||[]) };
 }
@@ -396,7 +948,7 @@ function deleteOrderRow(orderId, actor) {
      paidIn, freeIn, totalIn, paidOut, freeOut, totalOut,
      balancePaid, balanceFree, balanceTotal, lastUpdated.
    ──────────────────────────────────────────────────────────────────── */
-function rebuildStockSheet_() {
+function rebuildStockSheet_(purchOpt, salesOpt) {
   var headers = ['productId','productName','paidIn','freeIn','totalIn',
                  'paidOut','freeOut','totalOut',
                  'balancePaid','balanceFree','balanceTotal','lastUpdated'];
@@ -412,8 +964,8 @@ function rebuildStockSheet_() {
     sheet.getRange(2,1,sheet.getLastRow()-1,sheet.getLastColumn()).clearContent();
   }
 
-  var purch = getSheet(SHEETS.purchases);
-  var sales = getSheet(SHEETS.sales);
+  var purch = purchOpt || getSheet(SHEETS.purchases);
+  var sales = salesOpt || getSheet(SHEETS.sales);
   var acc = {}; // productId → tallies
 
   function tally(orders, isPurchase){
@@ -482,54 +1034,133 @@ function logOrderAdjustments_(order, type, sign, user) {
 
 
 /* ════════════════════════════════════════ LEDGER ═══════════════════ */
+/* ────────────────────────────────────────────────────────────────────
+   Ledger sheet — rebuilt from source of truth on every save/edit/delete
+   (same passive-record pattern as the Stock sheet). Never appended to.
+   Source of truth: Parties (opening balance) + Purchases + Sales
+   (grandTotal debit, totalPaid credit) + Payments (vouchers).
+   Rows are grouped per party, sorted by date, with a correct running
+   balance. Convention (unchanged): debit increases the party's due,
+   credit decreases it. For customers positive = they owe Mustary;
+   for suppliers positive = Mustary owes them.
+   ──────────────────────────────────────────────────────────────────── */
+function rebuildLedgerSheet_(ordersOpt) {
+  var headers = ['id','date','partyId','partyName','type','description','debit','credit','balance','reference'];
+  var sheet = getOrCreateSheet(SHEETS.ledger, headers);
 
-function updateLedger(order) {
-  const sheet = getOrCreateSheet(SHEETS.ledger,
-    ['id','date','partyId','partyName','type','description','debit','credit','balance','reference']);
-  const allRows = sheet.getDataRange().getValues();
-  let lastBal = 0;
-  for (let i = allRows.length - 1; i >= 1; i--) {
-    if (String(allRows[i][2]) === String(order.partyId)) {
-      lastBal = parseFloat(allRows[i][8]) || 0;
-      break;
+  var parties  = getSheet(SHEETS.parties);
+  var orders   = ordersOpt || getAllOrders();
+  var vouchers = getSheet(SHEETS.payments);
+
+  var byParty = {};
+  var nameOf  = {};   // fallback names captured from transactions (for deleted parties)
+  function bucket(pid){ if(!byParty[pid]) byParty[pid] = []; return byParty[pid]; }
+
+  orders.forEach(function(o){
+    if (!o.partyId) return;
+    if (o.partyName && !nameOf[o.partyId]) nameOf[o.partyId] = o.partyName;
+    var grand = parseFloat(o.grandTotal) || 0;
+    var paid  = parseFloat(o.totalPaid)  || 0;
+    bucket(o.partyId).push({
+      date: dateStr_(o.date), seq: 0, type: o.orderType,
+      desc: (o.orderType === 'purchase' ? 'ক্রয়' : 'বিক্রয়') + ' — ' + o.orderId
+            + ((parseFloat(o.discount) || 0) > 0 ? ' (ছাড় ' + (parseFloat(o.discount).toFixed(2)) + ' সমন্বিত)' : ''),
+      debit: grand, credit: 0, ref: o.orderId
+    });
+    if (paid > 0) {
+      bucket(o.partyId).push({
+        date: dateStr_(o.date), seq: 1, type: 'payment',
+        desc: 'জমা — ' + o.orderId,
+        debit: 0, credit: paid, ref: o.orderId
+      });
     }
-  }
-  const amount  = parseFloat(order.grandTotal) || 0;
-  const isPurch = order.orderType === 'purchase';
-  const debit   = isPurch  ? amount : 0;
-  const credit  = !isPurch ? amount : 0;
-  const balance = lastBal + debit - credit;
+  });
 
-  sheet.appendRow([
-    'L' + Date.now(), order.date, order.partyId, order.partyName, order.orderType,
-    (isPurch ? 'ক্রয়' : 'বিক্রয়') + ' — ' + order.orderId,
-    debit, credit, balance, order.orderId
-  ]);
-}
+  vouchers.forEach(function(v){
+    if (!v.partyId) return;
+    if (v.partyName && !nameOf[v.partyId]) nameOf[v.partyId] = v.partyName;
+    if (v.counterpartyId && v.counterpartyName && !nameOf[v.counterpartyId]) nameOf[v.counterpartyId] = v.counterpartyName;
+    var amt = parseFloat(v.amount) || 0;
 
-function updateLedgerVoucher(v) {
-  const sheet = getOrCreateSheet(SHEETS.ledger,
-    ['id','date','partyId','partyName','type','description','debit','credit','balance','reference']);
-  const allRows = sheet.getDataRange().getValues();
-  let lastBal = 0;
-  for (let i = allRows.length - 1; i >= 1; i--) {
-    if (String(allRows[i][2]) === String(v.partyId)) {
-      lastBal = parseFloat(allRows[i][8]) || 0;
-      break;
+    /* ── DUAL-PARTY voucher (the triangle) ──
+       Customer pays supplier directly, OR supplier routes commission/claim
+       to a customer via Mustary. Both cases post the SAME way from Mustary's
+       books: customer's receivable ↓ (credit) AND supplier's payable ↓ (credit). */
+    if (v.vtype === 'dual' && v.counterpartyId) {
+      var catLabel = v.category === 'direct'     ? 'সরাসরি পেমেন্ট'
+                   : v.category === 'commission' ? 'কমিশন'
+                   : v.category === 'claim'      ? 'দাবি' : 'সমন্বয়';
+      var dDebit = (v.direction === 'debit') ? amt : 0;   // debit-both raises both dues
+      var dCredit = (v.direction === 'debit') ? 0 : amt;  // credit-both (default) lowers both
+      bucket(v.partyId).push({
+        date: dateStr_(v.date), seq: 2, type: 'dual',
+        desc: catLabel + ' (সরবরাহকারী: ' + (v.counterpartyName || '') + ') — ' + v.vno,
+        debit: dDebit, credit: dCredit, ref: v.vno
+      });
+      bucket(v.counterpartyId).push({
+        date: dateStr_(v.date), seq: 2, type: 'dual',
+        desc: catLabel + ' (গ্রাহক: ' + (v.partyName || '') + ') — ' + v.vno,
+        debit: dDebit, credit: dCredit, ref: v.vno
+      });
+      return;
     }
-  }
-  const amt = parseFloat(v.amount) || 0;
-  let debit = 0, credit = 0;
-  if (v.vtype === 'adjust' && v.direction === 'debit') debit = amt;
-  else credit = amt;
-  const balance = lastBal + debit - credit;
-  const label = v.vtype === 'receipt' ? 'রিসিট'
-              : v.vtype === 'payment' ? 'পেমেন্ট' : 'সমন্বয়';
 
-  sheet.appendRow([
-    'L' + Date.now(), v.date, v.partyId, v.partyName, 'voucher',
-    label + ' — ' + v.vno, debit, credit, balance, v.vno
-  ]);
+    var debit = 0, credit = 0;
+    if (v.vtype === 'adjust' && v.direction === 'debit') debit = amt; else credit = amt;
+    var label = v.vtype === 'receipt' ? 'রিসিট' : (v.vtype === 'payment' ? 'পেমেন্ট' : 'সমন্বয়');
+    bucket(v.partyId).push({
+      date: dateStr_(v.date), seq: 2, type: 'voucher',
+      desc: label + ' — ' + v.vno, debit: debit, credit: credit, ref: v.vno
+    });
+  });
+
+  function dateVal(d){
+    if (!d) return 9e15;
+    var t = new Date(d).getTime();
+    return isNaN(t) ? 9e15 : t;
+  }
+
+  var batch = [];
+  // Parties in sheet order first; then any orphan partyIds found in data.
+  var seen = {};
+  var orderedIds = [];
+  parties.forEach(function(p){ if (p.id && !seen[p.id]) { seen[p.id] = true; orderedIds.push(p.id); } });
+  Object.keys(byParty).forEach(function(pid){ if (!seen[pid]) { seen[pid] = true; orderedIds.push(pid); } });
+
+  orderedIds.forEach(function(pid){
+    var party = null;
+    for (var i = 0; i < parties.length; i++) { if (parties[i].id === pid) { party = parties[i]; break; } }
+    var pname   = (party && party.name) ? party.name : (nameOf[pid] || '');
+    var events  = (byParty[pid] || []).slice();
+    var opening = party ? (parseFloat(party.balance) || 0) : 0;
+    if (!events.length && opening === 0) return;
+
+    events.sort(function(a, b){
+      var da = dateVal(a.date), db = dateVal(b.date);
+      if (da !== db) return da - db;
+      return a.seq - b.seq;
+    });
+
+    var bal = 0, n = 0;
+    if (opening !== 0) {
+      bal = opening;
+      n++;
+      batch.push(['L-' + pid + '-0', '', pid, pname, 'opening', 'প্রারম্ভিক ব্যালেন্স',
+                  opening > 0 ? opening : 0, opening < 0 ? -opening : 0, bal, '—']);
+    }
+    events.forEach(function(ev){
+      bal += ev.debit - ev.credit;
+      n++;
+      batch.push(['L-' + pid + '-' + n, ev.date, pid, pname, ev.type, ev.desc,
+                  ev.debit, ev.credit, bal, ev.ref]);
+    });
+  });
+
+  // wipe old body and write fresh
+  var last = sheet.getLastRow();
+  if (last > 1) sheet.getRange(2, 1, last - 1, headers.length).clearContent();
+  if (batch.length) sheet.getRange(2, 1, batch.length, headers.length).setValues(batch);
+  return { rows: batch.length };
 }
 
 function getLedger(partyId) {
@@ -660,14 +1291,31 @@ function getSheetHeaders(name) {
     'totalPaid','balance','paymentMode','notes','status','savedAt'
   ];
   const map = {
-    [SHEETS.parties]:   ['id','name','type','phone','email','address','area','balance','notes','updated'],
-    [SHEETS.products]:  ['id','code','name','cartonSize','cartonPrice','price','hasOffer','offerSize','freeQty','salesPrice','salesHasOffer','salesOfferSize','salesFreeQty','effectivePrice','notForSale','status','notes','updated'],
+    [SHEETS.parties]:   ['id','name','type','phone','email','address','area','zone','balance','notes','updated','linkedSupplierId','code'],
+    [SHEETS.products]:  ['id','code','name','cartonSize','cartonPrice','price','hasOffer','offerSize','freeQty','salesPrice','salesHasOffer','salesOfferSize','salesFreeQty','effectivePrice','notForSale','status','notes','updated','supplierId','misCode'],
     [SHEETS.purchases]: orderCols,
     [SHEETS.sales]:     orderCols,
-    [SHEETS.payments]:  ['id','vno','vtype','date','partyId','partyName','partyPhone','cash','bank','mobile','salary','ta','da','damage','other','amount','direction','note','savedAt'],
+    [SHEETS.payments]:  ['id','vno','vtype','date','partyId','partyName','partyPhone','cash','bank','mobile','salary','ta','da','damage','other','amount','direction','note','savedAt','counterpartyId','counterpartyName','category'],
     [SHEETS.expenses]:  ['id','date','type','category','amount','note','savedAt'],
+    [SHEETS.commissions]: ['id','month','supplierId','supplierName','basis','rate','salesVolume','amount','date','voucherId','vno','note','savedAt'],
   };
   return map[name] || [];
+}
+
+/* Ensure the physical sheet's header row contains every column in `headers`.
+   New columns are appended at the END so existing data stays aligned with
+   the positional writes in saveRow/savePayment. Safe to call on every write. */
+function ensureColumns_(sheet, headers) {
+  if (!headers || !headers.length) return;
+  const lastCol = sheet.getLastColumn();
+  const existing = lastCol > 0
+    ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim())
+    : [];
+  const missing = headers.filter(h => existing.indexOf(h) === -1);
+  if (!missing.length) return;
+  sheet.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+  sheet.getRange(1, existing.length + 1, 1, missing.length)
+    .setBackground('#4f46e5').setFontColor('#ffffff').setFontWeight('bold');
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -778,7 +1426,8 @@ function getRevaluation() {
     tCost += bp.value; tSale += saleVal;
     rows.push({
       productId:pid, code:bp.code, name:bp.name,
-      pieces:bp.pieces, costRate:costRate, costVal:bp.value,
+      pieces:bp.pieces, cartonSize:(p ? (parseFloat(p.cartonSize)||0) : 0),
+      costRate:costRate, costVal:bp.value,
       saleRate:saleRate, saleVal:saleVal, reval:(saleVal - bp.value)
     });
   });
@@ -1164,28 +1813,89 @@ function autoUpdateSalesAfterSale_(data) {
    Returns { synced:[...], review:[...] }.
    ──────────────────────────────────────────────────────────────────── */
 function reconcileSalesPrices_() {
-  var prods = getSheet(SHEETS.products);
+  /* PERFORMANCE-CRITICAL: runs on every order save. The old version re-read
+     the ENTIRE StockLayers sheet and Products sheet for EVERY product
+     (getLayers + getProductRow_ ×3) → hundreds of full-sheet reads per save.
+     This version reads Products ONCE and StockLayers ONCE, computes the exact
+     same lock/unlock/review logic in memory, and writes only the changed
+     product rows. Behavior is identical to the per-product version. */
+  var ss = getSpreadsheet();
+  var psh = ss.getSheetByName(SHEETS.products);
+  if (!psh) return { synced:[], review:[] };
+  var pv = psh.getDataRange().getValues();
+  if (pv.length < 2) return { synced:[], review:[] };
+  var H = pv[0].map(function(h){ return String(h).trim(); });
+  var c = function(n){ return H.indexOf(n); };
+  var cId=c('id'), cCode=c('code'), cName=c('name'),
+      cP=c('price'), cHO=c('hasOffer'), cOS=c('offerSize'), cFQ=c('freeQty'),
+      cSP=c('salesPrice'), cSHO=c('salesHasOffer'), cSOS=c('salesOfferSize'), cSFQ=c('salesFreeQty');
+
+  // open layers grouped by product — ONE read
+  var open = {};
+  var lsh = ss.getSheetByName(STOCK_LAYERS_SHEET);
+  if (lsh && lsh.getLastRow() > 1) {
+    var lv = lsh.getDataRange().getValues();
+    var LH = lv[0].map(function(h){ return String(h).trim(); });
+    var lPid=LH.indexOf('productId'), lRate=LH.indexOf('rate'),
+        lRem=LH.indexOf('qtyRemaining'), lSt=LH.indexOf('status');
+    for (var i = 1; i < lv.length; i++) {
+      if (String(lv[i][lSt]) === 'closed') continue;
+      var q = parseFloat(lv[i][lRem]) || 0;
+      if (q <= 0) continue;
+      var lp = String(lv[i][lPid]);
+      (open[lp] = open[lp] || []).push({ rate: parseFloat(lv[i][lRate]) || 0, qty: q });
+    }
+  }
+
+  function effOf(price, has, os, fq) {
+    price = parseFloat(price) || 0;
+    var h = String(has) === 'true' || has === true;
+    var o = h ? (parseFloat(os) || 0) : 0;
+    var f = h ? (parseFloat(fq) || 0) : 0;
+    return (o > 0 && (o + f) > 0) ? price * o / (o + f) : price;
+  }
+
   var synced = [], review = [];
-  prods.forEach(function(p){
-    var pid = p.id; if (!pid) return;
-    var st = salesPriceLockStatus(pid);
+  var dirtyRows = [];
+  for (var r = 1; r < pv.length; r++) {
+    var pid = String(pv[r][cId] || ''); if (!pid) continue;
+    var Ls = open[pid] || [];
+    var totalStock = 0;
+    Ls.forEach(function(L){ totalStock += L.qty; });
+    if (totalStock <= 0) continue;   // no stock → leave as-is (Rule B handles zero-stock on product edits)
 
-    if (st.totalStock <= 0) return;   // no stock → leave as-is (Rule B handles zero-stock on purchase edits)
+    var purchEff = effOf(pv[r][cP], pv[r][cHO], pv[r][cOS], pv[r][cFQ]);
+    var remainingOld = 0;
+    Ls.forEach(function(L){ if (Math.abs(L.rate - purchEff) > 0.0000001) remainingOld += L.qty; });
 
-    if (st.canUnlock) {
-      // all stock at current purchase rate → sales should match purchase
-      var r = syncSalesToPurchase_(pid);
-      if (r.changed) synced.push({ productId:pid, code:p.code||'', name:p.name||'' });
+    if (remainingOld <= 0) {
+      // all stock at current purchase rate → sales must match purchase
+      var changed = String(pv[r][cSP]) !== String(pv[r][cP]);
+      if (changed ||
+          String(pv[r][cSHO]) !== String(pv[r][cHO]) ||
+          String(pv[r][cSOS]) !== String(pv[r][cOS]) ||
+          String(pv[r][cSFQ]) !== String(pv[r][cFQ])) {
+        pv[r][cSP]  = pv[r][cP];
+        pv[r][cSHO] = pv[r][cHO];
+        pv[r][cSOS] = pv[r][cOS];
+        pv[r][cSFQ] = pv[r][cFQ];
+        dirtyRows.push(r);
+      }
+      if (changed) synced.push({ productId:pid, code:pv[r][cCode]||'', name:pv[r][cName]||'' });
     } else {
-      // old-price stock present → sales SHOULD be locked at the old price.
-      // If the stored sales price already equals the CURRENT purchase price,
-      // that means old stock returned after the price had advanced → flag it.
-      var salesEff = salesEffPrice_(pid);
-      var purchEff = purchaseEffPrice_(pid);
+      // old-price stock present → locked; flag if stored sales eff == current purchase eff
+      var salesSet = String(pv[r][cSP]) !== '' && pv[r][cSP] !== null && pv[r][cSP] !== undefined;
+      var salesEff = salesSet
+        ? effOf(pv[r][cSP], pv[r][cSHO], pv[r][cSOS], pv[r][cSFQ])
+        : effOf(pv[r][cP],  pv[r][cHO],  pv[r][cOS],  pv[r][cFQ]);
       if (Math.abs(salesEff - purchEff) < 0.0000001) {
-        review.push({ productId:pid, code:p.code||'', name:p.name||'', remainingOld:st.remainingOld });
+        review.push({ productId:pid, code:pv[r][cCode]||'', name:pv[r][cName]||'', remainingOld:remainingOld });
       }
     }
+  }
+  // write only changed rows (usually 0–2)
+  dirtyRows.forEach(function(r){
+    psh.getRange(r + 1, 1, 1, H.length).setValues([pv[r]]);
   });
   return { synced:synced, review:review };
 }
