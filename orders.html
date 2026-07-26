@@ -1411,7 +1411,7 @@ function buildPrintInvoice(){
     const cPrice=parseFloat(row.dataset.cPrice)||0;
     const usedPrice=parseFloat(row.dataset.usedPrice)||0;
     const amt=parseFloat(row.querySelector('.oi-total').value)||0;
-    if(qtyPieces<=0)return;
+    if(qtyPieces<=0 && freePieces<=0)return;   // free-only lines must print too
     sl++;
     const qtyRem=cSize>0?(qtyPieces%cSize):qtyPieces;
     const freeRem=cSize>0?(freePieces%cSize):freePieces;
@@ -1469,7 +1469,8 @@ function collectFormData(){
   document.querySelectorAll('.order-item-row').forEach(row=>{
     const ps=row.querySelector('.oi-product');
     const qtyPieces=parseFloat(row.dataset.qtyPieces)||0;
-    if(qtyPieces<=0)return;
+    const freePiecesChk=parseFloat(row.dataset.freePieces)||0;
+    if(qtyPieces<=0 && freePiecesChk<=0)return;   // drop only truly empty rows (free-only lines are valid)
     const rowAlloc=(function(){
       let a=[];try{a=JSON.parse(row.dataset.alloc||'[]');}catch(e){}
       if(!a.length)return [];
@@ -1541,7 +1542,7 @@ async function saveOrderFlow_(data,unspin){
   // JSONP carries the whole order in the URL; Apps Script rejects very long
   // URLs (~8KB). Large orders (many items / alloc / compli) must go by POST.
   const payloadSize=encodeURIComponent(JSON.stringify(data)).length;
-  const JSONP_SAFE=1500;   // conservative — leaves room for base URL + params
+  const JSONP_SAFE=1440;   // key param rides every URL now   // conservative — leaves room for base URL + params
 
   if(BF.sheetUrl && payloadSize>JSONP_SAFE){
     // LARGE ORDER path.
