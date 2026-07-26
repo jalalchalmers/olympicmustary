@@ -265,18 +265,23 @@ function updateStats(list){
   const inStock=withMovement.filter(r=>(r.stockIn-r.stockOut)>5);
   const low=withMovement.filter(r=>{const b=r.stockIn-r.stockOut;return b>0&&b<=5;});
   const out=withMovement.filter(r=>(r.stockIn-r.stockOut)<=0);
-  const totalIn=list.reduce((s,r)=>s+r.stockIn,0);
-  const totalOut=list.reduce((s,r)=>s+r.stockOut,0);
-  const totalFreeBal=list.reduce((s,r)=>s+(r.freeIn-r.freeOut),0);
-  const totalPhysical=list.reduce((s,r)=>s+((r.stockIn+r.freeIn)-(r.stockOut+r.freeOut)),0);
-  // carton + pcs breakdown across all products
-  let physCtn=0, physPcs=0;
+  // carton + pcs breakdown across all products — convert EACH product's pieces
+  // using ITS OWN carton size first, then sum the resulting carton-counts
+  // together and the leftover-pieces together (dimensionally consistent even
+  // though products have different carton sizes).
+  const ctnPcsStr=(ctn,pcs)=>(ctn?ctn+' ctn':'')+(ctn&&pcs?' + ':'')+(pcs||!ctn?pcs+' pcs':'');
+  const splitSum=(pieces,cs)=>{
+    if(cs>0) return [Math.trunc(pieces/cs), pieces%cs];
+    return [0, pieces];
+  };
+  let inCtn=0,inPcs=0, outCtn=0,outPcs=0, freeCtn=0,freePcs=0, physCtn=0,physPcs=0;
   list.forEach(r=>{
-    const p=(r.stockIn+r.freeIn)-(r.stockOut+r.freeOut);
-    if(r.cartonSize>0){ physCtn+=Math.trunc(p/r.cartonSize); physPcs+=p%r.cartonSize; }
-    else physPcs+=p;
+    let [c,p]=splitSum(r.stockIn,r.cartonSize); inCtn+=c; inPcs+=p;
+    [c,p]=splitSum(r.stockOut,r.cartonSize); outCtn+=c; outPcs+=p;
+    [c,p]=splitSum(r.freeIn-r.freeOut,r.cartonSize); freeCtn+=c; freePcs+=p;
+    [c,p]=splitSum((r.stockIn+r.freeIn)-(r.stockOut+r.freeOut),r.cartonSize); physCtn+=c; physPcs+=p;
   });
-  const physDisp=(physCtn?physCtn+' ctn':'')+(physCtn&&physPcs?' + ':'')+(physPcs||!physCtn?physPcs+' pcs':'');
+  const physDisp=ctnPcsStr(physCtn,physPcs);
   // Stock value = physical pieces × effective price (full precision, from offer)
   const effOf=(price,offerSize,freeQty)=>{price=parseFloat(price)||0;offerSize=parseFloat(offerSize)||0;freeQty=parseFloat(freeQty)||0;return (offerSize>0&&(offerSize+freeQty)>0)?price*offerSize/(offerSize+freeQty):price;};
   const totalValue=list.reduce((s,r)=>{
@@ -290,9 +295,9 @@ function updateStats(list){
   document.getElementById('s-physical').textContent=physDisp;
   document.getElementById('s-value').textContent=fmt.currency(totalValue);
   if(fifoStockValue!==null) document.getElementById('s-value-fifo').textContent=fmt.currency(fifoStockValue);
-  document.getElementById('total-in').textContent=totalIn.toLocaleString()+' pcs';
-  document.getElementById('total-out').textContent=totalOut.toLocaleString()+' pcs';
-  document.getElementById('total-free').textContent=totalFreeBal.toLocaleString()+' pcs';
+  document.getElementById('total-in').textContent=ctnPcsStr(inCtn,inPcs);
+  document.getElementById('total-out').textContent=ctnPcsStr(outCtn,outPcs);
+  document.getElementById('total-free').textContent=ctnPcsStr(freeCtn,freePcs);
   document.getElementById('total-physical').textContent=physDisp;
 }
 
