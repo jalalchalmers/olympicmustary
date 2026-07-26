@@ -15,7 +15,7 @@
     .hc-recv{background:linear-gradient(135deg,#059669,#10b981)}
     .hc-pay{background:linear-gradient(135deg,#dc2626,#f87171)}
     .hc-today{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
-    .hc-month{background:linear-gradient(135deg,#0369a1,#0ea5e9)}
+    .hc-stock{background:linear-gradient(135deg,#0369a1,#0ea5e9)}
     /* ── secondary stats ── */
     .mini-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
     .mini-card{background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:14px 16px}
@@ -105,19 +105,34 @@
           <div class="h-val" id="h-today">৳—</div>
           <div class="h-sub" id="h-today-sub">০টি ইনভয়েস</div>
         </div>
-        <div class="hero-card hc-month">
-          <div class="h-lbl">এ মাসের বিক্রয়</div>
-          <div class="h-val" id="h-month">৳—</div>
-          <div class="h-sub" id="h-month-sub">০টি ইনভয়েস</div>
+        <div class="hero-card hc-stock">
+          <div class="h-lbl">📦 স্টক মূল্য (FIFO)</div>
+          <div class="h-val" id="h-stock">৳—</div>
+          <div class="h-sub" id="h-stock-sub">লোড হচ্ছে…</div>
         </div>
       </div>
 
-      <!-- secondary stats -->
+      <!-- secondary stats: period-filterable flow metrics -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px">মাসিক সারসংক্ষেপ</div>
+        <div style="position:relative">
+          <button class="btn btn-outline btn-sm" id="m2-filter-btn">🗓 এই মাস ▾</button>
+          <div id="m2-filter-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.16);z-index:50;min-width:190px;overflow:hidden">
+            <div class="m2-opt" data-p="this" style="padding:10px 14px;font-size:13px;cursor:pointer">এই মাস</div>
+            <div class="m2-opt" data-p="last" style="padding:10px 14px;font-size:13px;cursor:pointer;border-top:1px solid var(--bg)">গত মাস</div>
+            <div class="m2-opt" data-p="year" style="padding:10px 14px;font-size:13px;cursor:pointer;border-top:1px solid var(--bg)">এই বছর</div>
+            <div class="m2-opt" data-p="custom" style="padding:10px 14px;font-size:13px;cursor:pointer;border-top:1px solid var(--bg)">নির্দিষ্ট মাস…</div>
+            <div id="m2-custom-wrap" style="display:none;padding:8px 12px;border-top:1px solid var(--border);background:var(--bg)">
+              <input type="month" id="m2-custom-input" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:7px 8px;font-size:13px;outline:none"/>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="mini-grid">
-        <div class="mini-card"><div class="m-lbl">🏭 এ মাসের ক্রয়</div><div class="m-val" id="m-purch">৳—</div><div class="m-sub" id="m-purch-sub"></div></div>
-        <div class="mini-card"><div class="m-lbl">💰 এ মাসের নগদ</div><div class="m-val" id="m-cash">৳—</div><div class="m-sub" id="m-cash-sub"></div></div>
-        <div class="mini-card"><div class="m-lbl">🤝 এ মাসের কমিশন</div><div class="m-val" id="m-comm">৳—</div><div class="m-sub" id="m-comm-sub"></div></div>
-        <div class="mini-card"><div class="m-lbl">📦 স্টক মূল্য (FIFO)</div><div class="m-val" id="m-stock">৳—</div><div class="m-sub" id="m-stock-sub">লোড হচ্ছে…</div></div>
+        <div class="mini-card"><div class="m-lbl">🏭 <span id="m2-lbl-purch">এ মাসের ক্রয়</span></div><div class="m-val" id="m-purch">৳—</div><div class="m-sub" id="m-purch-sub"></div></div>
+        <div class="mini-card"><div class="m-lbl">💰 <span id="m2-lbl-cash">এ মাসের নগদ</span></div><div class="m-val" id="m-cash">৳—</div><div class="m-sub" id="m-cash-sub"></div></div>
+        <div class="mini-card"><div class="m-lbl">🤝 <span id="m2-lbl-comm">এ মাসের কমিশন</span></div><div class="m-val" id="m-comm">৳—</div><div class="m-sub" id="m-comm-sub"></div></div>
+        <div class="mini-card"><div class="m-lbl">🧾 <span id="m2-lbl-sales">এ মাসের বিক্রয়</span></div><div class="m-val" id="m-sales">৳—</div><div class="m-sub" id="m-sales-sub"></div></div>
       </div>
 
       <!-- quick actions -->
@@ -205,6 +220,169 @@ function dueOf(pid, opening){
   return partyDueCalc(pid, opening, orders, vouchers);   // canonical (shared.js)
 }
 
+/* ════════════════════════════════════════
+   ROW 2 PERIOD FILTER — this month / last month / this year / a specific
+   month. All four cards (ক্রয়/নগদ/কমিশন/বিক্রয়) recompute for the chosen
+   period AND its immediately-preceding period of the same length, so each
+   card can show a trend arrow. Everything reads local cache — no server call.
+════════════════════════════════════════ */
+const BN_MONTHS=['জানুয়ারি','ফেব্রুয়ারি','মার্চ','এপ্রিল','মে','জুন','জুলাই','আগস্ট','সেপ্টেম্বর','অক্টোবর','নভেম্বর','ডিসেম্বর'];
+let m2Sel='this';   // 'this' | 'last' | 'year' | 'YYYY-MM' (a specifically picked month)
+
+function monthKeyOffset(base,n){   // base='YYYY-MM', n = months to go back
+  let [y,m]=base.split('-').map(Number);
+  m-=n; while(m<1){m+=12;y--;}
+  return y+'-'+String(m).padStart(2,'0');
+}
+function m2Resolve(sel){
+  const tk=todayKey(), thisMonth=tk.slice(0,7), thisYear=tk.slice(0,4);
+  if(sel==='this') return {kind:'month', val:thisMonth};
+  if(sel==='last') return {kind:'month', val:monthKeyOffset(thisMonth,1)};
+  if(sel==='year') return {kind:'year',  val:thisYear};
+  return {kind:'month', val:sel};   // a specifically picked YYYY-MM
+}
+function m2Prev(period){
+  if(period.kind==='year') return {kind:'year', val:String(parseInt(period.val)-1)};
+  return {kind:'month', val:monthKeyOffset(period.val,1)};
+}
+function m2Possessive(sel,period){   // Bengali possessive phrase for card labels
+  if(sel==='this') return 'এ মাসের';
+  if(sel==='last') return 'গত মাসের';
+  if(sel==='year') return 'এ বছরের';
+  const [y,m]=period.val.split('-').map(Number);
+  return BN_MONTHS[m-1]+' '+y+'-এর';
+}
+function m2BtnLabel(sel){   // filter button's own text
+  if(sel==='this') return '🗓 এই মাস';
+  if(sel==='last') return '🗓 গত মাস';
+  if(sel==='year') return '🗓 এই বছর';
+  const [y,m]=sel.split('-').map(Number);
+  return '🗓 '+BN_MONTHS[m-1]+' '+y;
+}
+function inPeriod(dateStr,period){
+  const k=dKey(dateStr); if(!k) return false;
+  return period.kind==='year' ? k.slice(0,4)===period.val : k.slice(0,7)===period.val;
+}
+function commMonthKey(m){   // normalize a commission's stored month to YYYY-MM
+  const t=String(m||'').replace(/^'/,''); const x=t.match(/^(\d{4}-\d{2})/); if(x)return x[1];
+  const d=new Date(t); return isNaN(d)?t:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function commInPeriod(monthRaw,period){
+  const cm=commMonthKey(monthRaw);
+  return period.kind==='year' ? cm.slice(0,4)===period.val : cm===period.val;
+}
+/* Trend badge for metrics that are always ≥ 0 sums (purchases/commission/sales):
+   a percentage change reads naturally here. */
+function trendPctBadge(cur,prev){
+  if(prev<=0) return '';   // no meaningful base to compare against (new/zero)
+  const pct=((cur-prev)/prev)*100, r=Math.round(Math.abs(pct));
+  if(r===0) return '<span style="color:var(--ink3);font-size:11px;font-weight:700;margin-left:6px">— অপরিবর্তিত</span>';
+  const up=pct>=0;
+  return `<span style="color:${up?'var(--success)':'var(--danger)'};font-size:11px;font-weight:700;margin-left:6px">${up?'▲':'▼'} ${r}%</span>`;
+}
+/* Trend badge for net cash specifically: this figure can be negative or cross
+   zero (income vs expense). A percentage across a sign flip (e.g. −1000 → +500)
+   produces a confusing, misleading number — so show the directional arrow with
+   the raw taka difference instead, which stays meaningful in every case. */
+function trendAmountBadge(cur,prev){
+  if(prev===0 && cur===0) return '';
+  const diff=cur-prev, up=diff>=0;
+  return `<span style="color:${up?'var(--success)':'var(--danger)'};font-size:11px;font-weight:700;margin-left:6px">${up?'▲':'▼'} ${fmt.currency(Math.abs(diff))}</span>`;
+}
+
+function m2Compute(period){
+  const mP=orders.filter(o=>o.orderType==='purchase'&&inPeriod(o.date,period));
+  const purchTotal=mP.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0);
+
+  let cin=0,cout=0;
+  orders.forEach(o=>{
+    if(!inPeriod(o.date,period))return;
+    const c=(parseFloat(o.cash)||0)+(parseFloat(o.bankDeposit)||0)+(parseFloat(o.mobile)||0);
+    if(o.orderType==='sales')cin+=c;else cout+=c;
+  });
+  vouchers.forEach(v=>{
+    if(!inPeriod(v.date,period))return;
+    if(v.vtype!=='receipt'&&v.vtype!=='payment')return;
+    const c=(parseFloat(v.cash)||0)+(parseFloat(v.bank)||0)+(parseFloat(v.mobile)||0);
+    if(v.vtype==='receipt')cin+=c;else cout+=c;
+  });
+  expenses.forEach(f=>{
+    if(!inPeriod(f.date,period))return;
+    const a=parseFloat(f.amount)||0;
+    if(f.type==='income')cin+=a;else cout+=a;
+  });
+
+  const mC=commissions.filter(c=>commInPeriod(c.month,period));
+  const commTotal=mC.reduce((s,c)=>s+(parseFloat(c.amount)||0),0);
+
+  const mS=orders.filter(o=>o.orderType==='sales'&&inPeriod(o.date,period));
+  const salesTotal=mS.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0);
+
+  return {
+    purchTotal, purchCount:mP.length,
+    cin, cout, net:cin-cout,
+    commTotal, commCount:mC.length,
+    salesTotal, salesCount:mS.length
+  };
+}
+
+function renderRow2(sel){
+  m2Sel=sel;
+  const period=m2Resolve(sel);
+  const prevPeriod=m2Prev(period);
+  const cur=m2Compute(period);
+  const prev=m2Compute(prevPeriod);
+  const poss=m2Possessive(sel,period);
+
+  document.getElementById('m2-filter-btn').textContent=m2BtnLabel(sel)+' ▾';
+  document.getElementById('m2-lbl-purch').textContent=poss+' ক্রয়';
+  document.getElementById('m2-lbl-cash').textContent=poss+' নগদ';
+  document.getElementById('m2-lbl-comm').textContent=poss+' কমিশন';
+  document.getElementById('m2-lbl-sales').textContent=poss+' বিক্রয়';
+
+  document.getElementById('m-purch').textContent=fmt.currency(cur.purchTotal);
+  document.getElementById('m-purch-sub').innerHTML=cur.purchCount+'টি PO'+trendPctBadge(cur.purchTotal,prev.purchTotal);
+
+  const mc=document.getElementById('m-cash');
+  mc.textContent=(cur.net<0?'−':'')+fmt.currency(Math.abs(cur.net));
+  mc.style.color=cur.net<0?'var(--danger)':'var(--success)';
+  document.getElementById('m-cash-sub').innerHTML='আয় '+fmt.currency(cur.cin)+' · ব্যয় '+fmt.currency(cur.cout)+trendAmountBadge(cur.net,prev.net);
+
+  document.getElementById('m-comm').textContent=fmt.currency(cur.commTotal);
+  document.getElementById('m-comm-sub').innerHTML=(cur.commCount? (cur.commCount+'টি এন্ট্রি') : 'এখনো এন্ট্রি নেই')+trendPctBadge(cur.commTotal,prev.commTotal);
+
+  document.getElementById('m-sales').textContent=fmt.currency(cur.salesTotal);
+  document.getElementById('m-sales-sub').innerHTML=cur.salesCount+'টি ইনভয়েস'+trendPctBadge(cur.salesTotal,prev.salesTotal);
+}
+
+/* filter dropdown wiring */
+document.getElementById('m2-filter-btn').addEventListener('click',e=>{
+  e.stopPropagation();
+  document.getElementById('m2-filter-menu').style.display=
+    document.getElementById('m2-filter-menu').style.display==='none'?'block':'none';
+});
+document.querySelectorAll('.m2-opt').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const p=el.dataset.p;
+    if(p==='custom'){
+      document.getElementById('m2-custom-wrap').style.display='block';
+      document.getElementById('m2-custom-input').focus();
+      return;   // menu stays open until a month is actually picked
+    }
+    document.getElementById('m2-filter-menu').style.display='none';
+    document.getElementById('m2-custom-wrap').style.display='none';
+    renderRow2(p);
+  });
+});
+document.getElementById('m2-custom-input').addEventListener('change',function(){
+  if(!this.value)return;
+  document.getElementById('m2-filter-menu').style.display='none';
+  document.getElementById('m2-custom-wrap').style.display='none';
+  renderRow2(this.value);
+});
+document.addEventListener('click',()=>{document.getElementById('m2-filter-menu').style.display='none';});
+document.getElementById('m2-filter-menu').addEventListener('click',e=>e.stopPropagation());
+
 /* ════ render ════ */
 function render(){
   loadLocal();
@@ -223,50 +401,14 @@ function render(){
   document.getElementById('h-pay').textContent=fmt.currency(pay);
   document.getElementById('h-pay-sub').textContent=payN+'টি পার্টিকে দেয়';
 
-  /* sales today / this month */
-  const tk=todayKey(),mk=tk.slice(0,7);
+  /* sales today (row 1 — NOT affected by the row-2 period filter) */
+  const tk=todayKey();
   const sales=orders.filter(o=>o.orderType==='sales');
   const tS=sales.filter(o=>dKey(o.date)===tk);
-  const mS=sales.filter(o=>dKey(o.date).slice(0,7)===mk);
   document.getElementById('h-today').textContent=fmt.currency(tS.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0));
   document.getElementById('h-today-sub').textContent=tS.length+'টি ইনভয়েস';
-  document.getElementById('h-month').textContent=fmt.currency(mS.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0));
-  document.getElementById('h-month-sub').textContent=mS.length+'টি ইনভয়েস';
 
-  /* purchases this month */
-  const mP=orders.filter(o=>o.orderType==='purchase'&&dKey(o.date).slice(0,7)===mk);
-  document.getElementById('m-purch').textContent=fmt.currency(mP.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0));
-  document.getElementById('m-purch-sub').textContent=mP.length+'টি PO';
-
-  /* cash this month: orders + vouchers (cash/bank/mobile) + manual entries */
-  let cin=0,cout=0;
-  orders.forEach(o=>{
-    if(dKey(o.date).slice(0,7)!==mk)return;
-    const c=(parseFloat(o.cash)||0)+(parseFloat(o.bankDeposit)||0)+(parseFloat(o.mobile)||0);
-    if(o.orderType==='sales')cin+=c;else cout+=c;
-  });
-  vouchers.forEach(v=>{
-    if(dKey(v.date).slice(0,7)!==mk)return;
-    if(v.vtype!=='receipt'&&v.vtype!=='payment')return;
-    const c=(parseFloat(v.cash)||0)+(parseFloat(v.bank)||0)+(parseFloat(v.mobile)||0);
-    if(v.vtype==='receipt')cin+=c;else cout+=c;
-  });
-  expenses.forEach(f=>{
-    if(dKey(f.date).slice(0,7)!==mk)return;
-    const a=parseFloat(f.amount)||0;
-    if(f.type==='income')cin+=a;else cout+=a;
-  });
-  const net=cin-cout;
-  const mc=document.getElementById('m-cash');
-  mc.textContent=(net<0?'−':'')+fmt.currency(Math.abs(net));
-  mc.style.color=net<0?'var(--danger)':'var(--success)';
-  document.getElementById('m-cash-sub').textContent='আয় '+fmt.currency(cin)+' · ব্যয় '+fmt.currency(cout);
-
-  /* commissions this month */
-  const nm=m=>{const t=String(m||'').replace(/^'/,'');const x=t.match(/^(\d{4}-\d{2})/);if(x)return x[1];const d=new Date(t);return isNaN(d)?t:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
-  const mC=commissions.filter(c=>nm(c.month)===mk);
-  document.getElementById('m-comm').textContent=fmt.currency(mC.reduce((s,c)=>s+(parseFloat(c.amount)||0),0));
-  document.getElementById('m-comm-sub').textContent=mC.length? (mC.length+'টি এন্ট্রি') : 'এখনো এন্ট্রি নেই';
+  renderRow2(m2Sel);
 
   renderSalesCard();
 
@@ -378,14 +520,14 @@ function renderSalesCard(){
 
 /* ════ stock value (server FIFO) ════ */
 async function loadStockValue(){
-  if(!BF.sheetUrl){document.getElementById('m-stock-sub').textContent='Sheet সংযোগ নেই';return;}
+  if(!BF.sheetUrl){document.getElementById('h-stock-sub').textContent='Sheet সংযোগ নেই';return;}
   try{
     const r=await API.fetch('getRevaluation');
     if(r&&r.totalCost!==undefined){
-      document.getElementById('m-stock').textContent=fmt.currency(r.totalCost);
-      document.getElementById('m-stock-sub').textContent=(r.rows?r.rows.length:0)+'টি পণ্য স্টকে';
-    }else document.getElementById('m-stock-sub').textContent='লোড ব্যর্থ';
-  }catch(e){document.getElementById('m-stock-sub').textContent='লোড ব্যর্থ';}
+      document.getElementById('h-stock').textContent=fmt.currency(r.totalCost);
+      document.getElementById('h-stock-sub').textContent=(r.rows?r.rows.length:0)+'টি পণ্য স্টকে';
+    }else document.getElementById('h-stock-sub').textContent='লোড ব্যর্থ';
+  }catch(e){document.getElementById('h-stock-sub').textContent='লোড ব্যর্থ';}
 }
 
 /* ════ background refresh ════ */
