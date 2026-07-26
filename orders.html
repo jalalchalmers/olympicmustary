@@ -196,14 +196,16 @@
             <select id="list-status" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;outline:none;background:#fff">
               <option value="">সব স্ট্যাটাস</option><option value="paid">পরিশোধিত</option><option value="partial">আংশিক</option><option value="due">বাকি</option>
             </select>
+            <button class="btn btn-outline btn-sm" id="btn-sync-orders">🔄 Sheet থেকে লোড</button>
+            <button class="btn btn-outline btn-sm" id="btn-clear-cache-orders">🗑 লোকাল ক্যাশ পরিষ্কার করুন</button>
             <button class="btn btn-outline btn-sm" id="btn-export-list">⬇ Export</button>
           </div>
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div class="table-wrap">
             <table>
-              <thead><tr><th>অর্ডার নং</th><th>তারিখ</th><th>পার্টি</th><th style="text-align:right">মোট (৳)</th><th style="text-align:right">জমা (৳)</th><th style="text-align:right">বাকি (৳)</th><th style="text-align:center">স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
-              <tbody id="orders-body"><tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div><p>লোড হচ্ছে…</p></div></td></tr></tbody>
+              <thead><tr><th>অর্ডার নং</th><th>তারিখ</th><th>পণ্য/কার্টন</th><th>পার্টি</th><th style="text-align:right">মোট (৳)</th><th style="text-align:right">জমা (৳)</th><th style="text-align:right">বাকি (৳)</th><th style="text-align:center">স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+              <tbody id="orders-body"><tr><td colspan="9"><div class="empty"><div class="empty-icon">📋</div><p>লোড হচ্ছে…</p></div></td></tr></tbody>
             </table>
           </div>
         </div>
@@ -1772,16 +1774,36 @@ function getFilteredOrders(){
       return (b.orderId||'').localeCompare(a.orderId||'',undefined,{numeric:true}); // then higher order id
     });
 }
+/* Per-order item count + total carton+pcs, for the LIST view. Same per-item
+   carton-then-sum technique as computeTotalQtyDisp() (used on the live form's
+   sticky bar), but reads a SAVED order's parsed items (totalPieces/cartonSize
+   fields already on each stored item) rather than live DOM rows. */
+function orderQtySummary(o){
+  let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){}
+  let ctn=0,pcs=0,noCarton=0;
+  items.forEach(it=>{
+    const tp=parseFloat(it.totalPieces)||0;
+    const cs=parseFloat(it.cartonSize)||0;
+    if(tp<=0)return;
+    if(cs>0){ctn+=Math.floor(tp/cs);pcs+=tp%cs;}else noCarton+=tp;
+  });
+  const parts=[];
+  if(ctn>0)parts.push(ctn+' ctn');
+  if(pcs>0)parts.push(pcs+' pcs');
+  if(noCarton>0)parts.push(noCarton+' pcs');
+  return {count:items.length, qtyDisp: parts.length?parts.join(' + '):'0'};
+}
 function renderOrderList(){
   const tbody=document.getElementById('orders-body');const list=getFilteredOrders();
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">${currentType==='sales'?'🟢':'🔵'}</div><p>কোনো ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার নেই।</p></div></td></tr>`;return;}
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-icon">${currentType==='sales'?'🟢':'🔵'}</div><p>কোনো ${currentType==='sales'?'বিক্রয়':'ক্রয়'} অর্ডার নেই।</p></div></td></tr>`;return;}
   const sl={paid:'পরিশোধিত',partial:'আংশিক',due:'বাকি'};const sb={paid:'badge-paid',partial:'badge-partial',due:'badge-due'};
   tbody.innerHTML=list.map(o=>{
     const sy=o._sync;
     const chip=sy==='sent'?'<span title="সার্ভার নিশ্চিত হয়নি — 🔎 যাচাই করুন" style="font-size:11px">⏳</span>'
              :sy==='local'?'<span title="শুধু এই ডিভাইসে আছে (অফলাইন সেভ)" style="font-size:11px">📴</span>'
              :'<span title="সার্ভারে নিশ্চিত" style="font-size:11px;color:var(--success)">✓</span>';
-    return `<tr><td><strong style="color:var(--accent)">${o.orderId}</strong> ${chip}</td><td style="font-size:12px">${fmtOrderDate(o.date)}</td><td><strong>${o.partyName}</strong>${o.partyPhone?`<br><span style="font-size:11px;color:var(--ink3)">${o.partyPhone}</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt.currency(o.grandTotal)}</td><td style="text-align:right;color:var(--success)">${fmt.currency(o.totalPaid)}</td><td style="text-align:right;font-weight:600;color:${parseFloat(o.balance)>0?'var(--danger)':'var(--success)'}">${fmt.currency(o.balance)}</td><td style="text-align:center"><span class="badge ${sb[o.status]||''}">${sl[o.status]||o.status}</span></td><td><div class="td-actions"><button class="btn btn-outline btn-sm btn-icon" onclick="viewOrder('${o.orderId}')" title="দেখুন">👁</button><button class="btn btn-outline btn-sm btn-icon" onclick="editOrder('${o.orderId}')" title="সম্পাদনা">✏️</button><button class="btn btn-outline btn-sm btn-icon" onclick="verifyOrderRow('${o.orderId}',this)" title="সার্ভারের সাথে যাচাই">🔎</button><button class="btn btn-outline btn-sm btn-icon" onclick="printOrder('${o.orderId}')" title="প্রিন্ট">🖨</button><button class="btn btn-danger btn-sm btn-icon" onclick="deleteOrder('${o.orderId}')" title="মুছুন">🗑️</button></div></td></tr>`;
+    const qs=orderQtySummary(o);
+    return `<tr><td><strong style="color:var(--accent)">${o.orderId}</strong> ${chip}</td><td style="font-size:12px">${fmtOrderDate(o.date)}</td><td style="font-size:12px"><span style="color:var(--ink3)">${qs.count}টি পণ্য</span><br><span style="font-weight:600">${qs.qtyDisp}</span></td><td><strong>${o.partyName}</strong>${o.partyPhone?`<br><span style="font-size:11px;color:var(--ink3)">${o.partyPhone}</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt.currency(o.grandTotal)}</td><td style="text-align:right;color:var(--success)">${fmt.currency(o.totalPaid)}</td><td style="text-align:right;font-weight:600;color:${parseFloat(o.balance)>0?'var(--danger)':'var(--success)'}">${fmt.currency(o.balance)}</td><td style="text-align:center"><span class="badge ${sb[o.status]||''}">${sl[o.status]||o.status}</span></td><td><div class="td-actions"><button class="btn btn-outline btn-sm btn-icon" onclick="viewOrder('${o.orderId}')" title="দেখুন">👁</button><button class="btn btn-outline btn-sm btn-icon" onclick="editOrder('${o.orderId}')" title="সম্পাদনা">✏️</button><button class="btn btn-outline btn-sm btn-icon" onclick="verifyOrderRow('${o.orderId}',this)" title="সার্ভারের সাথে যাচাই">🔎</button><button class="btn btn-outline btn-sm btn-icon" onclick="printOrder('${o.orderId}')" title="প্রিন্ট">🖨</button><button class="btn btn-danger btn-sm btn-icon" onclick="deleteOrder('${o.orderId}')" title="মুছুন">🗑️</button></div></td></tr>`;
   }).join('');
 }
 function updateListStats(){
@@ -1918,6 +1940,47 @@ document.getElementById('file-input').addEventListener('change',function(e){
 });
 document.getElementById('btn-confirm-upload').addEventListener('click',confirmUpload);
 document.getElementById('btn-export-list').addEventListener('click',exportOrders);
+
+/* 🔄 Sheet থেকে লোড — force-fetch the latest orders from the server and
+   MERGE (never replace) into the local cache, via the same safe helper the
+   dashboard/login use. Any ⏳/📴 local order not yet on the server survives.
+   Purpose: right after saving, an admin can confirm nothing was missed. */
+async function syncOrdersFromSheet(){
+  if(!BF.sheetUrl){toast('Sheet সংযোগ নেই','error');return;}
+  const btn=document.getElementById('btn-sync-orders');
+  spinBtn(btn,true);
+  try{
+    const fresh=await API.fetch('getOrders');
+    if(Array.isArray(fresh)){
+      mergeOrdersIntoCache(fresh);
+      orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+      renderOrderList();updateListStats();
+      if(window.bfUpdateUnsyncedBadge)bfUpdateUnsyncedBadge();
+      toast('✓ Sheet থেকে সর্বশেষ অর্ডার লোড হয়েছে','success');
+    }else{
+      toast('ডেটা লোড ব্যর্থ','error');
+    }
+  }catch(e){
+    toast('Sheet থেকে লোড ব্যর্থ — সংযোগ দেখুন','error');
+  }
+  spinBtn(btn,false);
+}
+document.getElementById('btn-sync-orders').addEventListener('click',syncOrdersFromSheet);
+
+/* 🗑 লোকাল ক্যাশ পরিষ্কার — shared, safety-checked function (same one Settings
+   uses): warns and lists any unsynced order before wiping. After a clear,
+   refresh the in-page list from the (now-empty or reduced) cache and nudge
+   toward "Sheet থেকে লোড" to rebuild a clean state immediately. */
+document.getElementById('btn-clear-cache-orders').addEventListener('click',()=>{
+  const cleared=bfClearLocalCache();
+  if(cleared){
+    orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+    parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
+    products=JSON.parse(localStorage.getItem('bf_products')||'[]');
+    renderOrderList();updateListStats();
+    if(window.bfUpdateUnsyncedBadge)bfUpdateUnsyncedBadge();
+  }
+});
 document.getElementById('f-party').addEventListener('change',onPartyChange);
 document.getElementById('f-date').addEventListener('change',buildPrintInvoice);
 document.getElementById('f-notes').addEventListener('input',buildPrintInvoice);
