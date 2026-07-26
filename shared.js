@@ -10,7 +10,7 @@ const BF = {
   appName:  'hFlow',
   // Hardcoded Web App URL — so any new browser connects automatically.
   // Super admin can still override it in Settings if redeployed.
-  sheetUrl: localStorage.getItem('bf_sheet_url') || 'https://script.google.com/macros/s/AKfycbxsEntAKVTsaWOA6QBhpUdsCx5r5cSCSbRPKbrNk3PV0umv94efsKTEJH5Z3iToj71hOQ/exec',
+  sheetUrl: localStorage.getItem('bf_sheet_url') || 'https://script.google.com/macros/s/AKfycbxCNnOY_v1648K3ou4wVg5ayiIpng3vhNaPTJj3vqhVCYK1hnwkD1r1cFgiplhswwcrNA/exec',
   // passwords are verified SERVER-side now (action=login) — never cached here
   session: JSON.parse(sessionStorage.getItem('bf_session') || 'null'),
 };
