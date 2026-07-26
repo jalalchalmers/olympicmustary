@@ -186,8 +186,18 @@ function doLogin() {
     });
   }
 
-  // 1) SERVER-side login: password -> {role, key}. Passwords never come back.
-  jsonpFetch('login', { pw: pw }).then(function(res){
+  // 1) SERVER-side login via fetch() (NOT jsonp) — plain JSON response avoids
+  //    Chrome's ERR_BLOCKED_BY_ORB on script.google.com JSONP.
+  function fetchLogin(pw){
+    var url = sheetUrl();
+    var u = new URL(url);
+    u.searchParams.set('action','login');
+    u.searchParams.set('pw', pw);
+    return fetch(u.toString(), { method:'GET', redirect:'follow' })
+      .then(function(r){ return r.text(); })
+      .then(function(t){ try { return JSON.parse(t); } catch(e){ return { error:'bad response' }; } });
+  }
+  function handleLoginRes(res){
     if (res && res.ok && res.key) {
       localStorage.setItem('bf_key', res.key);
       localStorage.setItem('bf_role_cache', res.role);
@@ -205,8 +215,8 @@ function doLogin() {
     }
     if (res && res.error) { loginFail(res.error); return; }
     loginFail('লগইন ব্যর্থ — আবার চেষ্টা করুন।');
-  }).catch(function(){
-    // 2) OFFLINE fallback: unlock cached role if password hash matches
+  }
+  function offlineFallback(){
     var h = localStorage.getItem('bf_pwh'), k = localStorage.getItem('bf_key'), r = localStorage.getItem('bf_role_cache');
     if (h && k && r) {
       sha256(pw).then(function(hh){
@@ -223,7 +233,17 @@ function doLogin() {
     } else {
       loginFail('সার্ভারে সংযোগ নেই — প্রথম লগইন অনলাইনে করতে হবে।');
     }
-  });
+  }
+  // Try fetch() first (ORB-safe). If it throws (CORS/network), try JSONP.
+  // If BOTH fail, go offline. A server 'wrong password' is a valid response,
+  // not a failure — handleLoginRes ends the flow in that case.
+  fetchLogin(pw)
+    .then(handleLoginRes)
+    .catch(function(){
+      jsonpFetch('login', { pw: pw })
+        .then(handleLoginRes)
+        .catch(offlineFallback);
+    });
 }
 
 function finishLogin(role) {
