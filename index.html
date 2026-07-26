@@ -173,25 +173,56 @@ function doLogin() {
   btn.innerHTML = '<span class="spin"></span> যাচাই হচ্ছে…';
   btn.disabled = true;
 
-  // 1) SERVER-side login: password → {role, key}. Passwords never come back.
-  Auth.serverLogin(pw).then(function(r){
-    if (!r.ok) {
-      errEl.textContent = r.error || 'পাসওয়ার্ড সঠিক নয়।';
-      errEl.style.display = 'block';
-      btn.innerHTML = 'প্রবেশ করুন →';
-      btn.disabled = false;
-      pwEl.value=''; pwEl.focus();
+  function loginFail(msg){
+    errEl.textContent = msg || 'পাসওয়ার্ড সঠিক নয়।';
+    errEl.style.display = 'block';
+    btn.innerHTML = 'প্রবেশ করুন →';
+    btn.disabled = false;
+    pwEl.value=''; pwEl.focus();
+  }
+  function sha256(t){
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function(b){
+      return [].map.call(new Uint8Array(b), function(x){ return x.toString(16).padStart(2,'0'); }).join('');
+    });
+  }
+
+  // 1) SERVER-side login: password -> {role, key}. Passwords never come back.
+  jsonpFetch('login', { pw: pw }).then(function(res){
+    if (res && res.ok && res.key) {
+      localStorage.setItem('bf_key', res.key);
+      localStorage.setItem('bf_role_cache', res.role);
+      ['bf_pw_super','bf_pw_admin','bf_pw_viewer'].forEach(function(k){ localStorage.removeItem(k); });
+      var c = res.config || {};
+      if (c.biz_name)    localStorage.setItem('bf_biz_name',    c.biz_name);
+      if (c.biz_phone)   localStorage.setItem('bf_biz_phone',   c.biz_phone);
+      if (c.biz_address) localStorage.setItem('bf_biz_address', c.biz_address);
+      if (c.depo_text)   localStorage.setItem('bf_depo_text',   c.depo_text);
+      if (c.depo_code)   localStorage.setItem('bf_depo_code',   c.depo_code);
+      sha256(pw).then(function(h){ localStorage.setItem('bf_pwh', h); });
+      sessionStorage.setItem('bf_session', JSON.stringify({ role: res.role, loginTime: Date.now() }));
+      finishLogin(res.role);
       return;
     }
-    if (r.offline) {
-      logEl.style.display='block';
-      logEl.innerHTML += '📴 অফলাইন লগইন — ক্যাশ করা ডেটা ব্যবহৃত হবে<br>';
-      finishLogin(r.role);
-      return;
+    if (res && res.error) { loginFail(res.error); return; }
+    loginFail('লগইন ব্যর্থ — আবার চেষ্টা করুন।');
+  }).catch(function(){
+    // 2) OFFLINE fallback: unlock cached role if password hash matches
+    var h = localStorage.getItem('bf_pwh'), k = localStorage.getItem('bf_key'), r = localStorage.getItem('bf_role_cache');
+    if (h && k && r) {
+      sha256(pw).then(function(hh){
+        if (hh === h) {
+          sessionStorage.setItem('bf_session', JSON.stringify({ role: r, loginTime: Date.now(), offline: true }));
+          logEl.style.display='block';
+          logEl.innerHTML += '📴 অফলাইন লগইন — ক্যাশ করা ডেটা ব্যবহৃত হবে<br>';
+          var redirect = new URLSearchParams(window.location.search).get('redirect');
+          var target = 'dashboard.html';
+          if (redirect && /^[a-z0-9_-]+$/i.test(redirect)) target = redirect.indexOf('.html')>-1?redirect:(redirect+'.html');
+          window.location.replace(target);
+        } else loginFail('ভুল পাসওয়ার্ড');
+      });
+    } else {
+      loginFail('সার্ভারে সংযোগ নেই — প্রথম লগইন অনলাইনে করতে হবে।');
     }
-    // 2) keyed data sync, then enter
-    syncData(logEl).then(function(){ finishLogin(r.role); })
-                   .catch(function(){ finishLogin(r.role); });
   });
 }
 
