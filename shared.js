@@ -11,11 +11,7 @@ const BF = {
   // Hardcoded Web App URL — so any new browser connects automatically.
   // Super admin can still override it in Settings if redeployed.
   sheetUrl: localStorage.getItem('bf_sheet_url') || 'https://script.google.com/macros/s/AKfycbxsEntAKVTsaWOA6QBhpUdsCx5r5cSCSbRPKbrNk3PV0umv94efsKTEJH5Z3iToj71hOQ/exec',
-  roles: {
-    super:  localStorage.getItem('bf_pw_super')  || 'super123',
-    admin:  localStorage.getItem('bf_pw_admin')  || 'admin123',
-    viewer: localStorage.getItem('bf_pw_viewer') || 'view123',
-  },
+  // passwords are verified SERVER-side now (action=login) — never cached here
   session: JSON.parse(sessionStorage.getItem('bf_session') || 'null'),
 };
 
@@ -23,24 +19,45 @@ const BF = {
    AUTH
 ════════════════════════════════════════ */
 const Auth = {
-  login(password) {
-    if (password === BF.roles.super) {
-      const s = { role: 'super', loginTime: Date.now() };
-      sessionStorage.setItem('bf_session', JSON.stringify(s));
-      BF.session = s;
-      return 'super';
-    }
-    if (password === BF.roles.admin) {
-      const s = { role: 'admin', loginTime: Date.now() };
-      sessionStorage.setItem('bf_session', JSON.stringify(s));
-      BF.session = s;
-      return 'admin';
-    }
-    if (password === BF.roles.viewer) {
-      const s = { role: 'viewer', loginTime: Date.now() };
-      sessionStorage.setItem('bf_session', JSON.stringify(s));
-      BF.session = s;
-      return 'viewer';
+  async sha256(t) {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+  },
+  /* SERVER-side login. Online: password → server → {role, key}; the key is
+     stored and attached to every later request. Offline: unlock the cached
+     role if the password's hash matches the last successful online login. */
+  async serverLogin(pw) {
+    try {
+      const res = await API.fetch('login', { pw });
+      if (res && res.ok && res.key) {
+        localStorage.setItem('bf_key', res.key);
+        localStorage.setItem('bf_pwh', await Auth.sha256(pw));
+        localStorage.setItem('bf_role_cache', res.role);
+        ['bf_pw_super','bf_pw_admin','bf_pw_viewer'].forEach(k => localStorage.removeItem(k));
+        const c = res.config || {};
+        if (c.biz_name)    localStorage.setItem('bf_biz_name',    c.biz_name);
+        if (c.biz_phone)   localStorage.setItem('bf_biz_phone',   c.biz_phone);
+        if (c.biz_address) localStorage.setItem('bf_biz_address', c.biz_address);
+        if (c.depo_text)   localStorage.setItem('bf_depo_text',   c.depo_text);
+        if (c.depo_code)   localStorage.setItem('bf_depo_code',   c.depo_code);
+        const s = { role: res.role, loginTime: Date.now() };
+        sessionStorage.setItem('bf_session', JSON.stringify(s));
+        BF.session = s;
+        return { ok: true, role: res.role };
+      }
+      return { ok: false, error: (res && res.error) || 'লগইন ব্যর্থ' };
+    } catch (e) {
+      const h = localStorage.getItem('bf_pwh'), k = localStorage.getItem('bf_key'), r = localStorage.getItem('bf_role_cache');
+      if (h && k && r) {
+        if ((await Auth.sha256(pw)) === h) {
+          const s = { role: r, loginTime: Date.now(), offline: true };
+          sessionStorage.setItem('bf_session', JSON.stringify(s));
+          BF.session = s;
+          return { ok: true, role: r, offline: true };
+        }
+        return { ok: false, error: 'ভুল পাসওয়ার্ড' };
+      }
+      return { ok: false, error: 'সার্ভারে সংযোগ নেই — প্রথম লগইন অনলাইনে করতে হবে' };
     }
     return null;
   },
@@ -79,11 +96,12 @@ const API = {
   /* ── WRITE — no-cors POST (fire and forget) ── */
   async post(payload) {
   if (!BF.sheetUrl) throw new Error('Sheet URL সেট নেই। Settings-এ গিয়ে URL দিন।');
+  const body = Object.assign({}, payload, { k: localStorage.getItem('bf_key') || '' });
   await fetch(BF.sheetUrl, {
     method:  'POST',
     mode:    'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(payload),
+    body:    JSON.stringify(body),
   });
   return true;
 },
@@ -112,6 +130,13 @@ const API = {
       // Register global callback
       window[cbName] = function(data) {
         cleanup();
+        if (data && data.auth === false) {
+          // key invalid/rotated → clean session, back to login
+          localStorage.removeItem('bf_key');
+          sessionStorage.removeItem('bf_session');
+          if (typeof toast === 'function') toast('নিরাপত্তা কী পরিবর্তিত হয়েছে — পুনরায় লগইন করুন', 'error');
+          setTimeout(() => { window.location.href = 'index.html'; }, 900);
+        }
         resolve(data);
       };
 
@@ -119,6 +144,10 @@ const API = {
       const url = new URL(BF.sheetUrl);
       url.searchParams.set('action',   action);
       url.searchParams.set('callback', cbName);
+      if (action !== 'login') {
+        const key = localStorage.getItem('bf_key');
+        if (key) url.searchParams.set('k', key);
+      }
       Object.entries(extraData).forEach(([k, v]) => url.searchParams.set(k, String(v)));
 
       // Inject <script> tag — this follows redirects and ignores CORS
@@ -140,9 +169,7 @@ const API = {
       onProgress && onProgress('কনফিগ লোড হচ্ছে…');
       const config = await API.fetch('getConfig');
       if (config && !config.error) {
-        if (config.pw_super) { localStorage.setItem('bf_pw_super', config.pw_super); BF.roles.super = config.pw_super; }
-        if (config.pw_admin) { localStorage.setItem('bf_pw_admin', config.pw_admin); BF.roles.admin = config.pw_admin; }
-         if (config.pw_viewer) { localStorage.setItem('bf_pw_viewer', config.pw_viewer); BF.roles.viewer = config.pw_viewer; }
+        // passwords are never cached client-side anymore (server strips pw_*)
         if (config.biz_name)    localStorage.setItem('bf_biz_name',    config.biz_name);
         if (config.biz_phone)   localStorage.setItem('bf_biz_phone',   config.biz_phone);
         if (config.biz_address) localStorage.setItem('bf_biz_address', config.biz_address);
