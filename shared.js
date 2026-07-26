@@ -294,6 +294,32 @@ function mergeOrdersIntoCache(serverList) {
 }
 
 /* ════════════════════════════════════════
+   LOCAL CACHE CLEAR — single source of truth, used by Settings and Orders.
+   SAFETY: any order still marked ⏳/📴 (unsynced) lives ONLY in this local
+   cache — clearing without warning would destroy it permanently. Lists the
+   unsynced order IDs and requires explicit confirmation before wiping.
+   Keeps auth/session and business-info keys intact.
+════════════════════════════════════════ */
+function bfClearLocalCache(){
+  let unsynced=[];
+  try{
+    unsynced=JSON.parse(localStorage.getItem('bf_orders')||'[]')
+      .filter(o=>o._sync==='sent'||o._sync==='local').map(o=>o.orderId);
+  }catch(e){}
+  const doClear=()=>{
+    const keep=['bf_sheet_url','bf_key','bf_pwh','bf_role_cache','bf_biz_name','bf_biz_phone','bf_biz_address','bf_depo_code'];
+    Object.keys(localStorage).forEach(k=>{ if(!keep.includes(k)) localStorage.removeItem(k); });
+    if(typeof toast==='function') toast('ক্যাশ পরিষ্কার হয়েছে ✓ — এখন "Sheet থেকে লোড" চাপুন','success');
+    return true;
+  };
+  if(unsynced.length){
+    const list=unsynced.slice(0,5).join(', ')+(unsynced.length>5?` (+${unsynced.length-5} আরও)`:'');
+    if(!window.confirm(`⚠ সাবধান!\n${unsynced.length}টি অর্ডার এখনো সার্ভারে নিশ্চিত হয়নি:\n${list}\n\nক্যাশ মুছলে এগুলো চিরতরে হারিয়ে যাবে। আগে অর্ডার পেজে গিয়ে 🔎 যাচাই করুন।\n\nতবুও মুছবেন?`)) return false;
+  }
+  return doClear();
+}
+
+/* ════════════════════════════════════════
    SEARCHABLE DROPDOWN — generic enhancer
    Wraps any <select> with a type-to-filter box. The select stays hidden as
    the source of truth; choosing fires its normal 'change' event. Options are
