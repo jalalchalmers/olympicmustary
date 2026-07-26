@@ -138,6 +138,10 @@
             </div>
             <div style="grid-column:1/-1">
               <button class="btn btn-primary" id="btn-save-pw">পাসওয়ার্ড আপডেট করুন</button>
+              <div style="border-top:1px dashed var(--border);margin-top:14px;padding-top:12px">
+                <button class="btn btn-outline" id="btn-rotate-keys">🔑 নিরাপত্তা কী রোটেট করুন</button>
+                <div style="font-size:11.5px;color:var(--ink3);margin-top:6px">রোটেট করলে অন্য সব ডিভাইস লগআউট হয়ে যাবে — সবাইকে পাসওয়ার্ড দিয়ে পুনরায় লগইন করতে হবে। এই ডিভাইস লগইন থাকবে।</div>
+              </div>
             </div>
           </div>
         </div>
@@ -231,6 +235,17 @@
 <script src="layout.js"></script>
 <script>
 buildNav('settings');
+document.getElementById('btn-rotate-keys')?.addEventListener('click',()=>{
+  bfConfirm('নিরাপত্তা কী রোটেট হবে — অন্য সব ডিভাইসকে পুনরায় লগইন করতে হবে। নিশ্চিত?',async()=>{
+    try{
+      const res=await API.fetch('rotateKeys');
+      if(res&&res.ok&&res.keys){
+        localStorage.setItem('bf_key',res.keys.super);
+        toast('✓ কী রোটেট হয়েছে — এই ডিভাইস লগইন আছে, বাকিরা পুনরায় লগইন করবে','success');
+      }else toast(res&&res.error?res.error:'রোটেশন ব্যর্থ','error');
+    }catch(e){toast('রোটেশন ব্যর্থ — সংযোগ দেখুন','error');}
+  },'কী রোটেশন');
+});
 
 // Block admin and non-logged-in users
 if (!Auth.isSuper()) {
@@ -357,9 +372,9 @@ function initSettings() {
     const btn = document.getElementById('btn-save-pw');
     spinBtn(btn, true);
     const payload = { action:'saveConfig', key:'passwords' };
-    if (sup) { payload.pw_super = sup; localStorage.setItem('bf_pw_super', sup); BF.roles.super = sup; }
-    if (adm) { payload.pw_admin = adm; localStorage.setItem('bf_pw_admin', adm); BF.roles.admin = adm; }
-    if (vwr) { payload.pw_viewer = vwr; localStorage.setItem('bf_pw_viewer', vwr); if(BF.roles) BF.roles.viewer = vwr; }
+    if (sup) payload.pw_super  = sup;
+    if (adm) payload.pw_admin  = adm;
+    if (vwr) payload.pw_viewer = vwr;   // passwords live ONLY on the server now
     try {
       await API.post(payload);
       toast('পাসওয়ার্ড আপডেট হয়েছে ✓', 'success');
@@ -412,7 +427,7 @@ function initSettings() {
         .filter(o=>o._sync==='sent'||o._sync==='local').map(o=>o.orderId);
     }catch(e){}
     const doClear=()=>{
-      const keep = ['bf_sheet_url','bf_pw_super','bf_pw_admin','bf_pw_viewer','bf_biz_name','bf_biz_phone','bf_biz_address','bf_depo_code'];
+      const keep = ['bf_sheet_url','bf_key','bf_pwh','bf_role_cache','bf_biz_name','bf_biz_phone','bf_biz_address','bf_depo_code'];
       Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
       toast('ক্যাশ পরিষ্কার হয়েছে ✓', 'success');
     };
@@ -426,7 +441,7 @@ function initSettings() {
   // ── Full reset ──
   document.getElementById('btn-reset-all').addEventListener('click', () => {
     if (!window.confirm('সমস্ত লোকাল ডেটা মুছে যাবে। নিশ্চিত?')) return;
-    const keep = ['bf_sheet_url','bf_pw_super','bf_pw_admin'];
+    const keep = ['bf_sheet_url','bf_key','bf_pwh','bf_role_cache'];
     Object.keys(localStorage).forEach(k => { if (!keep.includes(k)) localStorage.removeItem(k); });
     toast('ডেটা রিসেট হয়েছে', 'success');
   });
