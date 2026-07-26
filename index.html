@@ -91,6 +91,8 @@ function jsonpFetch(action, extra) {
     var u = new URL(url);
     u.searchParams.set('action', action);
     u.searchParams.set('callback', cb);
+    var _k = localStorage.getItem('bf_key');
+    if (_k && action !== 'login') u.searchParams.set('k', _k);
     if (extra) { for (var k in extra) u.searchParams.set(k, extra[k]); }
     var s = document.createElement('script');
     s.id = cb; s.src = u.toString();
@@ -115,9 +117,6 @@ function syncData(logEl) {
       logEl.innerHTML += '⟳ ' + step.label + ' লোড হচ্ছে…<br>';
       return jsonpFetch(step.action).then(function(data){
         if (step.action==='getConfig' && data && !data.error) {
-          if (data.pw_super)   { localStorage.setItem('bf_pw_super', data.pw_super); }
-          if (data.pw_admin)   { localStorage.setItem('bf_pw_admin', data.pw_admin); }
-          if (data.pw_viewer)  { localStorage.setItem('bf_pw_viewer', data.pw_viewer); }
           if (data.biz_name)   localStorage.setItem('bf_biz_name', data.biz_name);
           if (data.biz_phone)  localStorage.setItem('bf_biz_phone', data.biz_phone);
           if (data.biz_address)localStorage.setItem('bf_biz_address', data.biz_address);
@@ -170,54 +169,33 @@ function doLogin() {
   errEl.style.display = 'none';
   logEl.style.display = 'none';
   logEl.innerHTML = '';
-
   if (!pw) { errEl.textContent='পাসওয়ার্ড লিখুন।'; errEl.style.display='block'; return; }
-
   btn.innerHTML = '<span class="spin"></span> যাচাই হচ্ছে…';
   btn.disabled = true;
 
-  // Pull latest passwords from Sheet first
-  jsonpFetch('getConfig').then(function(config){
-    if (config && !config.error) {
-      if (config.pw_super)  localStorage.setItem('bf_pw_super', config.pw_super);
-      if (config.pw_admin)  localStorage.setItem('bf_pw_admin', config.pw_admin);
-      if (config.pw_viewer) localStorage.setItem('bf_pw_viewer', config.pw_viewer);
-      localStorage.setItem('bf_del_sales',     config.del_sales     || 'on');
-      localStorage.setItem('bf_del_purchases', config.del_purchases || 'on');
-      localStorage.setItem('bf_del_products',  config.del_products  || 'on');
-      localStorage.setItem('bf_del_parties',   config.del_parties   || 'on');
-      localStorage.setItem('bf_del_payments',  config.del_payments  || 'on');
-      localStorage.setItem('bf_del_cashflow',  config.del_cashflow  || 'on');
-      localStorage.setItem('bf_edit_orders',   config.edit_orders   || 'on');
-      localStorage.setItem('bf_perm_pricelist',config.perm_pricelist|| 'on');
-      localStorage.setItem('bf_perm_pushprice',config.perm_pushprice|| 'off');
-      localStorage.setItem('bf_perm_rateupdate',config.perm_rateupdate|| 'off');
+  // 1) SERVER-side login: password → {role, key}. Passwords never come back.
+  Auth.serverLogin(pw).then(function(r){
+    if (!r.ok) {
+      errEl.textContent = r.error || 'পাসওয়ার্ড সঠিক নয়।';
+      errEl.style.display = 'block';
+      btn.innerHTML = 'প্রবেশ করুন →';
+      btn.disabled = false;
+      pwEl.value=''; pwEl.focus();
+      return;
     }
-  }).catch(function(){}).then(function(){
-    finishLogin(pw);
+    if (r.offline) {
+      logEl.style.display='block';
+      logEl.innerHTML += '📴 অফলাইন লগইন — ক্যাশ করা ডেটা ব্যবহৃত হবে<br>';
+      finishLogin(r.role);
+      return;
+    }
+    // 2) keyed data sync, then enter
+    syncData(logEl).then(function(){ finishLogin(r.role); })
+                   .catch(function(){ finishLogin(r.role); });
   });
 }
 
-function finishLogin(pw) {
-  var superPw  = localStorage.getItem('bf_pw_super')  || 'super123';
-  var adminPw  = localStorage.getItem('bf_pw_admin')  || 'admin123';
-  var viewerPw = localStorage.getItem('bf_pw_viewer') || 'view123';
-
-  var role = null;
-  if (pw === superPw)       role = 'super';
-  else if (pw === adminPw)  role = 'admin';
-  else if (pw === viewerPw) role = 'viewer';
-
-  if (!role) {
-    errEl.textContent = 'পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।';
-    errEl.style.display = 'block';
-    btn.innerHTML = 'প্রবেশ করুন →';
-    btn.disabled = false;
-    pwEl.value = ''; pwEl.focus();
-    return;
-  }
-
-  sessionStorage.setItem('bf_session', JSON.stringify({ role: role, loginTime: Date.now() }));
+function finishLogin(role) {
 
   btn.innerHTML = '<span class="spin"></span> ডেটা লোড হচ্ছে…';
   syncData(logEl).then(function(){
