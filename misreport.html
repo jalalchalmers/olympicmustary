@@ -70,6 +70,26 @@ let rpt=null;   // last computed report
 const P_ALL=()=>JSON.parse(localStorage.getItem('bf_parties')||'[]');
 const PR_ALL=()=>JSON.parse(localStorage.getItem('bf_products')||'[]');
 
+/* Fixed Olympic MIS-code sequence, EXPORT ONLY. Verified against the depot's
+   own two lists (105 unique codes) on 2026-07-30. Never used to force extra
+   columns — only to ORDER whichever columns already have real activity. */
+const FIXED_MIS_CODES=['OS','OF','TPC','TOC','TMC','TTCC','TPT','TOT','TMT','TTCT','TTPF','TOF','TMF','LCT','LCC','LCF','MPS','EPT','OPT','GPLE','GPLO','GPLM','KMS','KMF','CBS','CBF','CAB','FBS','HB','MLF','MLC','MPAF','MPAC','NTC','BCS','SFS','SFF','SF','NBT','QMM','QMS','QMF','SLT','SLF','PZF','BMC','MDCS','MDC','DT','IMS','IMF','ICF','IME','ICE','IMT','ICT','FMCN','FCCN','RCF','RHF','RCE','RHE','FBCB','FBJM','NMX','TTM','TTK','TTC','JMC','PCJ','JHM','JPA','JMO','JMM','JDC','MCP','PCPF','CPA','MMOP','MMMP','CHPT','CHPC','CSPS','CHPF','CHPL','TUPT','TUPC','TUPS','TUPF','TUPL','CUPT','CUPC','CUPS','CUPF','CUPL','COPT','COPC','COPS','COPF','COPL','MUOT','MUOS','MUOM','MUOF','MUOL'];
+const MIS_RANK={};FIXED_MIS_CODES.forEach((c,i)=>{MIS_RANK[c]=i;});
+const codeSort=(a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'});
+
+/* Current PURCHASE-side effective price per carton (offer-aware) — used as
+   the Rate row's fallback for a fixed column with zero sales this period. */
+function purchEffOf(p){
+  if(!p) return 0;
+  const price=parseFloat(p.price)||0;
+  const has=(p.hasOffer===true||p.hasOffer==='true');
+  const os=has?(parseFloat(p.offerSize)||0):0;
+  const fq=has?(parseFloat(p.freeQty)||0):0;
+  const eff=(os>0&&(os+fq)>0)?(price*os/(os+fq)):price;
+  const cs=parseFloat(p.cartonSize)||0;
+  return cs>0?Math.round(eff*cs*100)/100:Math.round(eff*100)/100;
+}
+
 function rangeOf(){
   const mo=document.getElementById('m-month').value;
   let from=document.getElementById('m-from').value;
@@ -84,8 +104,20 @@ function rangeOf(){
 /* Matrix rows = sales invoices in range passing the party/area/zone filters.
    Supplier filter counts ONLY that supplier's product lines (row dropped if
    none qualify). Qty = delivered cartons incl. free. Value = actual frozen
-   line amounts. Rate row = latest per-carton rate in range (✱ = multiple). */
-function computeMis(){
+   line amounts. Rate row = latest per-carton rate in range (✱ = multiple).
+   Columns are ALWAYS activity-only (a product with zero sales this period
+   never gets a column) — the only thing that differs by mode is ORDER and
+   LABEL:
+     screen (forExport falsy) → sorted by the product's OWN code, ascending;
+       labeled by that same code. This is the internal working view.
+     export (forExport=true)  → sorted by position in Olympic's fixed MIS-code
+       sequence (any product without a matching misCode sorts after all
+       mapped ones, in its own code order); labeled by misCode, falling back
+       to the product's own code when no misCode is set. Adding a new product
+       later needs no changes here — screen sorting is always live/ascending,
+       and an unmapped new product simply appends after the known sequence
+       in the export until it's given a real misCode. */
+function computeMis(forExport){
   const {from,to}=rangeOf();
   const fParty=document.getElementById('m-party').value;
   const fSup=document.getElementById('m-sup').value;
@@ -93,7 +125,7 @@ function computeMis(){
   const fZone=document.getElementById('m-zone').value;
   const partiesL=P_ALL(), products=PR_ALL();
   const pMeta={};partiesL.forEach(p=>{pMeta[p.id]={name:p.name||'',area:(p.area||'').trim(),zone:(p.zone||'').trim(),code:(p.code||'').trim()};});
-  const pInfo={};products.forEach(p=>{pInfo[p.id]={col:(p.misCode||'').trim()||p.code||p.id,name:p.name||'',cs:parseFloat(p.cartonSize)||0,sup:String(p.supplierId||'')};});
+  const pInfo={};products.forEach(p=>{pInfo[p.id]={code:String(p.code||p.id),misCode:(p.misCode||'').trim(),name:p.name||'',cs:parseFloat(p.cartonSize)||0,sup:String(p.supplierId||'')};});
   const orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
 
   const sales=orders.filter(o=>{
@@ -135,12 +167,49 @@ function computeMis(){
     if(Object.keys(row.qty).length)rows.push(row);
   });
 
-  const cols=[...colSet.entries()].map(([pid,inf])=>{
+  let cols=[...colSet.entries()].map(([pid,inf])=>{
     const rm=rates[pid]||new Map();
     let latest='',latestKey='',all=[];
     rm.forEach((dk,rate)=>{all.push(rate);if(dk>=latestKey){latestKey=dk;latest=rate;}});
-    return {pid,col:inf.col,name:inf.name,rate:latest,multi:all.length>1,allRates:all.sort((a,b)=>a-b)};
+    return {pid,code:inf.code,misCode:inf.misCode,name:inf.name,rate:latest,multi:all.length>1,allRates:all.sort((a,b)=>a-b)};
   });
+
+  if(forExport){
+    // Full skeleton: every code in Olympic's fixed sequence, even zero-sales
+    // this period. Narrowed to the active supplier's own codes if filtered.
+    const byMisCode={};
+    products.forEach(p=>{const mc=(p.misCode||'').trim();if(mc)byMisCode[mc]=p;});
+    let skeleton=FIXED_MIS_CODES.map(code=>{
+      const p=byMisCode[code];
+      if(!p)return {pid:null,code:code,misCode:code,name:'',cs:0,sup:''};
+      return {pid:p.id,code:String(p.code||p.id),misCode:code,name:p.name||'',cs:parseFloat(p.cartonSize)||0,sup:String(p.supplierId||'')};
+    });
+    if(fSup)skeleton=skeleton.filter(c=>c.pid&&c.sup===fSup);
+    const skeletonPids=new Set(skeleton.filter(c=>c.pid).map(c=>c.pid));
+    const byId={};products.forEach(p=>{byId[p.id]=p;});
+    // extras: products with real activity this period but no matching misCode
+    const extra=[],seenExtra=new Set();
+    cols.forEach(c=>{
+      if(skeletonPids.has(c.pid)||seenExtra.has(c.pid))return;
+      seenExtra.add(c.pid);
+      extra.push({pid:c.pid,code:c.code,misCode:'',name:c.name,cs:pInfo[c.pid]?.cs||0,sup:pInfo[c.pid]?.sup||''});
+    });
+    if(fSup)for(let i=extra.length-1;i>=0;i--)if(extra[i].sup!==fSup)extra.splice(i,1);
+    extra.sort((a,b)=>codeSort(a.code,b.code));
+
+    const activityByPid={};cols.forEach(c=>{activityByPid[c.pid]=c;});
+    cols=[...skeleton,...extra].map(c=>{
+      const act=c.pid?activityByPid[c.pid]:null;
+      if(act) return {pid:act.pid,col:c.misCode||c.code,name:act.name,rate:act.rate,multi:act.multi,allRates:act.allRates};
+      // zero sales this period (or no product mapped at all) → fallback rate
+      const rate=c.pid?purchEffOf(byId[c.pid]):0;
+      return {pid:c.pid,col:c.misCode||c.code,name:c.name,rate,multi:false,allRates:rate?[rate]:[]};
+    });
+  }else{
+    cols.sort((a,b)=>codeSort(a.code,b.code));
+    cols=cols.map(c=>({...c,col:c.code}));
+  }
+
   rpt={from,to,cols,rows,prodTot};
   return rpt;
 }
@@ -148,7 +217,7 @@ function computeMis(){
 function fnum(n){return Math.abs(n-Math.round(n))<0.005?String(Math.round(n)):n.toFixed(2);}
 
 function renderMis(){
-  const r=computeMis();
+  const r=computeMis();   // screen mode: own code, ascending
   const thead=document.querySelector('#mis-table thead');
   const tbody=document.querySelector('#mis-table tbody');
   const tfoot=document.querySelector('#mis-table tfoot');
@@ -182,7 +251,8 @@ function sheetNameSafe(name,used){
   used.add(n);return n;
 }
 function downloadXlsx(){
-  if(!rpt||!rpt.rows.length){toast('আগে রিপোর্ট তৈরি করুন','error');return;}
+  computeMis(true);   // fresh EXPORT-mode report (misCode order + labels) — always current
+  if(!rpt||!rpt.rows.length){toast('এই সীমা/ফিল্টারে কোনো বিক্রয় নেই','error');return;}
   const depoName=localStorage.getItem('bf_biz_name')||'';
   const depoCode=localStorage.getItem('bf_depo_code')||'';
   const period=(rpt.from||'')+' — '+(rpt.to||'');
@@ -231,7 +301,7 @@ function downloadXlsx(){
   ws0['!cols']=[{wch:4},{wch:10},{wch:10},{wch:14},{wch:11},{wch:26},{wch:14},{wch:9},{wch:15}];
   XLSX.utils.book_append_sheet(wb,ws0,'Summary');
 
-  // ── MIS Report sheet: the full matrix exactly like the view page ──
+  // ── MIS Report sheet: the full matrix, columns in Olympic's misCode order ──
   const mr=[];
   mr.push(['Depo Name: '+depoName,'','','Depo Code: '+depoCode]);
   mr.push(['MIS Report — All Challans','','','Period: '+period]);
@@ -287,9 +357,11 @@ function downloadXlsx(){
   ws1['!cols']=[{wch:4},{wch:9},{wch:32},{wch:11},{wch:10},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws1,'Product Total');
 
-  // ── One sheet per customer ──
+  // ── One sheet per customer — ALL products (zero-sales included), same
+  //    full column set as every other export sheet, already in Olympic
+  //    misCode order ──
   groups.forEach(g=>{
-    const colsUsed=rpt.cols.filter(c=>g.rows.some(r=>r.qty[c.pid]));
+    const colsUsed=rpt.cols;   // all products, zero-quantity included — matches every other export sheet
     const aoa=[];
     aoa.push(['Customer Name: '+g.party,'','','Depo Name: '+depoName]);
     aoa.push(['Customer Code: '+(g.code||'—'),'','','Depo Code: '+depoCode]);
