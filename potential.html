@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>hFlow — পণ্য সম্ভাবনা</title>
+  <style>
+    .pp-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+    table.pp{border-collapse:collapse;font-size:12.5px;min-width:100%}
+    table.pp th,table.pp td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+    table.pp thead th{background:var(--bg);font-weight:700;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none}
+    table.pp thead th:hover{background:var(--accent-bg,#eef2ff)}
+    table.pp thead th.sorted::after{content:' ▾';color:var(--accent)}
+    table.pp thead th.sorted.asc::after{content:' ▴'}
+    table.pp .r{text-align:right}
+    table.pp .c{text-align:center}
+    .pp-up{color:var(--success);font-weight:700}
+    .pp-down{color:var(--danger);font-weight:700}
+    .pp-flag{background:#fef3c7;color:#92400e;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap}
+    .pp-meta input,.pp-meta select{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;outline:none}
+    @media(max-width:768px){.pp-meta{flex-direction:column;align-items:stretch}}
+    .pp-bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--border);padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:10px;z-index:40;box-shadow:0 -4px 14px rgba(0,0,0,.08)}
+    .pp-bar.show{display:flex}
+  </style>
+</head>
+<body>
+<div class="bf-layout">
+  <nav class="bf-nav" id="bf-nav"></nav>
+  <div class="bf-main">
+
+    <div class="bf-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="bf-menu-btn" id="bf-menu-btn">☰</button>
+        <span class="bf-page-title">পণ্য সম্ভাবনা</span>
+      </div>
+      <div class="bf-topbar-right"></div>
+    </div>
+
+    <div class="bf-body" style="padding-bottom:70px">
+    <div class="card">
+      <div style="margin-bottom:14px">
+        <div style="font-size:17px;font-weight:800">📈 পণ্য সম্ভাবনা রিপোর্ট</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">প্রবৃদ্ধি, বাজার বিস্তৃতি ও স্টক-শূন্যতা দেখে বড় অর্ডারের সিদ্ধান্ত নিন — hFlow-এর নিজস্ব বিক্রয় ইতিহাস থেকে, বাহ্যিক বাজার জরিপ নয়</div>
+      </div>
+
+      <div class="pp-meta" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px">
+        <div class="field" style="margin:0"><label style="font-size:11px">বিশ্লেষণ মাস</label><input type="month" id="p-month"/></div>
+        <div class="field" style="margin:0;min-width:170px"><label style="font-size:11px">সরবরাহকারী</label><select id="p-sup"><option value="">সব সরবরাহকারী</option></select></div>
+        <div class="field" style="margin:0"><label style="font-size:11px">সর্বনিম্ন বিক্রয় (৳)</label><input type="number" id="p-minamt" placeholder="0" min="0" style="width:110px"/></div>
+        <button class="btn btn-outline" id="btn-apply">প্রয়োগ</button>
+      </div>
+
+      <div class="pp-wrap"><table class="pp" id="pp-table"><thead></thead><tbody></tbody></table></div>
+      <div class="mis-legend" style="font-size:11.5px;color:var(--ink3);margin-top:8px;line-height:1.6" id="pp-legend"></div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<div class="pp-bar" id="pp-bar">
+  <div style="font-size:13px;font-weight:600" id="pp-bar-info">০টি পণ্য নির্বাচিত</div>
+  <button class="btn btn-primary" id="btn-start-po">🛒 এই পণ্যগুলো দিয়ে অর্ডার শুরু করুন</button>
+</div>
+
+<script src="shared.js"></script>
+<script src="layout.js"></script>
+<script>
+if(!Auth.require('potential.html'))throw new Error('auth');
+buildNav('potential');
+
+/* ════════════════════════════════════════
+   Period helpers — same resolve/prev pattern as the dashboard's row-2 filter,
+   reused here for consistency (a period's growth is always measured against
+   the immediately-preceding period of the same length).
+════════════════════════════════════════ */
+function monthKeyOffset(base,n){
+  let [y,m]=base.split('-').map(Number);
+  m-=n; while(m<1){m+=12;y--;}
+  return y+'-'+String(m).padStart(2,'0');
+}
+function monthRange(mk){
+  const from=mk+'-01';
+  const d=new Date(parseInt(mk.slice(0,4)),parseInt(mk.slice(5,7)),0);
+  const to=mk+'-'+String(d.getDate()).padStart(2,'0');
+  return {from,to};
+}
+
+let selected=new Set();   // productIds checked for the "start PO" handoff
+let lastRows=[];
+let sortCol='amtGrowth', sortDir='desc';
+
+function computePotential(){
+  const mk=document.getElementById('p-month').value || (new Date().toISOString().slice(0,7));
+  const fSup=document.getElementById('p-sup').value;
+  const minAmt=parseFloat(document.getElementById('p-minamt').value)||0;
+  const cur=monthRange(mk);
+  const prevMk=monthKeyOffset(mk,1);
+  const prev=monthRange(prevMk);
+
+  const products=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
+  const orders=JSON.parse(localStorage.getItem('bf_orders')||'[]');
+  const commissions=JSON.parse(localStorage.getItem('bf_commissions')||'[]');
+
+  const pInfo={};products.forEach(p=>{pInfo[p.id]={code:p.code||p.id,name:p.name||'',cs:parseFloat(p.cartonSize)||0,sup:String(p.supplierId||'')};});
+  const partyZone={};parties.forEach(p=>{partyZone[p.id]=(p.zone||'').trim()||'জোন নেই';});
+
+  const nm=m=>{const t=String(m||'').replace(/^'/,'');const x=t.match(/^(\d{4}-\d{2})/);if(x)return x[1];const d=new Date(t);return isNaN(d)?t:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
+  // supplier's commission RATE per month (percent basis only — manual-basis
+  // commissions have no per-unit rate to attribute back to a product)
+  const rateByMonth={};   // supplierId -> { 'YYYY-MM': ratePercent }
+  commissions.forEach(c=>{
+    if(c.basis!=='percent')return;
+    const sid=String(c.supplierId||''); if(!sid)return;
+    const cm=nm(c.month);
+    if(!rateByMonth[sid])rateByMonth[sid]={};
+    rateByMonth[sid][cm]=parseFloat(c.rate)||0;
+  });
+
+  // ── one pass, product-chronological event lists, for growth/value/breadth
+  //    AND for the stock-out zero-crossing check in the same sweep ──
+  const byProduct={};   // pid -> {events:[{dk,type,pieces,amt}], zones:Set, custs:Set (cur period), volCur,volPrev,amtCur,amtPrev, amtByMonth:{mk:amt}}
+  const ensure=pid=>{ if(!byProduct[pid]) byProduct[pid]={events:[],zones:new Set(),custs:new Set(),volCur:0,volPrev:0,amtCur:0,amtPrev:0,amtByMonth:{}}; return byProduct[pid]; };
+
+  orders.forEach(o=>{
+    let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){return;}
+    const dk=fmt.dkey(o.date); if(!dk)return;
+    items.forEach(it=>{
+      const inf=pInfo[it.productId]; if(!inf)return;
+      if(fSup&&inf.sup!==fSup)return;
+      const tp=parseFloat(it.totalPieces)||((parseFloat(it.qtyPieces)||parseFloat(it.qty)||0)+(parseFloat(it.freePieces)||0));
+      if(tp<=0)return;
+      const b=ensure(it.productId);
+      b.events.push({dk,type:o.orderType,pieces:tp});
+      if(o.orderType==='sales'){
+        const ctn=inf.cs>0?tp/inf.cs:tp;
+        let amt=parseFloat(it.total); if(isNaN(amt))amt=0;
+        if(dk>=cur.from&&dk<=cur.to){
+          b.volCur+=ctn; b.amtCur+=amt;
+          b.zones.add(partyZone[o.partyId]||'জোন নেই'); b.custs.add(String(o.partyId));
+        }
+        if(dk>=prev.from&&dk<=prev.to){ b.volPrev+=ctn; b.amtPrev+=amt; }
+        const omk=dk.slice(0,7);
+        b.amtByMonth[omk]=(b.amtByMonth[omk]||0)+amt;
+      }
+    });
+  });
+
+  const rows=[];
+  Object.keys(byProduct).forEach(pid=>{
+    const b=byProduct[pid], inf=pInfo[pid]||{code:pid,name:'',cs:0,sup:''};
+    if(b.amtCur<minAmt)return;
+    if(b.amtCur<=0 && b.amtPrev<=0)return;   // nothing in either period → not relevant to "this month's potential"
+
+    // stock-out detection: replay this product's FULL chronological history
+    // (not just the analysis period — need true running balance), flag if the
+    // balance hit zero-or-below on a SALE that falls inside the current month.
+    const ev=b.events.slice().sort((x,y)=>x.dk<y.dk?-1:(x.dk>y.dk?1:0));
+    let bal=0, stockOut=false;
+    ev.forEach(e=>{
+      const wasPositive=bal>0.0001;
+      bal += (e.type==='purchase'?1:-1)*e.pieces;
+      if(e.type==='sales' && wasPositive && bal<=0.0001 && e.dk>=cur.from && e.dk<=cur.to) stockOut=true;
+    });
+    // all-time running physical stock (paid+free in − out), same convention
+    // as stock.html's aggregate — an ESTIMATE from local cache (≈), not a
+    // fresh server read, to keep this page free of new API calls.
+    const currentStockPieces=bal;
+
+    // estimated commission contribution: this product's monthly sales amount
+    // × that month's percent rate for its supplier, summed over whichever
+    // months of amtByMonth fall on/after this analysis month minus... (we
+    // only ever have data up to 'cur', so just use amtByMonth entries within
+    // [cur] — practically this is just the current month's own contribution,
+    // kept as a month-keyed loop for correctness if the page is later
+    // extended to multi-month ranges).
+    let commEst=0, commAvailable=true;
+    const supRates=rateByMonth[inf.sup];
+    Object.keys(b.amtByMonth).forEach(mkey=>{
+      if(mkey!==mk)return;   // single-month page for now
+      if(supRates && (mkey in supRates)) commEst += b.amtByMonth[mkey]*(supRates[mkey]/100);
+      else commAvailable=false;
+    });
+    if(!Object.keys(b.amtByMonth).some(k=>k===mk)) commAvailable=false;
+
+    const volGrowth = b.volPrev>0 ? ((b.volCur-b.volPrev)/b.volPrev*100) : (b.volCur>0?null:0);
+    const amtGrowth = b.amtPrev>0 ? ((b.amtCur-b.amtPrev)/b.amtPrev*100) : (b.amtCur>0?null:0);
+    const avgPrice = b.volCur>0 ? (b.amtCur/b.volCur) : 0;
+
+    rows.push({
+      pid, code:inf.code, name:inf.name, cs:inf.cs,
+      volCur:b.volCur, volGrowth,
+      amtCur:b.amtCur, amtGrowth,
+      avgPrice,
+      zones:b.zones.size, custs:b.custs.size,
+      stockOut, currentStockPieces,
+      commEst, commAvailable
+    });
+  });
+  return rows;
+}
+
+function ctnPcsStr(pieces,cs){
+  if(cs<=0) return Math.round(pieces*100)/100+' পিস';
+  const sign=pieces<0?'-':''; const abs=Math.abs(pieces);
+  const c=Math.floor(abs/cs), p=Math.round((abs%cs)*100)/100;
+  if(c>0&&p>0)return sign+c+' ক+'+p+'পি';
+  if(c>0)return sign+c+' ক';
+  return sign+p+' পি';
+}
+function growthBadge(g){
+  if(g===null) return '<span style="color:var(--ink3)">নতুন</span>';
+  const cls=g>=0?'pp-up':'pp-down';
+  const arrow=g>=0?'▲':'▼';
+  return `<span class="${cls}">${arrow} ${Math.abs(Math.round(g))}%</span>`;
+}
+
+const COLS=[
+  {key:'name',   label:'পণ্য',        sortable:false},
+  {key:'volCur', label:'কার্টন',       num:true},
+  {key:'volGrowth', label:'প্রবৃদ্ধি (কার্টন)', num:true},
+  {key:'amtCur', label:'বিক্রয় (৳)',   num:true},
+  {key:'amtGrowth', label:'প্রবৃদ্ধি (৳)', num:true},
+  {key:'avgPrice', label:'গড় দর/কার্টন', num:true},
+  {key:'zones',  label:'জোন',         num:true},
+  {key:'custs',  label:'গ্রাহক',       num:true},
+  {key:'commEst',label:'কমিশন (আনু.)', num:true},
+  {key:'flag',   label:'', sortable:false},
+];
+
+function renderTable(){
+  let rows=computePotential();
+  lastRows=rows;
+  const thead=document.querySelector('#pp-table thead');
+  const tbody=document.querySelector('#pp-table tbody');
+  if(!rows.length){
+    thead.innerHTML='';
+    tbody.innerHTML='<tr><td style="padding:24px;text-align:center;color:var(--ink3)">এই ফিল্টারে কোনো তথ্য নেই</td></tr>';
+    document.getElementById('pp-legend').innerHTML='';
+    return;
+  }
+  rows.sort((a,b)=>{
+    let av=a[sortCol], bv=b[sortCol];
+    if(av===null)av=-Infinity; if(bv===null)bv=-Infinity;
+    if(typeof av==='string') return sortDir==='asc'?String(av).localeCompare(bv):String(bv).localeCompare(av);
+    return sortDir==='asc'?av-bv:bv-av;
+  });
+
+  thead.innerHTML='<tr><th class="c" style="cursor:default"></th>'+COLS.map(c=>{
+    if(!c.sortable&&c.sortable!==undefined) return `<th>${c.label}</th>`;
+    const cls=c.key===sortCol?('sorted '+(sortDir==='asc'?'asc':'')):'';
+    return `<th class="${c.num?'r':''} ${cls}" data-col="${c.key}">${c.label}</th>`;
+  }).join('')+'</tr>';
+
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td class="c"><input type="checkbox" class="pp-chk" data-pid="${r.pid}" ${selected.has(r.pid)?'checked':''}/></td>
+    <td>${r.code?`[${r.code}] `:''}${r.name}</td>
+    <td class="r">${ctnPcsStr(r.volCur,r.cs)}</td>
+    <td class="r">${growthBadge(r.volGrowth)}</td>
+    <td class="r">${fmt.currency(r.amtCur)}</td>
+    <td class="r">${growthBadge(r.amtGrowth)}</td>
+    <td class="r">${fmt.currency(r.avgPrice)}</td>
+    <td class="r">${r.zones}</td>
+    <td class="r">${r.custs}</td>
+    <td class="r">${r.commAvailable?fmt.currency(r.commEst):'<span style="color:var(--ink3)">—</span>'}</td>
+    <td class="c">${r.stockOut?'<span class="pp-flag" title="এই মাসে স্টক শেষ হয়েছিল, তবু বিক্রয় চলছিল">⚠ স্টক-শেষ</span>':''}</td>
+  </tr>`).join('');
+
+  document.querySelectorAll('#pp-table thead th[data-col]').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const k=th.dataset.col;
+      if(sortCol===k) sortDir=sortDir==='asc'?'desc':'asc'; else {sortCol=k;sortDir='desc';}
+      renderTable();
+    });
+  });
+  document.querySelectorAll('.pp-chk').forEach(chk=>{
+    chk.addEventListener('change',()=>{
+      if(chk.checked) selected.add(chk.dataset.pid); else selected.delete(chk.dataset.pid);
+      updateBar();
+    });
+  });
+
+  const stockOutCount=rows.filter(r=>r.stockOut).length;
+  const commGap=rows.some(r=>!r.commAvailable);
+  document.getElementById('pp-legend').innerHTML=
+    `${rows.length}টি পণ্য · কমিশন (আনু.) = পণ্যের বিক্রয় × সরবরাহকারীর সেই মাসের % হার — ম্যানুয়াল-ভিত্তিক কমিশনে প্রযোজ্য নয়`
+    +(stockOutCount?`<br>⚠ ${stockOutCount}টি পণ্য এই মাসে স্টক-শেষ হয়ে বিক্রয় থেমেছিল — সম্ভাব্য মিসড সেল`:'')
+    +(commGap?`<br>— কিছু পণ্যে কমিশন হার পাওয়া যায়নি (ম্যানুয়াল কমিশন বা রেকর্ড নেই)`:'');
+  updateBar();
+}
+
+function updateBar(){
+  const bar=document.getElementById('pp-bar');
+  const n=selected.size;
+  bar.classList.toggle('show', n>0);
+  document.getElementById('pp-bar-info').textContent=n+'টি পণ্য নির্বাচিত';
+}
+
+document.getElementById('btn-start-po').addEventListener('click',()=>{
+  if(Auth.guardWrite())return;
+  const products=JSON.parse(localStorage.getItem('bf_products')||'[]');
+  const byId={};products.forEach(p=>{byId[p.id]=p;});
+  const rowsById={};lastRows.forEach(r=>{rowsById[r.pid]=r;});
+  const items=[...selected].map(pid=>{
+    const p=byId[pid], r=rowsById[pid];
+    return {code:p?p.code:pid, ctn:''};
+  }).filter(x=>x.code);
+  if(!items.length){toast('কোনো পণ্য নির্বাচিত নেই','error');return;}
+  // hand off via the SAME localStorage staging key + query flag pattern the
+  // demand-loader and file-upload already use to reach the order form
+  sessionStorage.setItem('bf_po_stage', JSON.stringify(items));
+  window.location.href='orders.html?new=purchase&stage=po';
+});
+
+function fillFilters(){
+  const parties=JSON.parse(localStorage.getItem('bf_parties')||'[]');
+  const sups=parties.filter(p=>p.type==='supplier'||p.type==='both');
+  const sel=document.getElementById('p-sup');
+  sel.innerHTML='<option value="">সব সরবরাহকারী</option>'+sups.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  makeSearchable(sel,'🔍 সরবরাহকারী…');
+  bfpSync(sel);
+}
+
+document.getElementById('btn-apply').addEventListener('click',renderTable);
+document.getElementById('p-sup').addEventListener('change',renderTable);
+document.getElementById('p-month').addEventListener('change',renderTable);
+
+(function(){
+  const now=new Date();
+  document.getElementById('p-month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  fillFilters();
+  renderTable();
+})();
+</script>
+</body>
+</html>
