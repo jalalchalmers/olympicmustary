@@ -183,8 +183,8 @@
       <!-- ORDER LIST -->
       <section id="order-list-section">
         <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
-          <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-label">মোট অর্ডার</div><div class="stat-value" id="s-count">0</div></div>
-          <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">মোট পরিমাণ</div><div class="stat-value" id="s-total" style="font-size:15px">৳0</div></div>
+          <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-label">মোট অর্ডার</div><div class="stat-value" id="s-count">0</div><div style="font-size:11px;color:var(--ink3);margin-top:3px" id="s-count-sub"></div></div>
+          <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">মোট পরিমাণ</div><div class="stat-value" id="s-total" style="font-size:15px">৳0</div><div style="font-size:11px;color:var(--ink3);margin-top:3px" id="s-total-sub"></div></div>
           <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">জমা হয়েছে</div><div class="stat-value" id="s-paid" style="font-size:15px;color:var(--success)">৳0</div></div>
           <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-label">বাকি আছে</div><div class="stat-value" id="s-due" style="font-size:15px;color:var(--danger)">৳0</div></div>
         </div>
@@ -1807,14 +1807,43 @@ function renderOrderList(){
   }).join('');
 }
 function updateListStats(){
-  const list=orders.filter(o=>o.orderType===currentType);
-  const totalBilled=list.reduce((s,o)=>s+parseFloat(o.grandTotal||0),0);
-  const totalPaid=list.reduce((s,o)=>s+parseFloat(o.totalPaid||0),0);
+  // Reactive: getFilteredOrders() already applies search/date/status — when
+  // nothing is typed/selected those are no-ops, so this naturally shows the
+  // type's full total by default and narrows the moment a filter is used.
+  const list=getFilteredOrders();
+
+  // 📋 card: order count + total carton (same per-item carton-then-sum
+  // technique as the list's own পণ্য/কার্টন column) + DISTINCT product count
+  // (a Set, not a sum of each order's own item count — summing would double
+  // count any product that appears on more than one order in the list).
+  let ctn=0,pcs=0; const distinctProducts=new Set();
+  list.forEach(o=>{
+    let items=[];try{items=JSON.parse(o.items||'[]');}catch(e){}
+    items.forEach(it=>{
+      const tp=parseFloat(it.totalPieces)||0;
+      const cs=parseFloat(it.cartonSize)||0;
+      if(tp<=0)return;
+      if(cs>0){ctn+=Math.floor(tp/cs);pcs+=tp%cs;}else pcs+=tp;
+      if(it.productId)distinctProducts.add(it.productId);
+    });
+  });
+  const ctnParts=[]; if(ctn>0)ctnParts.push(ctn+' ctn'); if(pcs>0)ctnParts.push(Math.round(pcs*100)/100+' pcs');
+
+  // 💰 card: subtotal / discount / grandTotal — all summed across the list
+  const totalSubtotal=list.reduce((s,o)=>s+(parseFloat(o.subtotal)||0),0);
+  const totalDiscount=list.reduce((s,o)=>s+(parseFloat(o.discount)||0),0);
+  const totalGrand=list.reduce((s,o)=>s+(parseFloat(o.grandTotal)||0),0);
+
+  // ✅ / ⏳ — unchanged formulas, now simply reactive via the filtered list
+  const totalPaid=list.reduce((s,o)=>s+(parseFloat(o.totalPaid)||0),0);
+
   document.getElementById('s-count').textContent=list.length;
-  document.getElementById('s-total').textContent=fmt.currency(totalBilled);
+  document.getElementById('s-count-sub').textContent=(ctnParts.length?ctnParts.join(' + '):'0 ctn')+' · '+distinctProducts.size+'টি ভিন্ন পণ্য';
+  document.getElementById('s-total').textContent=fmt.currency(totalGrand);
+  document.getElementById('s-total-sub').textContent='সাবটোটাল '+fmt.currency(totalSubtotal)+' − ছাড় '+fmt.currency(totalDiscount);
   document.getElementById('s-paid').textContent=fmt.currency(totalPaid);
   // Due = billed − paid (NOT sum of each order's running balance, which double-counts carried-forward dues)
-  document.getElementById('s-due').textContent=fmt.currency(totalBilled-totalPaid);
+  document.getElementById('s-due').textContent=fmt.currency(totalGrand-totalPaid);
 }
 function viewOrder(id){const o=orders.find(x=>x.orderId===id);if(!o)return;currentType=o.orderType;showForm(id);document.getElementById('btn-save-order').style.display='none';document.getElementById('btn-save-order-2').style.display='none';}
 function editOrder(id){
@@ -1986,7 +2015,7 @@ document.getElementById('f-date').addEventListener('change',buildPrintInvoice);
 document.getElementById('f-notes').addEventListener('input',buildPrintInvoice);
 document.getElementById('ctn-mode-toggle').addEventListener('change',function(){cartonMode=this.checked;applyCartonMode();recalc();});
 ['f-discount','f-cash','f-bank','f-mobile','f-salary','f-ta','f-da','f-damage','f-others'].forEach(id=>document.getElementById(id).addEventListener('input',recalc));
-['list-search','list-date-from','list-date-to','list-status'].forEach(id=>{document.getElementById(id).addEventListener('input',renderOrderList);document.getElementById(id).addEventListener('change',renderOrderList);});
+['list-search','list-date-from','list-date-to','list-status'].forEach(id=>{document.getElementById(id).addEventListener('input',()=>{renderOrderList();updateListStats();});document.getElementById(id).addEventListener('change',()=>{renderOrderList();updateListStats();});});
 
 renderItemsHeader();
 const urlParams=new URLSearchParams(window.location.search);
