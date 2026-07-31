@@ -2015,6 +2015,28 @@ updateListStats();renderOrderList();
   if(pending.length){localStorage.setItem('bf_orders',JSON.stringify(orders));renderOrderList();if(window.bfUpdateUnsyncedBadge)bfUpdateUnsyncedBadge();}
 })();
 if((urlNew==='1'||urlNew==='purchase'||urlNew==='sales')&&!Auth.isViewer())showForm();
+
+/* Handoff from পণ্য সম্ভাবনা page: a staged product-code list, opened as a
+   fresh purchase order with those lines pre-added (empty quantity — the
+   admin fills in how much to actually order). Matches by code, same pattern
+   confirmUpload() already uses for the Excel/CSV loader. Consumed once. */
+if(urlParams.get('stage')==='po'){
+  try{
+    const staged=JSON.parse(sessionStorage.getItem('bf_po_stage')||'[]');
+    sessionStorage.removeItem('bf_po_stage');
+    if(staged.length && !Auth.isViewer()){
+      const byCode={};products.forEach(p=>{if(p.code)byCode[String(p.code).trim()]=p;});
+      const matched=staged.map(s=>byCode[String(s.code).trim()]).filter(Boolean);
+      if(matched.length){
+        document.getElementById('order-items-container').innerHTML='';
+        itemCount=0;
+        matched.forEach(p=>addOrderItem(p.name,p.code,'','','','',p.id));
+        recalc();buildPrintInvoice();
+        toast(matched.length+'টি পণ্য লোড হয়েছে — পরিমাণ দিন','success');
+      }
+    }
+  }catch(e){}
+}
 </script>
 </body>
 </html>
