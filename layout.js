@@ -210,6 +210,7 @@ function buildNav(activePage) {
     { id:'stock',     icon:'🏭', label:'স্টক শিট',        href:'stock.html' },
     { id:'stockstmt', icon:'📊', label:'স্টক স্টেটমেন্ট',  href:'stockstatement.html' },
     { id:'misreport', icon:'📤', label:'MIS রিপোর্ট',      href:'misreport.html' },
+    { id:'potential', icon:'📈', label:'পণ্য সম্ভাবনা',    href:'potential.html' },
     { id:'revaluation', icon:'⚖️', label:'পুনর্মূল্যায়ন',  href:'revaluation.html' },
     { id:'ledger',    icon:'📒', label:'পার্টি লেজার',    href:'ledger.html' },
   ];
