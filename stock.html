@@ -439,6 +439,29 @@ document.getElementById('search-input').addEventListener('input',()=>renderTable
 document.getElementById('filter-status').addEventListener('change',()=>renderTable(stockData));
 document.getElementById('filter-supplier').addEventListener('change',()=>{renderTable(stockData);updateStats(applyFilterLogic(stockData));});
 
+/* Layer dates arrive from Sheets in either 'YYYY-MM-DD' or the long JS form
+   ('Wed Jun 03 2026 00:00:00 GMT+0600'). Same two-format handling used on the
+   orders page, kept local here so this stays a display-only addition. */
+function layerDateMs(d){
+  if(!d)return 0;
+  const s=String(d).trim();
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3]).getTime();
+  const mo=s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+  if(mo){
+    const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    return new Date(+mo[3],months[mo[1]],+mo[2]).getTime();
+  }
+  const t=new Date(s);
+  return isNaN(t.getTime())?0:t.getTime();
+}
+function fmtLayerDate(d){
+  const ms=layerDateMs(d);
+  if(!ms)return '';
+  const t=new Date(ms);
+  return String(t.getDate()).padStart(2,'0')+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+t.getFullYear();
+}
+
 /* ════════════════════════════════════════
    LAYER BREAKDOWN — READ-ONLY view of which cartons sit at which purchase
    rate. Calls the EXISTING getLayers action (already viewer-safe, already
@@ -483,17 +506,28 @@ async function openLayerBreakdown(productId){
       +'<th style="text-align:left;padding:7px 9px;border-bottom:1px solid var(--border)">দর (প্রতি কার্টন)</th>'
       +'<th style="text-align:right;padding:7px 9px;border-bottom:1px solid var(--border)">পরিমাণ</th>'
       +'<th style="text-align:right;padding:7px 9px;border-bottom:1px solid var(--border)">মূল্য</th>'
-      +'<th style="text-align:left;padding:7px 9px;border-bottom:1px solid var(--border)">উৎস</th></tr></thead><tbody>'
+      +'<th style="text-align:left;padding:7px 9px;border-bottom:1px solid var(--border)">উৎস ও তারিখ</th></tr></thead><tbody>'
       +groups.map(g=>{
         const perCtn=cs>0?g.rate*cs:g.rate;
-        const src=[...new Set(g.layers.map(L=>L.sourceOrderId).filter(Boolean))];
-        const srcTxt=src.slice(0,3).join(', ')+(src.length>3?' +'+(src.length-3):'');
+        // Pair each source PO with ITS OWN date — a rate group can span several
+        // POs received on different dates, so a single lumped date would be wrong.
+        const seen=new Set();
+        const srcParts=[];
+        g.layers.forEach(L=>{
+          const key=(L.sourceOrderId||'')+'|'+(L.date||'');
+          if(!L.sourceOrderId||seen.has(key))return;
+          seen.add(key);
+          srcParts.push({id:L.sourceOrderId,date:L.date||''});
+        });
+        srcParts.sort((a,b)=>{const x=layerDateMs(a.date),y=layerDateMs(b.date);return x-y;});   // oldest first (FIFO order)
+        const srcTxt=srcParts.slice(0,3).map(s=>s.id+(s.date?`<span style="color:var(--ink3)"> · ${fmtLayerDate(s.date)}</span>`:'')).join('<br>')
+                     +(srcParts.length>3?`<br><span style="color:var(--ink3)">+${srcParts.length-3} আরও</span>`:'');
         const neg=g.pieces<0;
         return `<tr${neg?' style="background:#fef2f2"':''}>
-          <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-weight:700">${fmt.currency(perCtn)}${g.rate===0?' <span style="font-size:10.5px;color:var(--danger)">(সংশোধন)</span>':''}</td>
-          <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;font-weight:600">${q(g.pieces)}</td>
-          <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right">${fmt.currency(g.pieces*g.rate)}</td>
-          <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-size:11px;color:var(--ink3)">${srcTxt||'—'}</td></tr>`;
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-weight:700;vertical-align:top">${fmt.currency(perCtn)}${g.rate===0?' <span style="font-size:10.5px;color:var(--danger)">(সংশোধন)</span>':''}</td>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;vertical-align:top">${q(g.pieces)}</td>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;vertical-align:top">${fmt.currency(g.pieces*g.rate)}</td>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-size:11px;line-height:1.6;vertical-align:top">${srcTxt||'—'}</td></tr>`;
       }).join('')
       +`<tr style="background:var(--bg);font-weight:800">
           <td style="padding:8px 9px">মোট</td>
