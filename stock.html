@@ -176,6 +176,23 @@
   </div>
 </div>
 
+<!-- LAYER BREAKDOWN (read-only) — which cartons sit at which purchase rate -->
+<div class="modal-overlay" id="lb-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🔍 দরভিত্তিক স্টক বিভাজন</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px" id="lb-sub"></div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('lb-modal').classList.remove('open')">×</button>
+    </div>
+    <div id="lb-body" style="font-size:13px">লোড হচ্ছে…</div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="document.getElementById('lb-modal').classList.remove('open')">বন্ধ</button>
+    </div>
+  </div>
+</div>
+
 <script src="shared.js"></script>
 <script src="layout.js"></script>
 <script>
@@ -335,7 +352,7 @@ function renderTable(list){
     else statusEl=`<span class="stock-badge-ok">স্টকে আছে</span>`;
     return `<tr>
       <td style="color:var(--ink3);font-size:12px">${i+1}</td>
-      <td><strong>${r.productName}</strong>${r.productCode?`<br><code style="font-size:10px;background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">${r.productCode}</code>`:''}</td>
+      <td><strong style="cursor:pointer" title="দরভিত্তিক স্টক বিভাজন দেখুন" onclick="openLayerBreakdown('${r.productId}')">${r.productName} <span style="font-size:11px;color:var(--accent)">🔍</span></strong>${r.productCode?`<br><code style="font-size:10px;background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">${r.productCode}</code>`:''}</td>
       <td style="text-align:right;color:var(--success);font-weight:600">${pcsDisp(r.stockIn,cs)}</td>
       <td style="text-align:right;color:var(--danger);font-weight:600">${pcsDisp(r.stockOut,cs)}</td>
       <td style="text-align:right;font-weight:700;color:${balance<=0?'var(--danger)':balance<=5?'var(--warn)':'var(--ink)'}">${pcsDisp(balance,cs)}</td>
@@ -421,6 +438,75 @@ document.getElementById('btn-print').addEventListener('click',()=>{buildPrintRep
 document.getElementById('search-input').addEventListener('input',()=>renderTable(stockData));
 document.getElementById('filter-status').addEventListener('change',()=>renderTable(stockData));
 document.getElementById('filter-supplier').addEventListener('change',()=>{renderTable(stockData);updateStats(applyFilterLogic(stockData));});
+
+/* ════════════════════════════════════════
+   LAYER BREAKDOWN — READ-ONLY view of which cartons sit at which purchase
+   rate. Calls the EXISTING getLayers action (already viewer-safe, already
+   filtered by productId server-side). Writes nothing, changes nothing —
+   it only groups the layers it receives by rate for display. The old-stock
+   report on revaluation.html averages every non-current rate into ONE
+   blended figure; this shows each distinct rate separately, which matters
+   for products whose price/offer has moved more than once.
+════════════════════════════════════════ */
+async function openLayerBreakdown(productId){
+  const modal=document.getElementById('lb-modal');
+  const body=document.getElementById('lb-body');
+  const row=(stockData||[]).find(r=>r.productId===productId)||{};
+  const cs=parseFloat(row.cartonSize)||0;
+  document.getElementById('lb-sub').textContent=(row.productCode?'['+row.productCode+'] ':'')+(row.productName||'');
+  body.innerHTML='লোড হচ্ছে…';
+  modal.classList.add('open');
+  if(!BF.sheetUrl){body.innerHTML='<div style="color:var(--danger)">Sheet সংযোগ নেই</div>';return;}
+  try{
+    const layers=await API.fetch('getLayers',{productId});
+    const open=(layers||[]).filter(L=>L.status!=='closed');
+    if(!open.length){body.innerHTML='<div style="color:var(--ink3);padding:12px 0">এই পণ্যের কোনো খোলা লেয়ার নেই — স্টক শূন্য।</div>';return;}
+    const byRate={};
+    open.forEach(L=>{
+      const k=String(L.rate);
+      if(!byRate[k])byRate[k]={rate:L.rate,pieces:0,layers:[]};
+      byRate[k].pieces+=L.qtyRemaining;
+      byRate[k].layers.push(L);
+    });
+    const groups=Object.values(byRate).sort((a,b)=>b.rate-a.rate);
+    let totalPieces=0,totalValue=0;
+    groups.forEach(g=>{totalPieces+=g.pieces;totalValue+=g.pieces*g.rate;});
+    const q=p=>{
+      if(cs<=0)return Math.round(p*100)/100+' পি';
+      const sign=p<0?'-':'';const abs=Math.abs(p);
+      const c=Math.floor(abs/cs),rem=Math.round((abs%cs)*100)/100;
+      return sign+c+' ক'+(rem?' + '+rem+' পি':'');
+    };
+    body.innerHTML=
+      '<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+      +'<thead><tr style="background:var(--bg)">'
+      +'<th style="text-align:left;padding:7px 9px;border-bottom:1px solid var(--border)">দর (প্রতি কার্টন)</th>'
+      +'<th style="text-align:right;padding:7px 9px;border-bottom:1px solid var(--border)">পরিমাণ</th>'
+      +'<th style="text-align:right;padding:7px 9px;border-bottom:1px solid var(--border)">মূল্য</th>'
+      +'<th style="text-align:left;padding:7px 9px;border-bottom:1px solid var(--border)">উৎস</th></tr></thead><tbody>'
+      +groups.map(g=>{
+        const perCtn=cs>0?g.rate*cs:g.rate;
+        const src=[...new Set(g.layers.map(L=>L.sourceOrderId).filter(Boolean))];
+        const srcTxt=src.slice(0,3).join(', ')+(src.length>3?' +'+(src.length-3):'');
+        const neg=g.pieces<0;
+        return `<tr${neg?' style="background:#fef2f2"':''}>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-weight:700">${fmt.currency(perCtn)}${g.rate===0?' <span style="font-size:10.5px;color:var(--danger)">(সংশোধন)</span>':''}</td>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;font-weight:600">${q(g.pieces)}</td>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right">${fmt.currency(g.pieces*g.rate)}</td>
+          <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-size:11px;color:var(--ink3)">${srcTxt||'—'}</td></tr>`;
+      }).join('')
+      +`<tr style="background:var(--bg);font-weight:800">
+          <td style="padding:8px 9px">মোট</td>
+          <td style="padding:8px 9px;text-align:right">${q(totalPieces)}</td>
+          <td style="padding:8px 9px;text-align:right">${fmt.currency(totalValue)}</td>
+          <td style="padding:8px 9px;font-size:11px;color:var(--ink3)">${groups.length}টি ভিন্ন দর</td></tr>`
+      +'</tbody></table>'
+      +(groups.some(g=>g.rate===0)?'<div style="font-size:11.5px;color:var(--ink3);margin-top:10px">⚠ ০ দরের ঋণাত্মক লেয়ার = পুরনো ওভারসেল সংশোধন — এগুলো মোট পরিমাণ থেকে বিয়োগ হয়, এটি স্বাভাবিক।</div>':'');
+  }catch(e){
+    body.innerHTML='<div style="color:var(--danger)">লেয়ার লোড ব্যর্থ — সংযোগ দেখুন</div>';
+  }
+}
+document.getElementById('lb-modal').addEventListener('click',e=>{if(e.target.id==='lb-modal')e.target.classList.remove('open');});
 
 refresh();
 loadFifoValue();
